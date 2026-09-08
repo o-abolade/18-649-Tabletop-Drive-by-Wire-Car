@@ -1,0 +1,83 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Page-1" id="9rLoetoQJfSQyPzIgXo7">
+    <mxGraphModel dx="1348" dy="915" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-20" edge="1" parent="1" source="P75xCt8ETVCsfdW9o2M8-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="P75xCt8ETVCsfdW9o2M8-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" value="" vertex="1">
+          <mxGeometry height="80" width="80" x="310" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="INIT" vertex="1">
+          <mxGeometry height="30" width="60" x="320" y="235" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Power On" vertex="1">
+          <mxGeometry height="30" width="60" x="320" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-37" edge="1" parent="1" source="P75xCt8ETVCsfdW9o2M8-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" target="P75xCt8ETVCsfdW9o2M8-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-41" edge="1" parent="1" source="P75xCt8ETVCsfdW9o2M8-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="P75xCt8ETVCsfdW9o2M8-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-5" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" value="" vertex="1">
+          <mxGeometry height="80" width="80" x="310" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="NORMAL" vertex="1">
+          <mxGeometry height="30" width="60" x="320" y="395" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="heartbeats from other zones&amp;nbsp;&lt;br&gt;&amp;amp;&amp;amp; valid control message (STM32 Zones only)" vertex="1">
+          <mxGeometry height="30" width="185" x="360" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-38" edge="1" parent="1" source="P75xCt8ETVCsfdW9o2M8-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="350" y="550" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-9" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" value="" vertex="1">
+          <mxGeometry height="80" width="80" x="100" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-39" edge="1" parent="1" source="P75xCt8ETVCsfdW9o2M8-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="350" y="550" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-10" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" value="" vertex="1">
+          <mxGeometry height="80" width="80" x="520" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-12" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;div&gt;LOCAL_&lt;/div&gt;&lt;div&gt;FAIL&lt;/div&gt;" vertex="1">
+          <mxGeometry height="30" width="60" x="110" y="535" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-14" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;div&gt;SYSTEM_&lt;/div&gt;&lt;div&gt;FAIL&lt;/div&gt;" vertex="1">
+          <mxGeometry height="25" width="60" x="530" y="538" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-19" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" target="P75xCt8ETVCsfdW9o2M8-1" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="350" y="170" as="sourcePoint" />
+            <mxPoint x="450" y="450" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-22" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="test fail button pressed once" vertex="1">
+          <mxGeometry height="30" width="140" x="155" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-30" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="3 consecutive heartbeats missed || invalid message" vertex="1">
+          <mxGeometry height="30" width="85" x="560" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-32" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="test fail button pressed twice in 500 ms" vertex="1">
+          <mxGeometry height="30" width="90" x="210" y="505" as="geometry" />
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-40" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="P75xCt8ETVCsfdW9o2M8-5" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="350" y="550" as="sourcePoint" />
+            <mxPoint x="450" y="500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P75xCt8ETVCsfdW9o2M8-42" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="heartbeats from other zones&amp;nbsp;&lt;br&gt;&amp;amp;&amp;amp; valid control message (STM32 Zones only)" vertex="1">
+          <mxGeometry height="30" width="185" x="350" y="508" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
