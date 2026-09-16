@@ -1,3 +1,5 @@
+# 18-649 Lab 1: Requirements Document
+
 **Misho Alexandrov (mvalexan), Ore Abolade (oabolade), T'sairus Beasley (tbeasley)**
 
 ---
