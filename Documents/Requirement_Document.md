@@ -68,7 +68,7 @@ Every state except NORMAL drives the zone to its documented safe output: motor P
 ![S5 self-test sequence diagram](assets/s5_self_test_seq.png)
 
 **Use Case 6: CAN Bus Fault** 
-![S6 CAN-bus fault-tolerance sequence diagram](assets/s6_can_bus_fault_seq.png)
+<img src="assets/s6_can_bus_fault_seq.png" alt="S6 CAN-bus fault-tolerance sequence diagram" style="display:block; width:auto; max-width:100%; height:6in; max-height:6in; margin:0 auto; object-fit:contain;">
 
 ## 4. Traceability for each use-case (S1–S6)
 
