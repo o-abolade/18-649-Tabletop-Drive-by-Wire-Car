@@ -1,0 +1,58 @@
+/* Used by Markdown Preview Enhanced's PDF (Prince) export. */
+@page {
+  size: Letter landscape;
+  margin: 0.45in;
+}
+
+@media print {
+  html, body {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  img {
+    display: block;
+    box-sizing: border-box;
+    max-width: 100% !important;
+    max-height: 6.35in;
+    height: auto !important;
+    margin: 0.15in auto;
+    object-fit: contain;
+  }
+
+  table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed;
+    border-collapse: collapse;
+    page-break-inside: auto;
+  }
+
+  tr { page-break-inside: avoid; page-break-after: auto; }
+
+  th, td {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    hyphens: auto;
+    font-size: 8pt;
+    line-height: 1.2;
+    padding: 3pt;
+    vertical-align: top;
+  }
+}
+
+/* Keep a section heading with the first item in its section. */
+@media print {
+  h1, h2, h3, h4, h5, h6 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+    prince-keep-with-next: always;
+  }
+
+  /* A diagram stays whole, but moves with its preceding heading when needed. */
+  img { break-inside: avoid-page; page-break-inside: avoid; }
+
+  /* Let long tables continue naturally instead of leaving a large blank area. */
+  tr { page-break-inside: auto; break-inside: auto; }
+}

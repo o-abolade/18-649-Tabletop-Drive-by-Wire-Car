@@ -43,11 +43,22 @@ def add_table(rows, story):
     ]))
     story += [tbl, Spacer(1,8)]
 
+def image_flowables(md_path, alt, source):
+    target=(md_path.parent/source).resolve()
+    if not target.exists():
+        return [Paragraph(f'<i>Missing image: {markup(source)}</i>',styles['Bodyx'])]
+    from PIL import Image as PILImage
+    with PILImage.open(target) as im: w,h=im.size
+    maxw=PAGE[0]-2*MARGIN; maxh=PAGE[1]-2*MARGIN-0.7*inch
+    scale=min(maxw/w,maxh/h)
+    return [Image(str(target),width=w*scale,height=h*scale), Spacer(1,5), Paragraph(markup(alt),styles['Captionx'])]
+
 def render(md_path, out_path):
     lines=md_path.read_text().splitlines(); story=[]; i=0
     while i < len(lines):
         line=lines[i]
         if not line.strip(): i+=1; continue
+        if line.startswith('<!--') or line.startswith('<link '): i+=1; continue
         if line.startswith('|'):
             rows=[]
             while i<len(lines) and lines[i].startswith('|'):
@@ -55,21 +66,21 @@ def render(md_path, out_path):
             add_table(rows,story); continue
         m=re.fullmatch(r'!\[(.*?)\]\((.*?)\)', line.strip())
         if m:
-            target=(md_path.parent/m.group(2)).resolve()
-            if target.exists():
-                from PIL import Image as PILImage
-                with PILImage.open(target) as im: w,h=im.size
-                maxw=PAGE[0]-2*MARGIN; maxh=PAGE[1]-2*MARGIN-0.45*inch
-                scale=min(maxw/w,maxh/h)
-                story += [Image(str(target),width=w*scale,height=h*scale), Spacer(1,5), Paragraph(markup(m.group(1)),styles['Captionx'])]
-            else: story.append(Paragraph(f'<i>Missing image: {markup(m.group(2))}</i>',styles['Bodyx']))
+            story += image_flowables(md_path,m.group(1),m.group(2))
             i+=1; continue
         if re.fullmatch(r'-{3,}',line.strip()): story += [Spacer(1,4), HRFlowable(width='100%', thickness=.5,color=colors.HexColor('#B7C3D0')),Spacer(1,6)]; i+=1; continue
         hm=re.match(r'^(#{1,4})\s+(.*)',line)
         if hm:
             level=len(hm.group(1)); txt=hm.group(2)
             sty='DocTitle' if level==1 else f'H{min(level-1,3)}x'
-            story.append(Paragraph(markup(txt),styles[sty])); i+=1; continue
+            heading=Paragraph(markup(txt),styles[sty])
+            j=i+1
+            while j<len(lines) and not lines[j].strip(): j+=1
+            following=re.fullmatch(r'!\[(.*?)\]\((.*?)\)', lines[j].strip()) if j<len(lines) else None
+            if following:
+                story.append(KeepTogether([heading, Spacer(1,2), *image_flowables(md_path,following.group(1),following.group(2))]))
+                i=j+1; continue
+            story.append(heading); i+=1; continue
         if line.startswith('- '): story.append(Paragraph('• '+markup(line[2:]),styles['Bulletx'])); i+=1; continue
         story.append(Paragraph(markup(line),styles['Bodyx'])); i+=1
     def footer(canvas, doc):
