@@ -1,0 +1,25 @@
+/ {
+    aliases {
+        blinker-fl = &blinker_fl;
+        blinker-fr = &blinker_fr;
+        blinker-rl = &blinker_rl;
+        blinker-rr = &blinker_rr;
+    };
+
+    blinkers {
+        compatible = "gpio-leds";
+
+        blinker_fl: blinker_fl {
+            gpios = <&gpioa 10 GPIO_ACTIVE_HIGH>;   /* D2 */
+        };
+        blinker_fr: blinker_fr {
+            gpios = <&gpiob 5 GPIO_ACTIVE_HIGH>;    /* D4 */
+        };
+        blinker_rl: blinker_rl {
+            gpios = <&gpiob 10 GPIO_ACTIVE_HIGH>;   /* D6 */
+        };
+        blinker_rr: blinker_rr {
+            gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>;    /* D7 */
+        };
+    };
+};
