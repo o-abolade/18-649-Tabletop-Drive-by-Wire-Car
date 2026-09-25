@@ -1,0 +1,32 @@
+# Zephyr / CMake build output (any lab, any subfolder)
+build/
+build_log.txt
+
+# Compiled binaries
+*.o
+*.obj
+*.elf
+*.hex
+*.bin
+*.map
+
+# Plain-gcc compiled outputs (Pi side)
+pi_bridge
+wheel_monitor
+*.exe
+
+# CMake generated files (if any stray outside build/)
+CMakeCache.txt
+CMakeFiles/
+
+# Python (if you add any tooling scripts)
+__pycache__/
+*.pyc
+.venv/
+
+# OS-specific junk
+.DS_Store
+Thumbs.db
+
+# Editor/IDE (keep .vscode/ tracked on purpose — see note below)
+*.swp

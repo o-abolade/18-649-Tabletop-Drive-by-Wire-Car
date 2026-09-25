@@ -1,12 +1,14 @@
+/* boards/nucleo_f401re.overlay */
 / {
-    aliases {
-        blinker-fl = &blinker_fl;
+	aliases {
+		rpilink = &usart1;
+		blinker-fl = &blinker_fl;
         blinker-fr = &blinker_fr;
         blinker-rl = &blinker_rl;
         blinker-rr = &blinker_rr;
-    };
+	};
 
-    blinkers {
+	blinkers {
         compatible = "gpio-leds";
 
         blinker_fl: blinker_fl {
@@ -22,4 +24,11 @@
             gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>;    /* D7 */
         };
     };
+};
+
+&usart1 {
+	pinctrl-0 = <&usart1_tx_pb6 &usart1_rx_pb7>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
 };
