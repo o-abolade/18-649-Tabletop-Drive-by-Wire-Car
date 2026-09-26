@@ -14,6 +14,7 @@ typedef struct {
 
 typedef struct {
 	uint8_t  state;      /* 0=INIT,1=NORMAL,2=FAILSAFE,3=SELFTEST */
+	uint8_t  seq;
 	uint16_t motor1_current;
 	uint16_t motor2_current;
 	uint16_t servo_current;

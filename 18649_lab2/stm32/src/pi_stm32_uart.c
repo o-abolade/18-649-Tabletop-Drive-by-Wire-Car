@@ -157,7 +157,7 @@ void pi_stm32_uart_send_status(const status_frame_t *st)
 	buf[0] = SYNC0;
 	buf[1] = SYNC1;
 	buf[2] = TYPE_STATUS;
-	buf[3] = 0; // or mirror last cmd->seq if you thread it through
+	buf[3] = st->seq;
 	buf[4] = st->state;
 	buf[5] = st->motor1_current & 0xFF;
 	buf[6] = (st->motor1_current >> 8) & 0xFF;

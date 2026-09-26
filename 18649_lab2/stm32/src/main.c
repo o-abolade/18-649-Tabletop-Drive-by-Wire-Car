@@ -28,6 +28,13 @@ static void status_thread_fn(void *a, void *b, void *c)
         st.motor2_current = 0;
         st.servo_current  = 0;
 
+        cmd_frame_t last_cmd;
+        if (pi_stm32_uart_get_latest_cmd(&last_cmd)) {
+            st.seq = last_cmd.seq;
+        } else {
+            st.seq = 0;   /* no command ever received yet */
+        }
+
         pi_stm32_uart_send_status(&st);
         k_sleep(K_MSEC(20));
     }
