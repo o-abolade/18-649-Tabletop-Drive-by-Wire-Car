@@ -8,6 +8,10 @@
         blinker-rr = &blinker_rr;
 	};
 
+    zephyr,user {
+        io-channels = <&adc1 8>, <&adc1 10>, <&adc1 11>;
+    };
+
 	blinkers {
         compatible = "gpio-leds";
 
@@ -23,6 +27,37 @@
         blinker_rr: blinker_rr {
             gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>;    /* D7 */
         };
+    };
+};
+
+&adc1 {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    status = "okay";
+
+    channel@8 {
+        reg = <8>;
+        zephyr,gain = "ADC_GAIN_1";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <8>; /* IN8, PB0 / A3 */
+        zephyr,resolution = <12>;
+    };
+    channel@a {
+        reg = <10>;
+        zephyr,gain = "ADC_GAIN_1";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <10>; /* IN10, PC0 / A5 */
+        zephyr,resolution = <12>;
+    };
+    channel@b {
+        reg = <11>;
+        zephyr,gain = "ADC_GAIN_1";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <11>; /* IN11, PC1 / A4 */
+        zephyr,resolution = <12>;
     };
 };
 
