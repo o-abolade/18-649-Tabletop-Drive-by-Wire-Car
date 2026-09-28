@@ -21,6 +21,12 @@ int servo_set_pulse_us(uint32_t pulse_us)
 	return pwm_set_dt(&servo_pwm, servo_pwm.period, PWM_USEC(pulse_us));
 }
 
+int servo_disable(void)
+{
+    return pwm_set_dt(&servo_pwm, servo_pwm.period, PWM_USEC(0));
+}
+
+
 // according to currently defined mapping -1000 to 1000
 int set_wheel_angle(int32_t wheel_state) 
 {

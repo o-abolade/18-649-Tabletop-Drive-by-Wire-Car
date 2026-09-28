@@ -16,6 +16,10 @@ int servo_init(void);
 /* Set the pulse width; values are clamped to the supported range. */
 int servo_set_pulse_us(uint32_t pulse_us);
 
+/* Sets wheel angle based off inbound UDP packet data */
 int set_wheel_angle(int32_t wheel_state);
+
+/* For breaking, disables servo output */
+int servo_disable(void);
 
 #endif
