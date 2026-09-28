@@ -2,6 +2,7 @@
 / {
 	aliases {
 		rpilink = &usart1;
+        servo-pwm = &servo_pwm;
 		blinker-fl = &blinker_fl;
         blinker-fr = &blinker_fr;
         blinker-rl = &blinker_rl;
@@ -10,6 +11,14 @@
 
     zephyr,user {
         io-channels = <&adc1 8>, <&adc1 10>, <&adc1 11>;
+    };
+
+    pwm-outputs {
+        compatible = "pwm-leds";
+
+        servo_pwm: servo-pwm {
+            pwms = <&pwm2 2 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+        };
     };
 
 	blinkers {
@@ -66,4 +75,10 @@
 	current-speed = <115200>;
 	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
 	pinctrl-names = "default";
+};
+
+&pwm2 {
+    status = "okay";
+    pinctrl-0 = <&tim2_ch1_pa5 &tim2_ch2_pb3>;
+    pinctrl-names = "default";
 };
