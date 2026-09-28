@@ -1,7 +1,7 @@
 /*
  * pi_bridge.c — UDP-to-serial bridge between the wheel proxy and the STM32.
  *
- * Reuses the DIJOYSTATE2 parsing approach from receiver.c (Appendix A).
+ * Reuses the DIJOYSTATE2_t parsing approach from receiver.c (Appendix A).
  * Builds/sends 13-byte command frames to the STM32 at least every 50ms,
  * and listens for/prints 13-byte status frames coming back.
  *
@@ -24,7 +24,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include "state.h"   // DIJOYSTATE2 definition, from receiver.c's setup
+#include "state.h"   // DIJOYSTATE2_t definition, from receiver.c's setup
 
 // Protocol constants (must match STM32 side exactly)
 #define SYNC0        0xAA
@@ -50,20 +50,18 @@
 #define BTN_SELF_TEST_SIG   6
 
 // CRC16-CCITT, must match Zephyr's crc16_ccitt(0xFFFF, ...) 
-static uint16_t crc16_ccitt(uint16_t seed, const uint8_t *data, size_t len)
+static uint16_t crc16_ccitt(uint16_t seed, const uint8_t *src, size_t len)
 {
-    uint16_t crc = seed;
-    for (size_t i = 0; i < len; i++) {
-        crc ^= (uint16_t)data[i] << 8;
-        for (int b = 0; b < 8; b++) {
-            if (crc & 0x8000) {
-                crc = (crc << 1) ^ 0x1021;
-            } else {
-                crc <<= 1;
-            }
-        }
+    for (; len > 0; len--) {
+        uint8_t e, f;
+
+        e = seed ^ *src;
+        ++src;
+        f = e ^ (e << 4);
+        seed = (seed >> 8) ^ ((uint16_t)f << 8) ^ ((uint16_t)f << 3) ^ ((uint16_t)f >> 4);
     }
-    return crc;
+
+    return seed;
 }
 
 // Serial setup
@@ -151,7 +149,7 @@ static uint16_t scale_pedal(long raw, long rest, long max)
     return (uint16_t)scaled;
 }
 
-static bool button_pressed(const DIJOYSTATE2 *js, int idx)
+static bool button_pressed(const DIJOYSTATE2_t *js, int idx)
 {
     return js->rgbButtons[idx] & 0x80;
 }
@@ -203,7 +201,7 @@ static void handle_status_frame(const uint8_t *f)
 
     const char *state_str[] = {"INIT", "NORMAL", "FAILSAFE", "SELFTEST"};
     printf("STATUS seq=%u state=%s m1=%u m2=%u srv=%u\n",
-           seq, (state < 4) ? state_str[state] : "UNKNOWN", m1, m2, srv);
+          seq, (state < 4) ? state_str[state] : "UNKNOWN", m1, m2, srv);
 }
 
 static void feed_status_byte(uint8_t byte)
@@ -245,6 +243,9 @@ int main(int argc, char **argv)
     int udp_fd = open_udp();
     int serial_fd = open_serial(argv[1]);
 
+    printf("sizeof(DIJOYSTATE2_t) = %zu, expected packet size = %zu\n",
+       sizeof(DIJOYSTATE2_t), 4 + sizeof(DIJOYSTATE2_t));
+
     uint8_t seq = 0;
     long last_steer_raw = STEER_RAW_CENTER;
     long last_throttle_raw = THROTTLE_RAW_REST;
@@ -269,10 +270,11 @@ int main(int argc, char **argv)
 
         // New UDP packet: update latest wheel state
         if (fds[0].revents & POLLIN) {
-            uint8_t packet[4 + sizeof(DIJOYSTATE2)];
+            uint8_t packet[4 + sizeof(DIJOYSTATE2_t)];
             ssize_t n = recvfrom(udp_fd, packet, sizeof(packet), 0, NULL, NULL);
+
             if (n == sizeof(packet)) {
-                DIJOYSTATE2 *js = (DIJOYSTATE2 *)(packet + 4);
+                DIJOYSTATE2_t *js = (DIJOYSTATE2_t *)(packet + 4);
                 last_steer_raw = js->lX;
                 last_throttle_raw = js->lY;
                 last_brake_raw = js->lRz;
