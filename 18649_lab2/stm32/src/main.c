@@ -14,6 +14,37 @@
 
 static atomic_t zone_state = ATOMIC_INIT(STATE_INIT);
 
+/*
+ * Part 3 implementation plan (pseudocode only -- no motor pins are driven yet)
+ *
+ * encoder_init():
+ *   configure LEFT_A, LEFT_B, RIGHT_A, RIGHT_B as GPIO interrupt inputs
+ *   initialize atomic encoder counts to zero
+ *
+ * encoder ISR for each A/B edge:
+ *   read both signals
+ *   use the previous and current A/B state to add +1 or -1 to that wheel count
+ *   do no printing, sleeping, or control calculation in the ISR
+ *
+ * every CONTROL_PERIOD_MS:
+ *   left_delta  = atomic exchange(left_count_since_last_sample, 0)
+ *   right_delta = atomic exchange(right_count_since_last_sample, 0)
+ *   left_speed/right_speed = delta / CONTROL_PERIOD_MS
+ *   vehicle_speed = (left_speed + right_speed) / 2
+ *
+ *   if command is stale OR brake is active:
+ *       PWM = 0; H-bridge = dynamic braking; hazards = on
+ *   else:
+ *       target_speed = monotonic_map(throttle, 0..1000, 0..MAX_SPEED)
+ *       error = target_speed - vehicle_speed
+ *       pwm_request = clamp(KP * error + optional_integral + optional_derivative,
+ *                           0, MAX_PWM)
+ *       write PWM and the forward direction pins to the L298N
+ *
+ * Pin names, voltage checks, encoder polarity, PWM frequency, MAX_SPEED, MAX_PWM,
+ * and gains remain intentionally unassigned until the physical wiring is verified.
+ */
+
 // Status heartbeat thread: sends every 20ms
 static void status_thread_fn(void *a, void *b, void *c)
 {

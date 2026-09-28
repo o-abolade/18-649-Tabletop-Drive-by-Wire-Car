@@ -125,9 +125,49 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
 - None outstanding at this checkpoint (earlier `seq` mirroring bug in the status frame has been fixed).
 
 **Not started:**
-- Part 3 (motors/encoders, brake, servo, blinkers, current sensors)
+- Part 3 hardware bring-up (motors/encoders, brake, servo, blinkers, current sensors)
 - Part 4 (formal RTOS thread/priority/deadline table)
 - Part 5 (final power/wiring pass, test point breakout board)
+
+## Part 3.1 motors and encoders -- software plan
+
+The car harnesses have been broken out onto the breadboard. This is **not** a powered test: the L298N, 12 V supply, and Nucleo signal connections still need to be verified before any motor power is applied.
+
+### Pseudocode
+
+```text
+on boot:
+  configure all motor PWM outputs disabled
+  configure H-bridge direction outputs for the documented safe/brake state
+  configure four encoder A/B signals as GPIO interrupt inputs
+  set left_count = right_count = 0
+
+on every encoder A or B transition:
+  read that encoder's A and B inputs
+  compare the new quadrature state with the previous state
+  increment or decrement that wheel's atomic transition count
+  return immediately; do not print, sleep, or run PID inside an ISR
+
+every fixed control period:
+  atomically snapshot and clear each wheel's transition count
+  compute left and right speed from transitions / elapsed time
+  vehicle_speed = average(left_speed, right_speed)
+
+  if no valid Pi command for more than 150 ms OR brake is active:
+    set PWM to zero
+    command L298N dynamic-braking input state
+  else:
+    target_speed = monotonic mapping of throttle (0..1000) to max speed
+    error = target_speed - vehicle_speed
+    pwm_request = clamp(P gain * error + optional I/D terms, 0, safe maximum)
+    write PWM and forward direction to both L298N channels
+```
+
+### Wiring boundary
+
+- Each motor's **two motor-power wires** go to one L298N output pair (`OUT1/OUT2` or `OUT3/OUT4`), not to Nucleo GPIO or through the breadboard power rails.
+- The Nucleo connects through the breadboard only for low-voltage signals: L298N `ENA/ENB`, `IN1`--`IN4`, encoder power/ground, encoder A/B outputs, and a shared ground reference.
+- Do not connect the 12 V adapter until the exact connector pinout, encoder voltage, L298N jumpers, and Nucleo pin assignments have been checked.
 
 ## Revision history
 
