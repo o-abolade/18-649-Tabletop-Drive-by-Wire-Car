@@ -116,16 +116,18 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
 - UART link is up in both directions — command frames Pi→STM32 and status heartbeats STM32→Pi, both passing CRC.
 - Wheel movement (steering, throttle, brake pedals) tracks correctly end-to-end from the physical wheel through to the STM32's printed command state.
 - Byte-timeout resync logic implemented; CRC and range validation implemented and passing.
+- LED driver code implemented and tested - still need to write code to ensure requirements are met
 
 **Not yet tested:**
 - **150ms link-loss failsafe behavior** — logic is implemented (`age > 150ms` → `FAILSAFE` state, printed on transition) but not yet verified against the physical unplug-the-cable checkpoint.
 - Status frame's current-sensor fields are still hardcoded to 0 pending Part 3.
+- Current sensor code written, still needs testing
 
 **Known minor issue:**
 - None outstanding at this checkpoint (earlier `seq` mirroring bug in the status frame has been fixed).
 
 **Not started:**
-- Part 3 (motors/encoders, brake, servo, blinkers, current sensors)
+- Part 3 (motors/encoders, brake, servo)
 - Part 4 (formal RTOS thread/priority/deadline table)
 - Part 5 (final power/wiring pass, test point breakout board)
 
