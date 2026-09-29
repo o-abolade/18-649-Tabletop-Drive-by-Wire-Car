@@ -2,6 +2,7 @@
 #include <zephyr/sys/printk.h>
 #include "pi_stm32_uart.h"
 #include "blinker.h"
+#include "steering.h"
 
 #define SLEEP_LED_TIME_MS   400
 
@@ -70,6 +71,7 @@ static void control_thread_fn(void *a, void *b, void *c)
                    cmd.buttons, age);
 
             // TODO Part 3: apply cmd.steering/throttle/brake/buttons to the actual actuators.
+            set_wheel_angle(cmd.steering);
         }
 
         k_sleep(K_MSEC(10));
