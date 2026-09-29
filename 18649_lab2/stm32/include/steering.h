@@ -8,7 +8,7 @@
 #define SERVO_PULSE_MAX_US    2500U
 #define SERVO_PULSE_CENTER_US 1500U
 #define MAX_WHEEL_STATE       1000
-#define MIN_WHEEL_STATE       1000
+#define MIN_WHEEL_STATE      -1000
 
 /* Configure the servo PWM and start at the neutral pulse width. */
 int servo_init(void);
