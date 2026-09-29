@@ -6,6 +6,16 @@
         blinker-fr = &blinker_fr;
         blinker-rl = &blinker_rl;
         blinker-rr = &blinker_rr;
+		motor-left-pwm = &motor_left_pwm;
+		motor-right-pwm = &motor_right_pwm;
+		motor-left-in1 = &motor_left_in1;
+		motor-left-in2 = &motor_left_in2;
+		motor-right-in3 = &motor_right_in3;
+		motor-right-in4 = &motor_right_in4;
+		encoder-right-a = &encoder_right_a;
+		encoder-right-b = &encoder_right_b;
+		encoder-left-a = &encoder_left_a;
+		encoder-left-b = &encoder_left_b;
 	};
 
     zephyr,user {
@@ -28,6 +38,69 @@
             gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>;    /* D7 */
         };
     };
+
+	/*
+	 * L298N control wiring.  These are logic-level connections only:
+	 * ENA -> D5/PB4 (TIM3_CH1), IN1 -> A0/PA0, IN2 -> A1/PA1,
+	 * IN3 -> A2/PA4, IN4 -> A3/PB0, ENB -> D9/PC7 (TIM3_CH2).
+	 * The motor supply remains disconnected while this scaffold is tested.
+	 */
+	motor_pwm_outputs {
+		compatible = "pwm-leds";
+
+		motor_left_pwm: motor_left_pwm {
+			pwms = <&pwm3 1 PWM_USEC(100) PWM_POLARITY_NORMAL>;
+		};
+
+		motor_right_pwm: motor_right_pwm {
+			pwms = <&pwm3 2 PWM_USEC(100) PWM_POLARITY_NORMAL>;
+		};
+	};
+
+	motor_direction_outputs {
+		compatible = "gpio-leds";
+
+		motor_left_in1: motor_left_in1 {
+			gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>;
+		};
+
+		motor_left_in2: motor_left_in2 {
+			gpios = <&gpioa 1 GPIO_ACTIVE_HIGH>;
+		};
+
+		motor_right_in3: motor_right_in3 {
+			gpios = <&gpioa 4 GPIO_ACTIVE_HIGH>;
+		};
+
+		motor_right_in4: motor_right_in4 {
+			gpios = <&gpiob 0 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	/*
+	 * Part 3.1 encoder wiring.  The physical right wheel is the L298N
+	 * OUT1/OUT2 channel; the physical left wheel is OUT3/OUT4.
+	 * Both encoder boards are powered from Nucleo 3V3 and common GND.
+	 */
+	encoder_inputs {
+		compatible = "gpio-keys";
+
+		encoder_right_a: encoder_right_a {
+			gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>; /* D3, purple A phase */
+		};
+
+		encoder_right_b: encoder_right_b {
+			gpios = <&gpioa 7 GPIO_ACTIVE_HIGH>; /* D11, blue B phase */
+		};
+
+		encoder_left_a: encoder_left_a {
+			gpios = <&gpioa 6 GPIO_ACTIVE_HIGH>; /* D12, purple A phase */
+		};
+
+		encoder_left_b: encoder_left_b {
+			gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>; /* D14, blue B phase */
+		};
+	};
 };
 
 &adc1 {
@@ -66,4 +139,15 @@
 	current-speed = <115200>;
 	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
 	pinctrl-names = "default";
+};
+
+/* D5/PB4 is TIM3 channel 1; D9/PC7 is TIM3 channel 2. */
+&timers3 {
+	status = "okay";
+
+	pwm3: pwm {
+		status = "okay";
+		pinctrl-0 = <&tim3_ch1_pb4 &tim3_ch2_pc7>;
+		pinctrl-names = "default";
+	};
 };

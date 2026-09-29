@@ -1,7 +1,12 @@
+#include <errno.h>
+
 #include <zephyr/kernel.h>
+#include <zephyr/shell/shell.h>
 #include <zephyr/sys/printk.h>
 #include "pi_stm32_uart.h"
 #include "blinker.h"
+#include "encoder.h"
+#include "motor_control.h"
 
 #define SLEEP_LED_TIME_MS   400
 
@@ -13,6 +18,100 @@
 #define FAILSAFE_TIMEOUT_MS 150
 
 static atomic_t zone_state = ATOMIC_INIT(STATE_INIT);
+
+/*
+ * Bench-only command: `motor_pulse <a|b>`.
+ * Each invocation is a 50%, 300 ms pulse and ends in the safe state.
+ */
+static int cmd_motor_pulse(const struct shell *sh, size_t argc, char **argv)
+{
+    enum motor_control_channel channel;
+    int rc;
+
+    if (argc != 2 || (argv[1][0] != 'a' && argv[1][0] != 'b') || argv[1][1] != '\0') {
+        shell_error(sh, "usage: motor_pulse <a|b>");
+        return -EINVAL;
+    }
+
+    channel = argv[1][0] == 'a' ? MOTOR_CHANNEL_A : MOTOR_CHANNEL_B;
+    shell_print(sh, "Pulsing motor channel %c at 50%% for 300 ms", argv[1][0]);
+    rc = motor_control_pulse(channel);
+    if (rc != 0) {
+        shell_error(sh, "pulse failed: %d", rc);
+        return rc;
+    }
+
+    shell_print(sh, "Pulse finished; motor outputs are safe");
+    return 0;
+}
+SHELL_CMD_ARG_REGISTER(motor_pulse, NULL,
+                       "Bench pulse: motor_pulse <a|b>",
+                       cmd_motor_pulse, 2, 0);
+
+static int cmd_encoder_status(const struct shell *sh, size_t argc, char **argv)
+{
+	int32_t right_count;
+	int32_t left_count;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	encoder_get_counts(&right_count, &left_count);
+	shell_print(sh, "Encoder counts: right=%d left=%d", right_count, left_count);
+	return 0;
+}
+SHELL_CMD_REGISTER(encoder_status, NULL,
+			   "Show signed encoder counts", cmd_encoder_status);
+
+static int cmd_encoder_zero(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	encoder_zero_counts();
+	shell_print(sh, "Encoder counts reset to zero");
+	return 0;
+}
+SHELL_CMD_REGISTER(encoder_zero, NULL,
+			   "Reset both encoder counts", cmd_encoder_zero);
+
+static int cmd_encoder_levels(const struct shell *sh, size_t argc, char **argv)
+{
+	uint8_t right_a;
+	uint8_t right_b;
+	uint8_t left_a;
+	uint8_t left_b;
+	int rc;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	rc = encoder_get_levels(&right_a, &right_b, &left_a, &left_b);
+	if (rc != 0) {
+		shell_error(sh, "encoder read failed: %d", rc);
+		return rc;
+	}
+
+	shell_print(sh, "Encoder levels: right A=%u B=%u; left A=%u B=%u",
+		    right_a, right_b, left_a, left_b);
+	return 0;
+}
+SHELL_CMD_REGISTER(encoder_levels, NULL,
+			   "Show live A/B logic levels", cmd_encoder_levels);
+
+static int cmd_encoder_edges(const struct shell *sh, size_t argc, char **argv)
+{
+	int32_t right_a;
+	int32_t right_b;
+	int32_t left_a;
+	int32_t left_b;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	encoder_get_edge_counts(&right_a, &right_b, &left_a, &left_b);
+	shell_print(sh, "Raw encoder edges: right A=%d B=%d; left A=%d B=%d",
+		    right_a, right_b, left_a, left_b);
+	return 0;
+}
+SHELL_CMD_REGISTER(encoder_edges, NULL,
+			   "Show raw A/B GPIO edge counts", cmd_encoder_edges);
 
 /*
  * Part 3 implementation plan (pseudocode only -- no motor pins are driven yet)
@@ -88,7 +187,11 @@ static void control_thread_fn(void *a, void *b, void *c)
             }
             atomic_set(&zone_state, STATE_FAILSAFE);
 
-            // TODO Part 3: disable motor PWM, engage H-bridge dynamic braking, drive all four blinkers into the hazard pattern.
+            /* Safe now: PWM=0 and direction pins low. Dynamic braking is a
+             * separate, board-verified state to add after bench testing. */
+            if (!motor_control_manual_test_active()) {
+                motor_control_safe_stop();
+            }
 
         } else {
             if (atomic_get(&zone_state) == STATE_FAILSAFE) {
@@ -100,7 +203,10 @@ static void control_thread_fn(void *a, void *b, void *c)
                    cmd.seq, cmd.steering, cmd.throttle, cmd.brake,
                    cmd.buttons, age);
 
-            // TODO Part 3: apply cmd.steering/throttle/brake/buttons to the actual actuators.
+            /* No drive command exists yet, so a valid command is safe too. */
+            if (!motor_control_manual_test_active()) {
+                motor_control_safe_stop();
+            }
         }
 
         k_sleep(K_MSEC(10));
@@ -111,6 +217,17 @@ K_THREAD_DEFINE(control_tid, 1024, control_thread_fn, NULL, NULL, NULL, 5, 0, 0)
 int main(void)
 {
     pi_stm32_uart_init();
+
+	int motor_rc = motor_control_init();
+    if (motor_rc != 0) {
+        atomic_set(&zone_state, STATE_FAILSAFE);
+		printk("Motor safe-output initialization failed: %d\n", motor_rc);
+	}
+
+	int encoder_rc = encoder_init();
+	if (encoder_rc != 0) {
+		printk("Encoder initialization failed: %d\n", encoder_rc);
+	}
     printk("Lab 2 STM32 online. Waiting for commands...\n");
 
     // printk("lab2 up\n");

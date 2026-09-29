@@ -14,7 +14,21 @@ target_include_directories(blinker PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(blinker PUBLIC zephyr_interface)
 add_dependencies(blinker zephyr_generated_headers)
 
+# --- motor-control module ---
+add_library(motor_control STATIC src/motor_control.c)
+target_include_directories(motor_control PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(motor_control PUBLIC zephyr_interface)
+add_dependencies(motor_control zephyr_generated_headers)
+
+# --- quadrature-encoder module ---
+add_library(encoder STATIC src/encoder.c)
+target_include_directories(encoder PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(encoder PUBLIC zephyr_interface)
+add_dependencies(encoder zephyr_generated_headers)
+
 # --- main app ---
 target_sources(app PRIVATE src/main.c)
 target_link_libraries(app PRIVATE pi_stm32_uart)
 target_link_libraries(app PRIVATE blinker)
+target_link_libraries(app PRIVATE motor_control)
+target_link_libraries(app PRIVATE encoder)
