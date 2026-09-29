@@ -2,6 +2,7 @@
 #include <zephyr/sys/printk.h>
 #include "pi_stm32_uart.h"
 #include "blinker.h"
+#include "blinker_ctrl.h"
 
 #define SLEEP_LED_TIME_MS   400
 
@@ -11,6 +12,10 @@
 #define STATE_SELFTEST 3
 
 #define FAILSAFE_TIMEOUT_MS 150
+
+#define LEFT_TURN_BIT  0x01
+#define RIGHT_TURN_BIT 0x02
+#define SELF_TEST_BIT  0x04
 
 static atomic_t zone_state = ATOMIC_INIT(STATE_INIT);
 
@@ -54,14 +59,14 @@ static void control_thread_fn(void *a, void *b, void *c)
         if (!have || age > FAILSAFE_TIMEOUT_MS) {
             if (atomic_get(&zone_state) != STATE_FAILSAFE) {
                 printk("*** ENTERING FAILSAFE (age=%ums) ***\n", age);
+                blinker_set_hazard(true);
             }
             atomic_set(&zone_state, STATE_FAILSAFE);
-
-            // TODO Part 3: disable motor PWM, engage H-bridge dynamic braking, drive all four blinkers into the hazard pattern.
-
+        // TODO Part 3: disable motor PWM, engage H-bridge dynamic braking, drive all four blinkers into the hazard pattern.
         } else {
             if (atomic_get(&zone_state) == STATE_FAILSAFE) {
                 printk("*** RECOVERED TO NORMAL ***\n");
+                blinker_set_hazard(false);
             }
             atomic_set(&zone_state, STATE_NORMAL);
 
@@ -70,6 +75,27 @@ static void control_thread_fn(void *a, void *b, void *c)
                    cmd.buttons, age);
 
             // TODO Part 3: apply cmd.steering/throttle/brake/buttons to the actual actuators.
+            static uint8_t prev_buttons = 0;
+
+            // For sterring/throttle/brake to actual actuators
+
+            
+
+            // For blinker control, detect button presses (rising edges) and calls the appropriate blinker_ctrl functions.
+            bool left_now  = cmd.buttons & LEFT_TURN_BIT;
+            bool right_now = cmd.buttons & RIGHT_TURN_BIT;
+            bool left_prev  = prev_buttons & LEFT_TURN_BIT;
+            bool right_prev = prev_buttons & RIGHT_TURN_BIT;
+
+            if (left_now && !left_prev) {
+                blinker_signal_left_pressed();
+            }
+            if (right_now && !right_prev) {
+                blinker_signal_right_pressed();
+            }
+            prev_buttons = cmd.buttons;
+
+            blinker_update_steering(cmd.steering);
         }
 
         k_sleep(K_MSEC(10));
@@ -80,19 +106,8 @@ K_THREAD_DEFINE(control_tid, 1024, control_thread_fn, NULL, NULL, NULL, 5, 0, 0)
 int main(void)
 {
     pi_stm32_uart_init();
+    blinker_init_all();
     printk("Lab 2 STM32 online. Waiting for commands...\n");
-
-    // printk("lab2 up\n");
-    
-	// bool led_state = true;
-
-    // blinker_init(BLINKER_FL);
-    // while (1) {
-    //     blinker_set(BLINKER_FL, led_state);
-    //     printk("Toggling LED, in test mode\n");
-	// 	led_state = !led_state;
-	// 	k_msleep(SLEEP_TIME_MS);
-	// }
     
     return 0;
 }

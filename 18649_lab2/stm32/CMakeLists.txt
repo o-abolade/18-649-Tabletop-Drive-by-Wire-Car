@@ -14,7 +14,14 @@ target_include_directories(blinker PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(blinker PUBLIC zephyr_interface)
 add_dependencies(blinker zephyr_generated_headers)
 
+# --- blinker control module ---
+add_library(blinker_ctrl STATIC src/blinker_ctrl.c)
+target_include_directories(blinker_ctrl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(blinker_ctrl PUBLIC zephyr_interface)
+add_dependencies(blinker_ctrl zephyr_generated_headers)
+
 # --- main app ---
 target_sources(app PRIVATE src/main.c)
 target_link_libraries(app PRIVATE pi_stm32_uart)
 target_link_libraries(app PRIVATE blinker)
+target_link_libraries(app PRIVATE blinker_ctrl)
