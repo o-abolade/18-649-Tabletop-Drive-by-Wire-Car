@@ -15,6 +15,6 @@ target_link_libraries(blinker PUBLIC zephyr_interface)
 add_dependencies(blinker zephyr_generated_headers)
 
 # --- main app ---
-target_sources(app PRIVATE src/main.c src/servo.c)
+target_sources(app PRIVATE src/main.c src/steering.c)
 target_link_libraries(app PRIVATE pi_stm32_uart)
 target_link_libraries(app PRIVATE blinker)
