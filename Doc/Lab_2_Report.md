@@ -11,4 +11,4 @@
 ![Top Level Block Diagram](assets/Lab2_Block_Diagram.png)
 
 ### Circuit Diagram
-![Top Level Block Diagram](assets/18649_Lab2_Circuit_Diagram.png)
+![Top Level Block Diagram](assets/lab2_circuit_diagram.png)
