@@ -212,52 +212,60 @@ every fixed control period:
   several common six-wire Hall encoders require more than 3.3 V. A 12 V motor
   supply is needed only for the bounded motor-driven pulse tests.
 
-### Current L298N control mapping
+### Planned L298N control mapping (wiring remap in progress)
 
 | L298N signal | Nucleo pin | Purpose |
 |---|---|---|
-| ENA | D5 / PB4 / TIM3_CH1 | L298N channel A PWM; physical right wheel |
-| IN1 | A0 / PA0 | channel A direction |
-| IN2 | A1 / PA1 | channel A direction |
-| IN3 | A2 / PA4 | channel B direction |
-| IN4 | D10 / PB6 | channel B direction |
-| ENB | D9 / PC7 / TIM3_CH2 | L298N channel B PWM; physical left wheel |
+| ENA | D2 / PA10 | L298N channel A PWM; physical right wheel |
+| IN1 | D4 / PB5 | channel A direction |
+| IN2 | D3 / PB3 | channel A direction |
+| IN3 | A4 / PC1 | channel B direction |
+| IN4 | A5 / PC0 | channel B direction |
+| ENB | A0 / PA0 | L298N channel B PWM; physical left wheel |
 
 ### Complete Nucleo wiring map
 
-Use this table as the current wiring reference.  All low-voltage devices in
-the table (Nucleo, Pi, L298N logic, encoders, current sensors, servo, and
+This table is the planned wiring target during the remap. The firmware still
+uses the earlier L298N pin assignments until its devicetree and source are
+updated. Entries marked **TBD** were displaced by the requested motor remap
+and must receive new pins before those subsystems are rewired. All low-voltage
+devices in the table (Nucleo, Pi, L298N logic, encoders, current sensors, servo, and
 blinkers) require a **common ground**.  Pin labels use the Nucleo Arduino
 headers followed by the STM32 pin and peripheral where applicable.
 
 | Function | External connection | Nucleo pin | Wiring / implementation note |
 |---|---|---|---|
-| L298N channel A enable | `ENA` | `D5 / PB4 / TIM3_CH1` | PWM; channel A is the physical right wheel. Remove the `ENA` jumper before connecting this PWM signal. |
-| L298N channel A direction | `IN1` | `A0 / PA0` | Right-wheel forward polarity is `IN1=1`, `IN2=0`. |
-| L298N channel A direction | `IN2` | `A1 / PA1` | Right-wheel forward polarity is `IN1=1`, `IN2=0`. |
-| L298N channel B direction | `IN3` | `A2 / PA4` | Left-wheel forward polarity is `IN3=0`, `IN4=1`. |
-| L298N channel B direction | `IN4` | `D10 / PB6` | Left-wheel forward polarity is `IN3=0`, `IN4=1`. |
-| L298N channel B enable | `ENB` | `D9 / PC7 / TIM3_CH2` | PWM; channel B is the physical left wheel. Remove the `ENB` jumper before connecting this PWM signal. |
+| L298N channel A enable | `ENA` | `D2 / PA10` | Planned PWM target; channel A is the physical right wheel. PWM peripheral setup remains a firmware-remap task. Remove the `ENA` jumper before connecting this signal. |
+| L298N channel A direction | `IN1` | `D4 / PB5` | Planned pin. Right-wheel forward polarity is `IN1=1`, `IN2=0`. |
+| L298N channel A direction | `IN2` | `D3 / PB3` | Planned pin. Right-wheel forward polarity is `IN1=1`, `IN2=0`. |
+| L298N channel B direction | `IN3` | `A4 / PC1` | Planned pin. Left-wheel forward polarity is `IN3=0`, `IN4=1`. |
+| L298N channel B direction | `IN4` | `A5 / PC0` | Planned pin. Left-wheel forward polarity is `IN3=0`, `IN4=1`. |
+| L298N channel B enable | `ENB` | `A0 / PA0` | Planned PWM target; channel B is the physical left wheel. PWM peripheral setup remains a firmware-remap task. Remove the `ENB` jumper before connecting this signal. |
 | Right drive motor | L298N `OUT1`, `OUT2` | — | Connect only to the two right-motor power wires. Swapping the pair reverses physical direction. |
 | Left drive motor | L298N `OUT3`, `OUT4` | — | Connect only to the two left-motor power wires. Swapping the pair reverses physical direction. |
 | Motor power | L298N motor supply (`Vs` / `+12V`) and L298N GND | — | 12 V adapter goes to the L298N only, never a Nucleo GPIO or 3.3 V/5 V pin. Disconnect it before moving wires. |
 | Right encoder phase A | Motor encoder `A` | `D12 / PA6` | GPIO input with pull-up and both-edge interrupt. |
 | Right encoder phase B | Motor encoder `B` | `D14 / PB9` | GPIO input with pull-up and both-edge interrupt. |
-| Left encoder phase A | Motor encoder `A` | `D3 / PB3` | GPIO input with pull-up and both-edge interrupt. |
+| Left encoder phase A | Motor encoder `A` | **TBD** (was `D3 / PB3`) | Displaced by planned `IN2`; select a new GPIO before rewiring this encoder. |
 | Left encoder phase B | Motor encoder `B` | `D11 / PA7` | GPIO input with pull-up and both-edge interrupt. |
 | Encoder supply | Encoder `VCC` | Nucleo `3V3` | Current test wiring uses 3.3 V. Verify the encoder's exact supply requirement before assuming 3.3 V is valid. |
 | Encoder return | Encoder `GND` | Nucleo `GND` | This ground must also be tied to the L298N/Nucleo signal ground. |
 | Steering servo control | Servo PWM signal | `D13 / PA5 / TIM2_CH1` | 20 ms PWM period. `D13` is also the board LED pin, so LED activity can share this waveform. |
-| Front-left blinker | FL control input | `D15 / PB8` | Moved from D2 to preserve the Pi UART receive pin. |
-| Front-right blinker | FR control input | `D4 / PB5` | GPIO output. |
+| Front-left blinker | FL control input | `D15 / PB8` | GPIO output retained in the planned map. |
+| Front-right blinker | FR control input | **TBD** (was `D4 / PB5`) | Displaced by planned `IN1`; select a new GPIO before rewiring this LED. |
 | Rear-left blinker | RL control input | `D6 / PB10` | GPIO output. |
 | Rear-right blinker | RR control input | `D7 / PA8` | GPIO output. |
 | Right-motor current sense | Current-sensor analog output | `A3 / PB0 / ADC1_IN8` | Firmware reports raw 12-bit ADC samples; sensor wiring and calibration remain to be verified. |
-| Left-motor current sense | Current-sensor analog output | `A5 / PC0 / ADC1_IN10` | Firmware reports raw 12-bit ADC samples; sensor wiring and calibration remain to be verified. |
-| Servo current sense | Current-sensor analog output | `A4 / PC1 / ADC1_IN11` | Firmware reports raw 12-bit ADC samples; sensor wiring and calibration remain to be verified. |
-| Pi-to-STM32 serial | Pi `TX` → STM32 `RX` | `D2 / PA10 / USART1_RX` | 115200 baud, 3.3 V logic. Do not use D2 for a blinker. |
+| Left-motor current sense | Current-sensor analog output | **TBD** (was `A5 / PC0 / ADC1_IN10`) | Displaced by planned `IN4`; choose a new ADC-capable pin before rewiring. |
+| Servo current sense | Current-sensor analog output | **TBD** (was `A4 / PC1 / ADC1_IN11`) | Displaced by planned `IN3`; choose a new ADC-capable pin before rewiring. |
+| Pi-to-STM32 serial | Pi `TX` → STM32 `RX` | **TBD** (was `D2 / PA10 / USART1_RX`) | Displaced by planned `ENA`; the Pi UART receive mapping must be reassigned before rewiring. |
 | STM32-to-Pi serial | Pi `RX` ← STM32 `TX` | `D8 / PA9 / USART1_TX` | 115200 baud, 3.3 V logic. |
 | Pi ground | Pi `GND` | Nucleo `GND` | Required for the UART link. |
+
+### Current firmware allocation (before remap)
+
+The following notes describe the compiled firmware's earlier pin assignment;
+they are not the target wiring map above.
 
 Pins intentionally unavailable for new wiring: SPI1 is disabled because D10,
 D11, and D12 are motor/encoder pins; I2C1 is disabled because D15 and D14 are
