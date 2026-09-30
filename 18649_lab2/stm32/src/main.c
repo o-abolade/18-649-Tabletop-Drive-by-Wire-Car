@@ -17,6 +17,8 @@
 #define CONTROL_DT_SECONDS ((float)CONTROL_PERIOD_MS / 1000.0f)
 #define BRAKE_ACTIVE_THRESHOLD 50U
 #define BLINK_PERIOD_MS 500U
+#define STEERING_TEST_MAGNITUDE 500
+#define STEERING_TEST_HOLD_MS 1000U
 
 /* Tune these only after the encoder wiring produces valid signed counts. */
 #define PID_MAX_SPEED_TRANSITIONS_PER_SECOND 2000.0f
@@ -133,6 +135,51 @@ static int cmd_motor_pulse(const struct shell *sh, size_t argc, char **argv)
 SHELL_CMD_ARG_REGISTER(motor_pulse, NULL,
                        "Bench pulse: motor_pulse <a|b>",
                        cmd_motor_pulse, 2, 0);
+
+/*
+ * Bench-only steering proof. Use with the front wheels clear of obstacles;
+ * the deliberately limited +/-500 command avoids the full servo end stops.
+ */
+static int cmd_steering_test(const struct shell *sh, size_t argc, char **argv)
+{
+	int rc;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	shell_print(sh, "Steering test: center, right, center, left, center");
+
+	rc = set_wheel_angle(0);
+	if (rc != 0) {
+		return rc;
+	}
+	k_sleep(K_MSEC(STEERING_TEST_HOLD_MS));
+
+	rc = set_wheel_angle(STEERING_TEST_MAGNITUDE);
+	if (rc != 0) {
+		return rc;
+	}
+	k_sleep(K_MSEC(STEERING_TEST_HOLD_MS));
+
+	rc = set_wheel_angle(0);
+	if (rc != 0) {
+		return rc;
+	}
+	k_sleep(K_MSEC(STEERING_TEST_HOLD_MS));
+
+	rc = set_wheel_angle(-STEERING_TEST_MAGNITUDE);
+	if (rc != 0) {
+		return rc;
+	}
+	k_sleep(K_MSEC(STEERING_TEST_HOLD_MS));
+
+	rc = set_wheel_angle(0);
+	if (rc == 0) {
+		shell_print(sh, "Steering test complete; wheels centered");
+	}
+	return rc;
+}
+SHELL_CMD_REGISTER(steering_test, NULL,
+			   "Center/right/left steering bench test", cmd_steering_test);
 
 static int cmd_encoder_status(const struct shell *sh, size_t argc, char **argv)
 {

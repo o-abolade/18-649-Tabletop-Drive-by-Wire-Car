@@ -287,6 +287,12 @@ bounded command `motor_pulse <a|b>`. It currently applies 100% PWM to the
 corresponding L298N channel for 3000 ms, then automatically returns to the safe state. It is
 a bench test, not the final throttle controller.
 
+For the steering wiring check, run `steering_test` from the Nucleo shell with
+the front wheels clear of obstacles. It commands center, right, center, left,
+then center again, holding each position for one second. The test uses a
+limited ±500 steering command to avoid forcing the linkage into a full servo
+end stop.
+
 Bench result: L298N channel A (`OUT1/OUT2`) drives the physical right wheel
 forward with `IN1=1, IN2=0`. Channel B (`OUT3/OUT4`) drives the physical left
 wheel backward with `IN3=1, IN4=0`; the motor-control code therefore uses
