@@ -216,12 +216,12 @@ every fixed control period:
 
 | L298N signal | Nucleo pin | Purpose |
 |---|---|---|
-| ENA | D2 / PA10 | L298N channel A PWM; physical right wheel |
+| ENA | D2 / PA10 / TIM1_CH3 | L298N channel A PWM; physical right wheel |
 | IN1 | D4 / PB5 | channel A direction |
 | IN2 | D3 / PB3 | channel A direction |
 | IN3 | A4 / PC1 | channel B direction |
 | IN4 | A5 / PC0 | channel B direction |
-| ENB | A0 / PA0 | L298N channel B PWM; physical left wheel |
+| ENB | A0 / PA0 / TIM2_CH1 | L298N channel B PWM; physical left wheel |
 
 ### Complete Nucleo wiring map
 
@@ -235,12 +235,12 @@ headers followed by the STM32 pin and peripheral where applicable.
 
 | Function | External connection | Nucleo pin | Wiring / implementation note |
 |---|---|---|---|
-| L298N channel A enable | `ENA` | `D2 / PA10` | Planned PWM target; channel A is the physical right wheel. PWM peripheral setup remains a firmware-remap task. Remove the `ENA` jumper before connecting this signal. |
+| L298N channel A enable | `ENA` | `D2 / PA10 / TIM1_CH3` | Planned PWM target (Zephyr `pwm1`, channel 3); channel A is the physical right wheel. PWM peripheral setup remains a firmware-remap task. Remove the `ENA` jumper before connecting this signal. |
 | L298N channel A direction | `IN1` | `D4 / PB5` | Planned pin. Right-wheel forward polarity is `IN1=1`, `IN2=0`. |
 | L298N channel A direction | `IN2` | `D3 / PB3` | Planned pin. Right-wheel forward polarity is `IN1=1`, `IN2=0`. |
 | L298N channel B direction | `IN3` | `A4 / PC1` | Planned pin. Left-wheel forward polarity is `IN3=0`, `IN4=1`. |
 | L298N channel B direction | `IN4` | `A5 / PC0` | Planned pin. Left-wheel forward polarity is `IN3=0`, `IN4=1`. |
-| L298N channel B enable | `ENB` | `A0 / PA0` | Planned PWM target; channel B is the physical left wheel. PWM peripheral setup remains a firmware-remap task. Remove the `ENB` jumper before connecting this signal. |
+| L298N channel B enable | `ENB` | `A0 / PA0 / TIM2_CH1` | Planned PWM target (Zephyr `pwm2`, channel 1); channel B is the physical left wheel. PWM peripheral setup remains a firmware-remap task. This timer channel currently overlaps the steering PWM target on D13/PA5, so steering must be remapped before both can be used. Remove the `ENB` jumper before connecting this signal. |
 | Right drive motor | L298N `OUT1`, `OUT2` | — | Connect only to the two right-motor power wires. Swapping the pair reverses physical direction. |
 | Left drive motor | L298N `OUT3`, `OUT4` | — | Connect only to the two left-motor power wires. Swapping the pair reverses physical direction. |
 | Motor power | L298N motor supply (`Vs` / `+12V`) and L298N GND | — | 12 V adapter goes to the L298N only, never a Nucleo GPIO or 3.3 V/5 V pin. Disconnect it before moving wires. |
