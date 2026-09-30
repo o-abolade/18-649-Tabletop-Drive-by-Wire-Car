@@ -233,8 +233,8 @@ headers followed by the STM32 pin and peripheral where applicable.
 | Function | External connection | Nucleo pin | Wiring / implementation note |
 |---|---|---|---|
 | L298N channel A enable | `ENA` | `A0 / PA0 / TIM2_CH1` | PWM (Zephyr `pwm2`, channel 1); channel A is the physical left wheel through `OUT1/OUT2`. Remove the `ENA` jumper before connecting this signal. |
-| L298N channel A direction | `IN1` | `A4 / PC1` | Left-wheel direction; confirm forward polarity in the raised-wheel test. |
-| L298N channel A direction | `IN2` | `A5 / PC0` | Left-wheel direction; confirm forward polarity in the raised-wheel test. |
+| L298N channel A direction | `IN1` | `A4 / PC1` | Left-wheel forward: `IN1=1`, `IN2=0`. Left motor red wire is `OUT1`; black wire is `OUT2`. |
+| L298N channel A direction | `IN2` | `A5 / PC0` | Left-wheel forward: `IN1=1`, `IN2=0`. Left motor red wire is `OUT1`; black wire is `OUT2`. |
 | L298N channel B direction | `IN3` | `D4 / PB5` | Right-wheel direction; confirm forward polarity in the raised-wheel test. |
 | L298N channel B direction | `IN4` | `D3 / PB3` | Right-wheel direction; confirm forward polarity in the raised-wheel test. |
 | L298N channel B enable | `ENB` | `D2 / PA10 / TIM1_CH3` | PWM (Zephyr `pwm1`, channel 3); channel B is the physical right wheel through `OUT3/OUT4`. Remove the `ENB` jumper before connecting this signal. |
