@@ -244,13 +244,13 @@ headers followed by the STM32 pin and peripheral where applicable.
 | Right drive motor | L298N `OUT1`, `OUT2` | — | Connect only to the two right-motor power wires. Swapping the pair reverses physical direction. |
 | Left drive motor | L298N `OUT3`, `OUT4` | — | Connect only to the two left-motor power wires. Swapping the pair reverses physical direction. |
 | Motor power | L298N motor supply (`Vs` / `+12V`) and L298N GND | — | 12 V adapter goes to the L298N only, never a Nucleo GPIO or 3.3 V/5 V pin. Disconnect it before moving wires. |
-| Right encoder phase A | Motor encoder `A` | `D12 / PA6` | GPIO input with pull-up and both-edge interrupt. |
+| Right encoder phase A | Motor encoder `A` | **TBD** (was `D12 / PA6`) | Displaced by planned steering-servo PWM; select a new GPIO before rewiring this encoder. |
 | Right encoder phase B | Motor encoder `B` | `D14 / PB9` | GPIO input with pull-up and both-edge interrupt. |
 | Left encoder phase A | Motor encoder `A` | **TBD** (was `D3 / PB3`) | Displaced by planned `IN2`; select a new GPIO before rewiring this encoder. |
 | Left encoder phase B | Motor encoder `B` | `D11 / PA7` | GPIO input with pull-up and both-edge interrupt. |
 | Encoder supply | Encoder `VCC` | Nucleo `3V3` | Current test wiring uses 3.3 V. Verify the encoder's exact supply requirement before assuming 3.3 V is valid. |
 | Encoder return | Encoder `GND` | Nucleo `GND` | This ground must also be tied to the L298N/Nucleo signal ground. |
-| Steering servo control | Servo PWM signal | `D13 / PA5 / TIM2_CH1` | 20 ms PWM period. `D13` is also the board LED pin, so LED activity can share this waveform. |
+| Steering servo control | Servo PWM signal | `D12 / PA6 / TIM3_CH1` | Planned PWM target (Zephyr `pwm3`, channel 1), 20 ms period. Displaces right encoder phase A; firmware setup remains a later remap task. |
 | Front-left blinker | FL control input | `D15 / PB8` | GPIO output retained in the planned map. |
 | Front-right blinker | FR control input | **TBD** (was `D4 / PB5`) | Displaced by planned `IN1`; select a new GPIO before rewiring this LED. |
 | Rear-left blinker | RL control input | `D6 / PB10` | GPIO output. |
