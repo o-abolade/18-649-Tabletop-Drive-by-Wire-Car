@@ -132,7 +132,7 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
 
 **Current blocker:**
 - Neither motor encoder has yet produced a trustworthy signed wheel count.
-  The Nucleo GPIO/interrupt paths and left quadrature decoder pass controlled
+  The Nucleo GPIO/interrupt paths and right quadrature decoder pass controlled
   input tests, but the signals from the motor-side harnesses remain unverified.
   This is not yet a confirmed failed encoder or a confirmed firmware fault;
   details are recorded below.
@@ -145,9 +145,9 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
 - Part 3.1 encoder bring-up: firmware records raw A/B edges, decodes valid
   quadrature transitions into signed counts, and exposes `encoder_status`,
   `encoder_zero`, `encoder_levels`, `encoder_edges`, `encoder_monitor`, and
-  `encoder_count_monitor` on the STM32 console. Grounding the right D3/D11 paths
-  produced raw edges. A controlled four-transition test on left D12/D14
-  produced a signed count of -4, verifying the left decoder and GPIO path.
+  `encoder_count_monitor` on the STM32 console. Grounding the left D3/D11 paths
+  produced raw edges. A controlled four-transition test on right D12/D14
+  produced a signed count of -4, verifying the right decoder and GPIO path.
   In contrast, motor-driven pulses have produced uneven or intermittent raw
   A/B edges but signed counts remain zero; right motor pulses have produced
   no right encoder edges. Connector mapping and signal quality remain in
@@ -241,10 +241,10 @@ headers followed by the STM32 pin and peripheral where applicable.
 | Right drive motor | L298N `OUT1`, `OUT2` | — | Connect only to the two right-motor power wires. Swapping the pair reverses physical direction. |
 | Left drive motor | L298N `OUT3`, `OUT4` | — | Connect only to the two left-motor power wires. Swapping the pair reverses physical direction. |
 | Motor power | L298N motor supply (`Vs` / `+12V`) and L298N GND | — | 12 V adapter goes to the L298N only, never a Nucleo GPIO or 3.3 V/5 V pin. Disconnect it before moving wires. |
-| Right encoder phase A | Motor encoder `A` | `D3 / PB3` | GPIO input with pull-up and both-edge interrupt. |
-| Right encoder phase B | Motor encoder `B` | `D11 / PA7` | GPIO input with pull-up and both-edge interrupt. |
-| Left encoder phase A | Motor encoder `A` | `D12 / PA6` | GPIO input with pull-up and both-edge interrupt. |
-| Left encoder phase B | Motor encoder `B` | `D14 / PB9` | GPIO input with pull-up and both-edge interrupt. |
+| Right encoder phase A | Motor encoder `A` | `D12 / PA6` | GPIO input with pull-up and both-edge interrupt. |
+| Right encoder phase B | Motor encoder `B` | `D14 / PB9` | GPIO input with pull-up and both-edge interrupt. |
+| Left encoder phase A | Motor encoder `A` | `D3 / PB3` | GPIO input with pull-up and both-edge interrupt. |
+| Left encoder phase B | Motor encoder `B` | `D11 / PA7` | GPIO input with pull-up and both-edge interrupt. |
 | Encoder supply | Encoder `VCC` | Nucleo `3V3` | Current test wiring uses 3.3 V. Verify the encoder's exact supply requirement before assuming 3.3 V is valid. |
 | Encoder return | Encoder `GND` | Nucleo `GND` | This ground must also be tied to the L298N/Nucleo signal ground. |
 | Steering servo control | Servo PWM signal | `D13 / PA5 / TIM2_CH1` | 20 ms PWM period. `D13` is also the board LED pin, so LED activity can share this waveform. |
@@ -273,7 +273,7 @@ disabled because its default pins overlap D10 and the D11/D12 encoder inputs.
 The Pi link keeps D2/PA10 for USART1 RX and D8/PA9 for USART1 TX. To avoid
 that conflict, the front-left blinker uses D15/PB8 rather than D2. D7/PA8 and
 D15/PB8 are blinker GPIOs, so I2C1 and I2C3 are disabled. The steering PWM is
-D13/PA5 (TIM2_CH1), leaving encoder right-A on D3/PB3 available.
+D13/PA5 (TIM2_CH1), leaving encoder left-A on D3/PB3 available.
 
 For a wheels-off-the-table wiring check, the Nucleo console exposes only the
 bounded command `motor_pulse <a|b>`. It currently applies 100% PWM to the
@@ -292,8 +292,8 @@ and return automatically to the safe state.
 
 ### Encoder diagnostic result and current blocker
 
-The intended inputs are right A=`D3`, right B=`D11`, left A=`D12`, and left
-B=`D14`. `encoder_edges` is a read-only diagnostic that reports raw GPIO
+The intended inputs are right A=`D12`, right B=`D14`, left A=`D3`, and left
+B=`D11`. `encoder_edges` is a read-only diagnostic that reports raw GPIO
 interrupts separately from the signed quadrature count.
 
 `encoder_monitor` continuously prints sampled A/B logic levels, while
@@ -309,31 +309,30 @@ encoder_status
 ```
 
 Initial hand-turning tests with the harnesses connected produced zero raw
-edges and zero signed counts. The right D3 and D11 inputs were independently
+edges and zero signed counts. The left D3 and D11 inputs were independently
 verified by momentarily grounding their signal paths through the shared
 ground rail:
 
 ```text
-right A / D3 grounded  -> raw right A=54
-right B / D11 grounded -> raw right B=10
+left A / D3 grounded  -> raw left A=54
+left B / D11 grounded -> raw left B=10
 ```
 
 These values are intentionally not wheel measurements; the multiple edges
-include jumper-contact bounce. With both left motor encoder signals detached
+include jumper-contact bounce. With both right motor encoder signals detached
 from the white connector but still attached to D12/D14, the firmware's pull-ups
 gave `A=1, B=1`. After `encoder_zero`, grounding/releasing the two inputs in
-the sequence `11 -> 01 -> 00 -> 10 -> 11` yielded `left=-4` from
-`encoder_status`. This confirms that the left GPIO inputs, interrupts, and
+the sequence `11 -> 01 -> 00 -> 10 -> 11` yielded `right=-4` from
+`encoder_status`. This confirms that the right GPIO inputs, interrupts, and
 signed quadrature transition table can decode a known-good sequence.
 
-Motor-driven tests are different: `motor_pulse a` (physical right wheel)
-produced no right A or B edges in the latest test. `motor_pulse b` (physical
-left wheel) produced left raw edges, sometimes only on B and later on both A
-and B. One series increased left A/B from `0/0` to `23/56`, `45/98`, and
-`64/152`; `encoder_status` still reported `right=0 left=0`. These raw counts
-do **not** establish valid quadrature or wheel speed. The varying counts may
-reflect connector contact, sensor output, or electrical noise; their cause
-has not been isolated.
+The earlier motor-driven diagnostic labels were captured before the physical
+encoder sides were corrected in the devicetree, so they must not be used to
+identify a wheel. Re-run `encoder_zero`, `encoder_edges`, and
+`encoder_count_monitor` after flashing this mapping: `motor_pulse a` should
+now be evaluated as the right D12/D14 encoder and `motor_pulse b` as the left
+D3/D11 encoder. Raw edge counts alone do **not** establish valid quadrature or
+wheel speed.
 
 Next check: with the wheel raised, have a TA inspect both A and B at the
 motor-side white connector with a scope/logic analyzer during one bounded
@@ -350,7 +349,7 @@ counts. Disconnect USB and 12 V before changing connector wiring.
 - Initial Part 2 implementation and end-to-end bring-up.
 - Part 3.1 motor bench pulse verified; encoder raw-edge diagnostic added and
   hardware connector blocker documented.
-- Controlled left A/B sequence decoded to -4; motor-driven raw edges remain
+- Controlled right A/B sequence decoded to -4; motor-driven raw edges remain
   inconsistent with usable signed wheel counts, pending waveform inspection.
 - Moved L298N IN4 from A3/PB0 to D10/PB6, disabled overlapping SPI1 pin use,
   and added continuous encoder level/count shell monitors with Ctrl-C exit.

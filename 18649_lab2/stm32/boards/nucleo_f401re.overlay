@@ -96,19 +96,19 @@
 		compatible = "gpio-keys";
 
 		encoder_right_a: encoder_right_a {
-			gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>; /* D3, purple A phase */
-		};
-
-		encoder_right_b: encoder_right_b {
-			gpios = <&gpioa 7 GPIO_ACTIVE_HIGH>; /* D11, blue B phase */
-		};
-
-		encoder_left_a: encoder_left_a {
 			gpios = <&gpioa 6 GPIO_ACTIVE_HIGH>; /* D12, purple A phase */
 		};
 
-		encoder_left_b: encoder_left_b {
+		encoder_right_b: encoder_right_b {
 			gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>; /* D14, blue B phase */
+		};
+
+		encoder_left_a: encoder_left_a {
+			gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>; /* D3, purple A phase */
+		};
+
+		encoder_left_b: encoder_left_b {
+			gpios = <&gpioa 7 GPIO_ACTIVE_HIGH>; /* D11, blue B phase */
 		};
 	};
 };

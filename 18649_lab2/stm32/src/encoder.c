@@ -159,7 +159,7 @@ int encoder_init(void)
 	}
 	rc = configure_encoder(&left_encoder);
 	if (rc == 0) {
-		printk("Encoders ready: right D3/D11, left D12/D14\n");
+		printk("Encoders ready: right D12/D14, left D3/D11\n");
 	}
 	return rc;
 }
