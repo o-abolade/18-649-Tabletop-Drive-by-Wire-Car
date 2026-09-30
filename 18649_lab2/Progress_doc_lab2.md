@@ -124,14 +124,76 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
 - Status frame's current-sensor fields are still hardcoded to 0 pending Part 3.
 - Current sensor code written, still needs testing
 
-**Known minor issue:**
-- None outstanding at this checkpoint (earlier `seq` mirroring bug in the status frame has been fixed).
+**Current blocker:**
+- Motor PWM and direction output have been verified on the `part-3.1` branch,
+  but neither six-wire motor encoder has produced repeatable quadrature counts.
+  The STM32 GPIO interrupt and decoder paths pass controlled grounding tests,
+  so the motor connector pinout, Hall-sensor supply voltage, and A/B waveforms
+  are the next hardware checks.
+
+**In progress on `part-3.1`:**
+- Safe L298N initialization, bounded motor pulse tests, quadrature decoding,
+  raw edge diagnostics, and continuous encoder shell monitors.
+- The final direction-pin change moves `IN4` away from ADC pin A3/PB0 to
+  Arduino-header D10/PB6.
 
 **Not started:**
-- Part 3 (motors/encoders, brake)
+- Closed-loop motor speed control and brake-state verification
 - Part 4 (formal RTOS thread/priority/deadline table)
 - Part 5 (final power/wiring pass, test point breakout board)
+
+## Part 3.1 motor and encoder bring-up (`part-3.1` branch)
+
+The motor-control scaffold starts in a coast state: ENA/ENB are set to 0%
+PWM and IN1--IN4 are driven low. The bounded `motor_pulse <a|b>` command
+currently drives one channel at 100% PWM for 3000 ms and always returns to the
+safe state. This remains a bench test; throttle-driven control, reverse, and
+dynamic braking are not implemented yet.
+
+### L298N control pins
+
+| L298N signal | Nucleo pin | Purpose |
+|---|---|---|
+| ENA | D5 / PB4 / TIM3_CH1 | channel A PWM; physical right wheel |
+| IN1 | A0 / PA0 | channel A direction |
+| IN2 | A1 / PA1 | channel A direction |
+| IN3 | A2 / PA4 | channel B direction |
+| IN4 | D10 / PB6 | channel B direction |
+| ENB | D9 / PC7 / TIM3_CH2 | channel B PWM; physical left wheel |
+
+SPI1 is disabled on the branch because its default pins overlap D10 and the
+D11/D12 encoder GPIOs. A3/PB0 remains reserved for the planned current-sensor
+ADC input.
+
+### Encoder pins and diagnostics
+
+| Encoder signal | Nucleo pin |
+|---|---|
+| Right A | D3 / PB3 |
+| Right B | D11 / PA7 |
+| Left A | D12 / PA6 |
+| Left B | D14 / PB9 |
+
+Available shell diagnostics on the branch are:
+
+```text
+encoder_levels          # one live A/B sample
+encoder_edges           # accumulated raw GPIO edges
+encoder_status          # signed quadrature counts
+encoder_zero            # reset counts and raw edges
+encoder_monitor         # continuous A/B levels until Ctrl-C
+encoder_count_monitor   # continuous signed/raw counts until Ctrl-C
+```
+
+The GPIO inputs use pull-ups and controlled input sequences have verified the
+decoder. Direct motor-connector testing should measure each A/B channel
+relative to encoder ground while verifying the encoder's rated VCC. The
+current 3.3 V supply might be below the minimum for some common six-wire Hall
+encoders, so the exact motor/encoder part number must be confirmed before
+changing the supply or connecting any 5 V output to the STM32.
 
 ## Revision history
 
 - Initial Part 2 implementation and end-to-end bring-up.
+- Recorded `part-3.1` motor/encoder bring-up, final L298N/encoder pin map,
+  diagnostic commands, and the unresolved encoder-signal blocker.
