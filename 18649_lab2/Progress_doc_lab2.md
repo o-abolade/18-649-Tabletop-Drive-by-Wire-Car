@@ -251,15 +251,15 @@ headers followed by the STM32 pin and peripheral where applicable.
 | Encoder supply | Encoder `VCC` | Nucleo `3V3` | Current test wiring uses 3.3 V. Verify the encoder's exact supply requirement before assuming 3.3 V is valid. |
 | Encoder return | Encoder `GND` | Nucleo `GND` | This ground must also be tied to the L298N/Nucleo signal ground. |
 | Steering servo control | Servo PWM signal | `D12 / PA6 / TIM3_CH1` | Planned PWM target (Zephyr `pwm3`, channel 1), 20 ms period. Displaces right encoder phase A; firmware setup remains a later remap task. |
-| Front-left blinker | FL control input | `D15 / PB8` | GPIO output retained in the planned map. |
-| Front-right blinker | FR control input | **TBD** (was `D4 / PB5`) | Displaced by planned `IN3`; select a new GPIO before rewiring this LED. |
-| Rear-left blinker | RL control input | **TBD** (was `D6 / PB10`) | Displaced by planned left encoder phase B; select a new GPIO before rewiring this LED. |
-| Rear-right blinker | RR control input | **TBD** (was `D7 / PA8`) | Displaced by planned right encoder phase A; select a new GPIO before rewiring this LED. |
+| Front-left blinker | FL control input | `D9 / PC7` | Planned GPIO output. |
+| Front-right blinker | FR control input | `D10 / PB6` | Planned GPIO output. |
+| Rear-left blinker | RL control input | `D11 / PA7` | Planned GPIO output. |
+| Rear-right blinker | RR control input | `D14 / PB9` | Planned GPIO output. |
 | Right-motor current sense | Current-sensor analog output | `A3 / PB0 / ADC1_IN8` | Firmware reports raw 12-bit ADC samples; sensor wiring and calibration remain to be verified. |
 | Left-motor current sense | Current-sensor analog output | **TBD** (was `A5 / PC0 / ADC1_IN10`) | Displaced by planned `IN2`; choose a new ADC-capable pin before rewiring. |
 | Servo current sense | Current-sensor analog output | `A1 / PA1 / ADC1_IN1` | Planned ADC target; displaced from A4 by planned `IN3`. ADC firmware setup remains a later remap task. |
-| Pi-to-STM32 serial | Pi `TX` → STM32 `RX` | **TBD** (was `D2 / PA10 / USART1_RX`) | Displaced by planned `ENB`; the Pi UART receive mapping must be reassigned before rewiring. |
-| STM32-to-Pi serial | Pi `RX` ← STM32 `TX` | **TBD** (was `D8 / PA9 / USART1_TX`) | Displaced by planned right encoder phase B; the Pi UART transmit mapping must be reassigned before rewiring. |
+| Pi-to-STM32 serial | Pi `TX` → STM32 `RX` | `D0 / PA3 / USART2_RX` | Planned 115200-baud UART link. This takes over a current console pin; reassign or disable the Nucleo UART console in the firmware remap. |
+| STM32-to-Pi serial | Pi `RX` ← STM32 `TX` | `D1 / PA2 / USART2_TX` | Planned 115200-baud UART link. This takes over a current console pin; reassign or disable the Nucleo UART console in the firmware remap. |
 | Pi ground | Pi `GND` | Nucleo `GND` | Required for the UART link. |
 
 ### Current firmware allocation (before remap)
@@ -270,7 +270,9 @@ they are not the target wiring map above.
 Pins intentionally unavailable for new wiring: SPI1 is disabled because D10,
 D11, and D12 are motor/encoder pins; I2C1 is disabled because D15 and D14 are
 blinker/encoder pins; I2C3 is disabled because D7 is a blinker pin.  Keep
-`D0/PA3` and `D1/PA2` unused: they remain the board console UART pins.
+`D0/PA3` and `D1/PA2` are the current board console UART pins. In the planned
+map above they are reassigned to the Pi link, so the console must be moved or
+disabled when that firmware remap is implemented.
 
 `motor_control_init()` configures those pins and immediately calls
 `motor_control_safe_stop()`, which sets ENA/ENB to 0% and IN1--IN4 low.
