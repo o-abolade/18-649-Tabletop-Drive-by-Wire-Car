@@ -185,6 +185,8 @@
 
 /* Steering servo uses D12/PA6, TIM3 channel 1. */
 &timers3 {
+	/* 84 MHz / (27 + 1) = 3 MHz; 20 ms servo period is 60,000 cycles. */
+	st,prescaler = <27>;
 	status = "okay";
 
 	pwm3: pwm {
