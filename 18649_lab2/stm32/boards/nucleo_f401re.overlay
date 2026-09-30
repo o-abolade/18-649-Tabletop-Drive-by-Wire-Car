@@ -25,7 +25,7 @@
         compatible = "gpio-leds";
 
         blinker_fl: blinker_fl {
-            gpios = <&gpioa 10 GPIO_ACTIVE_HIGH>;   /* D2 */
+            gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>;   /* D3 */
         };
         blinker_fr: blinker_fr {
             gpios = <&gpiob 5 GPIO_ACTIVE_HIGH>;    /* D4 */
@@ -79,6 +79,6 @@
 
 &pwm2 {
     status = "okay";
-    pinctrl-0 = <&tim2_ch1_pa5 &tim2_ch2_pb3>;
+    pinctrl-0 = <&tim2_ch2_pb3>;
     pinctrl-names = "default";
 };

@@ -2,22 +2,18 @@
 #include <zephyr/drivers/adc.h>
 #include "current.h"
 
-/* ---- calibration constants: update once the real ACS712 variant and
- *      measured zero-offset are known ---- */
+/* The sensor output is divided by 2 before reaching the STM32 ADC pin. */
 #define ADC_VREF_MV       3300
-#define ADC_MAX_COUNT     4096      /* 12-bit resolution */
-#define DIVIDER_RATIO     2.0f      /* R1 = R2, pin sees VIOUT / 2 */
-#define ACS712_VCC_MV     5000
-#define ACS712_ZERO_MV    (ACS712_VCC_MV / 2)  /* nominal VIOUT(Q), 2500 mV */
-#define ACS712_MV_PER_A   66.0f     /* assumed 30A variant; confirm and update */
+#define ADC_MAX_COUNT     4095      /* maximum code for a 12-bit ADC */
+#define DIVIDER_RATIO     2.0f
+#define CURRENT_ZERO_MV   2500.0f
+#define CURRENT_MV_PER_A  500.0f    /* 2.5 V to 5 V spans 0 A to 5 A */
 
 static const struct adc_dt_spec current_channels[CURRENT_COUNT] = {
     [CURRENT_MOTOR_A] = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 0),
     [CURRENT_MOTOR_B] = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 1),
     [CURRENT_SERVO]   = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 2),
 };
-
-static int16_t sample_buf;
 
 int current_init(void)
 {
@@ -35,10 +31,11 @@ int current_init(void)
 
 int current_read_raw(enum current_id id)
 {
-    if (id >= CURRENT_COUNT) {
+    if (id < 0 || id >= CURRENT_COUNT) {
         return -EINVAL;
     }
 
+    int16_t sample_buf;
     struct adc_sequence sequence = {
         .buffer = &sample_buf,
         .buffer_size = sizeof(sample_buf),
@@ -61,11 +58,15 @@ float current_raw_to_amps(int32_t raw_count)
 {
     float pin_mv = (raw_count * (float)ADC_VREF_MV) / ADC_MAX_COUNT;
     float sensor_mv = pin_mv * DIVIDER_RATIO;
-    return (sensor_mv - ACS712_ZERO_MV) / ACS712_MV_PER_A;
+    return (sensor_mv - CURRENT_ZERO_MV) / CURRENT_MV_PER_A;
 }
 
 int current_read_amps(enum current_id id, float *out_amps)
 {
+    if (out_amps == NULL) {
+        return -EINVAL;
+    }
+
     int raw = current_read_raw(id);
     if (raw < 0) {
         return raw;

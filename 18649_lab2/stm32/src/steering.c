@@ -17,7 +17,11 @@ int servo_init(void)
 
 int servo_set_pulse_us(uint32_t pulse_us)
 {
-
+	if (pulse_us < SERVO_PULSE_MIN_US) {
+		pulse_us = SERVO_PULSE_MIN_US;
+	} else if (pulse_us > SERVO_PULSE_MAX_US) {
+		pulse_us = SERVO_PULSE_MAX_US;
+	}
 	return pwm_set_dt(&servo_pwm, servo_pwm.period, PWM_USEC(pulse_us));
 }
 

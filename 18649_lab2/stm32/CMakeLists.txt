@@ -14,7 +14,28 @@ target_include_directories(blinker PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(blinker PUBLIC zephyr_interface)
 add_dependencies(blinker zephyr_generated_headers)
 
+# --- blinker control module ---
+add_library(blinker_ctrl STATIC src/blinker_ctrl.c)
+target_include_directories(blinker_ctrl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(blinker_ctrl PUBLIC zephyr_interface)
+add_dependencies(blinker_ctrl zephyr_generated_headers)
+
+# --- current module ---
+add_library(current STATIC src/current.c)
+target_include_directories(current PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(current PUBLIC zephyr_interface)
+add_dependencies(current zephyr_generated_headers)
+
+# --- steering module ---
+add_library(steering STATIC src/steering.c)
+target_include_directories(steering PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(steering PUBLIC zephyr_interface)
+add_dependencies(steering zephyr_generated_headers)
+
 # --- main app ---
-target_sources(app PRIVATE src/main.c src/steering.c)
+target_sources(app PRIVATE src/main.c)
 target_link_libraries(app PRIVATE pi_stm32_uart)
 target_link_libraries(app PRIVATE blinker)
+target_link_libraries(app PRIVATE blinker_ctrl)
+target_link_libraries(app PRIVATE current)
+target_link_libraries(app PRIVATE steering)
