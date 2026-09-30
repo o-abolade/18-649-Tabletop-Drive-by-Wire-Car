@@ -34,9 +34,6 @@ static const struct gpio_dt_spec *const direction_pins[] = {
 	&motor_right_in4,
 };
 
-#define MOTOR_TEST_DURATION_MS  300U
-#define MOTOR_TEST_DUTY_PERCENT 50U
-
 static atomic_t manual_test_active = ATOMIC_INIT(0);
 
 static int first_error(int previous, int candidate)

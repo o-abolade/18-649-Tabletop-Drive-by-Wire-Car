@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 
+#define MOTOR_TEST_DURATION_MS  3000U
+#define MOTOR_TEST_DUTY_PERCENT 100U
+
 /*
  * Safe low-level interface to the L298N.
  *
@@ -21,7 +24,8 @@ enum motor_control_channel {
 
 /*
  * Bench-only proof of the wired output path. This drives exactly one channel
- * at 50% PWM for 300 ms, then always returns to motor_control_safe_stop().
+ * at the configured test duty/duration, then always returns to
+ * motor_control_safe_stop().
  */
 int motor_control_pulse(enum motor_control_channel channel);
 bool motor_control_manual_test_active(void);

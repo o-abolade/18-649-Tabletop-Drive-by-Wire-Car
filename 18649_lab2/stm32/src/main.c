@@ -9,6 +9,7 @@
 #include "motor_control.h"
 
 #define SLEEP_LED_TIME_MS   400
+#define ENCODER_MONITOR_PERIOD_MS 100
 
 #define STATE_INIT     0
 #define STATE_NORMAL   1
@@ -34,7 +35,8 @@ static int cmd_motor_pulse(const struct shell *sh, size_t argc, char **argv)
     }
 
     channel = argv[1][0] == 'a' ? MOTOR_CHANNEL_A : MOTOR_CHANNEL_B;
-    shell_print(sh, "Pulsing motor channel %c at 50%% for 300 ms", argv[1][0]);
+    shell_print(sh, "Pulsing motor channel %c at %u%% for %u ms", argv[1][0],
+                MOTOR_TEST_DUTY_PERCENT, MOTOR_TEST_DURATION_MS);
     rc = motor_control_pulse(channel);
     if (rc != 0) {
         shell_error(sh, "pulse failed: %d", rc);
@@ -96,6 +98,52 @@ static int cmd_encoder_levels(const struct shell *sh, size_t argc, char **argv)
 SHELL_CMD_REGISTER(encoder_levels, NULL,
 			   "Show live A/B logic levels", cmd_encoder_levels);
 
+/*
+ * Print the instantaneous A/B levels without requiring a new shell command
+ * for every sample.  shell_readline() keeps the shell responsive to Ctrl-C;
+ * it returns -ECANCELED when Ctrl-C is received.
+ */
+static int cmd_encoder_monitor(const struct shell *sh, size_t argc, char **argv)
+{
+	uint8_t input[32];
+	uint8_t right_a;
+	uint8_t right_b;
+	uint8_t left_a;
+	uint8_t left_b;
+	int rc;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	shell_print(sh, "Monitoring encoder levels every %u ms; press Ctrl-C to stop",
+		    ENCODER_MONITOR_PERIOD_MS);
+
+	while (true) {
+		rc = encoder_get_levels(&right_a, &right_b, &left_a, &left_b);
+		if (rc != 0) {
+			shell_error(sh, "encoder read failed: %d", rc);
+			return rc;
+		}
+
+		shell_print(sh, "Encoder levels: right A=%u B=%u; left A=%u B=%u",
+			    right_a, right_b, left_a, left_b);
+
+		rc = shell_readline(sh, input, sizeof(input),
+				    K_MSEC(ENCODER_MONITOR_PERIOD_MS));
+		if (rc == -ECANCELED) {
+			break;
+		}
+		if (rc < 0 && rc != -ETIMEDOUT) {
+			shell_error(sh, "monitor input failed: %d", rc);
+			return rc;
+		}
+	}
+
+	shell_print(sh, "Encoder monitor stopped");
+	return 0;
+}
+SHELL_CMD_REGISTER(encoder_monitor, NULL,
+			   "Continuously show A/B levels; Ctrl-C stops it", cmd_encoder_monitor);
+
 static int cmd_encoder_edges(const struct shell *sh, size_t argc, char **argv)
 {
 	int32_t right_a;
@@ -112,6 +160,52 @@ static int cmd_encoder_edges(const struct shell *sh, size_t argc, char **argv)
 }
 SHELL_CMD_REGISTER(encoder_edges, NULL,
 			   "Show raw A/B GPIO edge counts", cmd_encoder_edges);
+
+/* Continuously show accumulated transitions instead of sampled pin levels. */
+static int cmd_encoder_count_monitor(const struct shell *sh, size_t argc,
+				     char **argv)
+{
+	uint8_t input[32];
+	int32_t right_count;
+	int32_t left_count;
+	int32_t right_a_edges;
+	int32_t right_b_edges;
+	int32_t left_a_edges;
+	int32_t left_b_edges;
+	int rc;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	shell_print(sh, "Monitoring encoder transition counts every %u ms; press Ctrl-C to stop",
+		    ENCODER_MONITOR_PERIOD_MS);
+
+	while (true) {
+		encoder_get_counts(&right_count, &left_count);
+		encoder_get_edge_counts(&right_a_edges, &right_b_edges,
+					&left_a_edges, &left_b_edges);
+
+		shell_print(sh,
+			    "Counts: right=%d (A=%d B=%d); left=%d (A=%d B=%d)",
+			    right_count, right_a_edges, right_b_edges,
+			    left_count, left_a_edges, left_b_edges);
+
+		rc = shell_readline(sh, input, sizeof(input),
+				    K_MSEC(ENCODER_MONITOR_PERIOD_MS));
+		if (rc == -ECANCELED) {
+			break;
+		}
+		if (rc < 0 && rc != -ETIMEDOUT) {
+			shell_error(sh, "monitor input failed: %d", rc);
+			return rc;
+		}
+	}
+
+	shell_print(sh, "Encoder count monitor stopped");
+	return 0;
+}
+SHELL_CMD_REGISTER(encoder_count_monitor, NULL,
+			   "Continuously show transition counts; Ctrl-C stops it",
+			   cmd_encoder_count_monitor);
 
 /*
  * Part 3 implementation plan (pseudocode only -- no motor pins are driven yet)

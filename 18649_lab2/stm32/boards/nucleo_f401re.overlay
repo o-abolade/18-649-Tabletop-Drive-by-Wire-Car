@@ -42,7 +42,8 @@
 	/*
 	 * L298N control wiring.  These are logic-level connections only:
 	 * ENA -> D5/PB4 (TIM3_CH1), IN1 -> A0/PA0, IN2 -> A1/PA1,
-	 * IN3 -> A2/PA4, IN4 -> A3/PB0, ENB -> D9/PC7 (TIM3_CH2).
+	 * IN3 -> A2/PA4, IN4 -> D10/PB6,
+	 * ENB -> D9/PC7 (TIM3_CH2).
 	 * The motor supply remains disconnected while this scaffold is tested.
 	 */
 	motor_pwm_outputs {
@@ -73,7 +74,7 @@
 		};
 
 		motor_right_in4: motor_right_in4 {
-			gpios = <&gpiob 0 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpiob 6 GPIO_ACTIVE_HIGH>;
 		};
 	};
 
@@ -101,6 +102,11 @@
 			gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>; /* D14, blue B phase */
 		};
 	};
+};
+
+/* D10/PB6, D11/PA7, and D12/PA6 are used as GPIOs by this application. */
+&spi1 {
+	status = "disabled";
 };
 
 &adc1 {
