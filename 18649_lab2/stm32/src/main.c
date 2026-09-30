@@ -31,6 +31,13 @@
 
 #define FAILSAFE_TIMEOUT_MS 150
 
+/*
+ * The Pi is planned for USART2 on D0/D1, which is also the current ST-Link
+ * shell UART. Keep the parser off for wiring bring-up so the shell remains
+ * usable. Set to 1 only after the console has been moved or disabled.
+ */
+#define PI_LINK_BRINGUP_ENABLED 0
+
 static atomic_t zone_state = ATOMIC_INIT(STATE_INIT);
 static atomic_t application_initialized = ATOMIC_INIT(0);
 static atomic_t pid_enabled = ATOMIC_INIT(0);
@@ -353,9 +360,9 @@ static void apply_throttle(uint16_t throttle)
 							       left_speed,
 							       CONTROL_DT_SECONDS);
 	(void)motor_control_set_state(MOTOR_CHANNEL_A, MOTOR_CONTROL_FORWARD,
-				      right_duty);
-	(void)motor_control_set_state(MOTOR_CHANNEL_B, MOTOR_CONTROL_FORWARD,
 				      left_duty);
+	(void)motor_control_set_state(MOTOR_CHANNEL_B, MOTOR_CONTROL_FORWARD,
+				      right_duty);
 }
 
 /*
@@ -409,6 +416,7 @@ static void status_thread_fn(void *a, void *b, void *c)
             st.servo_current  = 0;
         }
 
+#if PI_LINK_BRINGUP_ENABLED
         cmd_frame_t last_cmd;
         if (pi_stm32_uart_get_latest_cmd(&last_cmd)) {
             st.seq = last_cmd.seq;
@@ -417,6 +425,9 @@ static void status_thread_fn(void *a, void *b, void *c)
         }
 
         pi_stm32_uart_send_status(&st);
+#else
+        ARG_UNUSED(st);
+#endif
         k_sleep(K_MSEC(20));
     }
 }
@@ -429,13 +440,20 @@ static void control_thread_fn(void *a, void *b, void *c)
 
     while (1) {
 		if (atomic_get(&application_initialized) == 0) {
+			atomic_set(&zone_state, STATE_FAILSAFE);
+			set_blinkers(false, false, true);
 			k_sleep(K_MSEC(CONTROL_PERIOD_MS));
 			continue;
 		}
 
         cmd_frame_t cmd;
-        bool have = pi_stm32_uart_get_latest_cmd(&cmd);
-        uint32_t age = pi_stm32_uart_ms_since_last_cmd();
+		bool have = false;
+		uint32_t age = 0U;
+
+#if PI_LINK_BRINGUP_ENABLED
+        have = pi_stm32_uart_get_latest_cmd(&cmd);
+        age = pi_stm32_uart_ms_since_last_cmd();
+#endif
 
         if (!have || age > FAILSAFE_TIMEOUT_MS) {
             if (atomic_get(&zone_state) != STATE_FAILSAFE) {
@@ -479,7 +497,9 @@ K_THREAD_DEFINE(control_tid, 1024, control_thread_fn, NULL, NULL, NULL, 5, 0, 0)
 
 int main(void)
 {
+#if PI_LINK_BRINGUP_ENABLED
     pi_stm32_uart_init();
+#endif
 
 	int motor_rc = motor_control_init();
     if (motor_rc != 0) {

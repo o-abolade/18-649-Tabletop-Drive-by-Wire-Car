@@ -4,9 +4,9 @@
 #include <stdint.h>
 
 enum current_id {
-    CURRENT_MOTOR_A,   /* A3 / PB0 / IN8  -> io-channels index 0 */
-    CURRENT_MOTOR_B,   /* A5 / PC0 / IN10 -> io-channels index 1 */
-    CURRENT_SERVO,     /* A4 / PC1 / IN11 -> io-channels index 2 */
+    CURRENT_MOTOR_A,   /* left motor: A2 / PA4 / IN4 -> index 0 */
+    CURRENT_MOTOR_B,   /* right motor: A3 / PB0 / IN8 -> index 1 */
+    CURRENT_SERVO,     /* steering: A1 / PA1 / IN1 -> index 2 */
     CURRENT_COUNT
 };
 /* Configures the ADC channel(s). Returns 0 on success, or a negative

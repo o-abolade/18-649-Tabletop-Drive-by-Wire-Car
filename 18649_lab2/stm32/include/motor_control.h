@@ -16,8 +16,8 @@ int motor_control_init(void);
 int motor_control_safe_stop(void);
 
 enum motor_control_channel {
-	MOTOR_CHANNEL_A, /* L298N OUT1 / OUT2, controlled by ENA / IN1 / IN2 */
-	MOTOR_CHANNEL_B, /* L298N OUT3 / OUT4, controlled by ENB / IN3 / IN4 */
+	MOTOR_CHANNEL_A, /* Left: L298N OUT1 / OUT2, controlled by ENA / IN1 / IN2 */
+	MOTOR_CHANNEL_B, /* Right: L298N OUT3 / OUT4, controlled by ENB / IN3 / IN4 */
 };
 
 enum motor_control_state {

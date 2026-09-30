@@ -90,14 +90,16 @@ int motor_control_set_state(enum motor_control_channel channel,
 		pwm = &motor_left_pwm;
 		first = &motor_left_in1;
 		second = &motor_left_in2;
-		forward_first = 1;
-		forward_second = 0;
+		/* Left motor moved from OUT3/OUT4 to OUT1/OUT2. */
+		forward_first = 0;
+		forward_second = 1;
 	} else if (channel == MOTOR_CHANNEL_B) {
 		pwm = &motor_right_pwm;
 		first = &motor_right_in3;
 		second = &motor_right_in4;
-		forward_first = 0;
-		forward_second = 1;
+		/* Right motor moved from OUT1/OUT2 to OUT3/OUT4. */
+		forward_first = 1;
+		forward_second = 0;
 	} else {
 		return -EINVAL;
 	}
