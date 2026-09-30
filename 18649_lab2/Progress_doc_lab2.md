@@ -223,6 +223,47 @@ every fixed control period:
 | IN4 | D10 / PB6 | channel B direction |
 | ENB | D9 / PC7 / TIM3_CH2 | L298N channel B PWM; physical left wheel |
 
+### Complete Nucleo wiring map
+
+Use this table as the current wiring reference.  All low-voltage devices in
+the table (Nucleo, Pi, L298N logic, encoders, current sensors, servo, and
+blinkers) require a **common ground**.  Pin labels use the Nucleo Arduino
+headers followed by the STM32 pin and peripheral where applicable.
+
+| Function | External connection | Nucleo pin | Wiring / implementation note |
+|---|---|---|---|
+| L298N channel A enable | `ENA` | `D5 / PB4 / TIM3_CH1` | PWM; channel A is the physical right wheel. Remove the `ENA` jumper before connecting this PWM signal. |
+| L298N channel A direction | `IN1` | `A0 / PA0` | Right-wheel forward polarity is `IN1=1`, `IN2=0`. |
+| L298N channel A direction | `IN2` | `A1 / PA1` | Right-wheel forward polarity is `IN1=1`, `IN2=0`. |
+| L298N channel B direction | `IN3` | `A2 / PA4` | Left-wheel forward polarity is `IN3=0`, `IN4=1`. |
+| L298N channel B direction | `IN4` | `D10 / PB6` | Left-wheel forward polarity is `IN3=0`, `IN4=1`. |
+| L298N channel B enable | `ENB` | `D9 / PC7 / TIM3_CH2` | PWM; channel B is the physical left wheel. Remove the `ENB` jumper before connecting this PWM signal. |
+| Right drive motor | L298N `OUT1`, `OUT2` | — | Connect only to the two right-motor power wires. Swapping the pair reverses physical direction. |
+| Left drive motor | L298N `OUT3`, `OUT4` | — | Connect only to the two left-motor power wires. Swapping the pair reverses physical direction. |
+| Motor power | L298N motor supply (`Vs` / `+12V`) and L298N GND | — | 12 V adapter goes to the L298N only, never a Nucleo GPIO or 3.3 V/5 V pin. Disconnect it before moving wires. |
+| Right encoder phase A | Motor encoder `A` | `D3 / PB3` | GPIO input with pull-up and both-edge interrupt. |
+| Right encoder phase B | Motor encoder `B` | `D11 / PA7` | GPIO input with pull-up and both-edge interrupt. |
+| Left encoder phase A | Motor encoder `A` | `D12 / PA6` | GPIO input with pull-up and both-edge interrupt. |
+| Left encoder phase B | Motor encoder `B` | `D14 / PB9` | GPIO input with pull-up and both-edge interrupt. |
+| Encoder supply | Encoder `VCC` | Nucleo `3V3` | Current test wiring uses 3.3 V. Verify the encoder's exact supply requirement before assuming 3.3 V is valid. |
+| Encoder return | Encoder `GND` | Nucleo `GND` | This ground must also be tied to the L298N/Nucleo signal ground. |
+| Steering servo control | Servo PWM signal | `D13 / PA5 / TIM2_CH1` | 20 ms PWM period. `D13` is also the board LED pin, so LED activity can share this waveform. |
+| Front-left blinker | FL control input | `D15 / PB8` | Moved from D2 to preserve the Pi UART receive pin. |
+| Front-right blinker | FR control input | `D4 / PB5` | GPIO output. |
+| Rear-left blinker | RL control input | `D6 / PB10` | GPIO output. |
+| Rear-right blinker | RR control input | `D7 / PA8` | GPIO output. |
+| Right-motor current sense | Current-sensor analog output | `A3 / PB0 / ADC1_IN8` | Firmware reports raw 12-bit ADC samples; sensor wiring and calibration remain to be verified. |
+| Left-motor current sense | Current-sensor analog output | `A5 / PC0 / ADC1_IN10` | Firmware reports raw 12-bit ADC samples; sensor wiring and calibration remain to be verified. |
+| Servo current sense | Current-sensor analog output | `A4 / PC1 / ADC1_IN11` | Firmware reports raw 12-bit ADC samples; sensor wiring and calibration remain to be verified. |
+| Pi-to-STM32 serial | Pi `TX` → STM32 `RX` | `D2 / PA10 / USART1_RX` | 115200 baud, 3.3 V logic. Do not use D2 for a blinker. |
+| STM32-to-Pi serial | Pi `RX` ← STM32 `TX` | `D8 / PA9 / USART1_TX` | 115200 baud, 3.3 V logic. |
+| Pi ground | Pi `GND` | Nucleo `GND` | Required for the UART link. |
+
+Pins intentionally unavailable for new wiring: SPI1 is disabled because D10,
+D11, and D12 are motor/encoder pins; I2C1 is disabled because D15 and D14 are
+blinker/encoder pins; I2C3 is disabled because D7 is a blinker pin.  Keep
+`D0/PA3` and `D1/PA2` unused: they remain the board console UART pins.
+
 `motor_control_init()` configures those pins and immediately calls
 `motor_control_safe_stop()`, which sets ENA/ENB to 0% and IN1--IN4 low.
 `IN4` was moved from `A3/PB0` to Arduino-header `D10/PB6` so PB0
