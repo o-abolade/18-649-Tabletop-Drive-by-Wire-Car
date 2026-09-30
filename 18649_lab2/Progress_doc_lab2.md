@@ -251,10 +251,10 @@ headers followed by the STM32 pin and peripheral where applicable.
 | Encoder supply | Encoder `VCC` | Nucleo `3V3` | Current test wiring uses 3.3 V. Verify the encoder's exact supply requirement before assuming 3.3 V is valid. |
 | Encoder return | Encoder `GND` | Nucleo `GND` | This ground must also be tied to the L298N/Nucleo signal ground. |
 | Steering servo control | Servo PWM signal | `D12 / PA6 / TIM3_CH1` | Planned PWM target (Zephyr `pwm3`, channel 1), 20 ms period. Displaces right encoder phase A; firmware setup remains a later remap task. |
-| Front-left blinker | FL control input | `D9 / PC7` | Planned GPIO output. |
-| Front-right blinker | FR control input | `D10 / PB6` | Planned GPIO output. |
-| Rear-left blinker | RL control input | `D11 / PA7` | Planned GPIO output. |
-| Rear-right blinker | RR control input | `D14 / PB9` | Planned GPIO output. |
+| Front-left blinker | FL control input | `D14 / PB9` | Planned GPIO output. |
+| Front-right blinker | FR control input | `D15 / PB8` | Planned GPIO output. |
+| Rear-left blinker | RL control input | `D9 / PC7` | Planned GPIO output. |
+| Rear-right blinker | RR control input | `D10 / PB6` | Planned GPIO output. |
 | Right-motor current sense | Current-sensor analog output | `A3 / PB0 / ADC1_IN8` | Firmware reports raw 12-bit ADC samples; sensor wiring and calibration remain to be verified. |
 | Left-motor current sense | Current-sensor analog output | **TBD** (was `A5 / PC0 / ADC1_IN10`) | Displaced by planned `IN2`; choose a new ADC-capable pin before rewiring. |
 | Servo current sense | Current-sensor analog output | `A1 / PA1 / ADC1_IN1` | Planned ADC target; displaced from A4 by planned `IN3`. ADC firmware setup remains a later remap task. |
