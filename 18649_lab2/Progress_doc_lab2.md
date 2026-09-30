@@ -257,7 +257,7 @@ headers followed by the STM32 pin and peripheral where applicable.
 | Rear-right blinker | RR control input | `D7 / PA8` | GPIO output. |
 | Right-motor current sense | Current-sensor analog output | `A3 / PB0 / ADC1_IN8` | Firmware reports raw 12-bit ADC samples; sensor wiring and calibration remain to be verified. |
 | Left-motor current sense | Current-sensor analog output | **TBD** (was `A5 / PC0 / ADC1_IN10`) | Displaced by planned `IN4`; choose a new ADC-capable pin before rewiring. |
-| Servo current sense | Current-sensor analog output | **TBD** (was `A4 / PC1 / ADC1_IN11`) | Displaced by planned `IN3`; choose a new ADC-capable pin before rewiring. |
+| Servo current sense | Current-sensor analog output | `A1 / PA1 / ADC1_IN1` | Planned ADC target; displaced from A4 by planned `IN3`. ADC firmware setup remains a later remap task. |
 | Pi-to-STM32 serial | Pi `TX` → STM32 `RX` | **TBD** (was `D2 / PA10 / USART1_RX`) | Displaced by planned `ENA`; the Pi UART receive mapping must be reassigned before rewiring. |
 | STM32-to-Pi serial | Pi `RX` ← STM32 `TX` | `D8 / PA9 / USART1_TX` | 115200 baud, 3.3 V logic. |
 | Pi ground | Pi `GND` | Nucleo `GND` | Required for the UART link. |
