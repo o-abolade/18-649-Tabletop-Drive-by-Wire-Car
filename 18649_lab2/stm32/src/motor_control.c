@@ -97,9 +97,9 @@ int motor_control_set_state(enum motor_control_channel channel,
 		pwm = &motor_right_pwm;
 		first = &motor_right_in3;
 		second = &motor_right_in4;
-		/* Right motor moved from OUT1/OUT2 to OUT3/OUT4. */
-		forward_first = 1;
-		forward_second = 0;
+		/* Right motor: verified forward polarity on OUT3/OUT4. */
+		forward_first = 0;
+		forward_second = 1;
 	} else {
 		return -EINVAL;
 	}
