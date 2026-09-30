@@ -216,12 +216,12 @@ every fixed control period:
 
 | L298N signal | Nucleo pin | Purpose |
 |---|---|---|
-| ENA | D2 / PA10 / TIM1_CH3 | L298N channel A PWM; physical right wheel |
+| ENA | D2 / PA10 / TIM1_CH3 | L298N channel A PWM; physical left wheel (`OUT1/OUT2`) |
 | IN1 | D4 / PB5 | channel A direction |
 | IN2 | D3 / PB3 | channel A direction |
 | IN3 | A4 / PC1 | channel B direction |
 | IN4 | A5 / PC0 | channel B direction |
-| ENB | A0 / PA0 / TIM2_CH1 | L298N channel B PWM; physical left wheel |
+| ENB | A0 / PA0 / TIM2_CH1 | L298N channel B PWM; physical right wheel (`OUT3/OUT4`) |
 
 ### Complete Nucleo wiring map
 
@@ -235,31 +235,31 @@ headers followed by the STM32 pin and peripheral where applicable.
 
 | Function | External connection | Nucleo pin | Wiring / implementation note |
 |---|---|---|---|
-| L298N channel A enable | `ENA` | `D2 / PA10 / TIM1_CH3` | Planned PWM target (Zephyr `pwm1`, channel 3); channel A is the physical right wheel. PWM peripheral setup remains a firmware-remap task. Remove the `ENA` jumper before connecting this signal. |
-| L298N channel A direction | `IN1` | `D4 / PB5` | Planned pin. Right-wheel forward polarity is `IN1=1`, `IN2=0`. |
-| L298N channel A direction | `IN2` | `D3 / PB3` | Planned pin. Right-wheel forward polarity is `IN1=1`, `IN2=0`. |
-| L298N channel B direction | `IN3` | `A4 / PC1` | Planned pin. Left-wheel forward polarity is `IN3=0`, `IN4=1`. |
-| L298N channel B direction | `IN4` | `A5 / PC0` | Planned pin. Left-wheel forward polarity is `IN3=0`, `IN4=1`. |
-| L298N channel B enable | `ENB` | `A0 / PA0 / TIM2_CH1` | Planned PWM target (Zephyr `pwm2`, channel 1); channel B is the physical left wheel. PWM peripheral setup remains a firmware-remap task. This timer channel currently overlaps the steering PWM target on D13/PA5, so steering must be remapped before both can be used. Remove the `ENB` jumper before connecting this signal. |
-| Right drive motor | L298N `OUT1`, `OUT2` | — | Connect only to the two right-motor power wires. Swapping the pair reverses physical direction. |
-| Left drive motor | L298N `OUT3`, `OUT4` | — | Connect only to the two left-motor power wires. Swapping the pair reverses physical direction. |
+| L298N channel A enable | `ENA` | `D2 / PA10 / TIM1_CH3` | Planned PWM target (Zephyr `pwm1`, channel 3); channel A is the physical left wheel through `OUT1/OUT2`. PWM peripheral setup remains a firmware-remap task. Remove the `ENA` jumper before connecting this signal. |
+| L298N channel A direction | `IN1` | `D4 / PB5` | Planned pin. Re-verify left-wheel forward polarity after the output-pair change. |
+| L298N channel A direction | `IN2` | `D3 / PB3` | Planned pin. Re-verify left-wheel forward polarity after the output-pair change. |
+| L298N channel B direction | `IN3` | `A4 / PC1` | Planned pin. Re-verify right-wheel forward polarity after the output-pair change. |
+| L298N channel B direction | `IN4` | `A5 / PC0` | Planned pin. Re-verify right-wheel forward polarity after the output-pair change. |
+| L298N channel B enable | `ENB` | `A0 / PA0 / TIM2_CH1` | Planned PWM target (Zephyr `pwm2`, channel 1); channel B is the physical right wheel through `OUT3/OUT4`. PWM peripheral setup remains a firmware-remap task. Remove the `ENB` jumper before connecting this signal. |
+| Left drive motor | L298N `OUT1`, `OUT2` | — | Planned connection. Connect only to the two left-motor power wires. Swapping the pair reverses physical direction. |
+| Right drive motor | L298N `OUT3`, `OUT4` | — | Planned connection. Connect only to the two right-motor power wires. Swapping the pair reverses physical direction. |
 | Motor power | L298N motor supply (`Vs` / `+12V`) and L298N GND | — | 12 V adapter goes to the L298N only, never a Nucleo GPIO or 3.3 V/5 V pin. Disconnect it before moving wires. |
-| Right encoder phase A | Motor encoder `A` | **TBD** (was `D12 / PA6`) | Displaced by planned steering-servo PWM; select a new GPIO before rewiring this encoder. |
-| Right encoder phase B | Motor encoder `B` | `D14 / PB9` | GPIO input with pull-up and both-edge interrupt. |
-| Left encoder phase A | Motor encoder `A` | **TBD** (was `D3 / PB3`) | Displaced by planned `IN2`; select a new GPIO before rewiring this encoder. |
-| Left encoder phase B | Motor encoder `B` | `D11 / PA7` | GPIO input with pull-up and both-edge interrupt. |
+| Left encoder phase A | Motor encoder `A` | `D5 / PB4` | Planned GPIO input. |
+| Left encoder phase B | Motor encoder `B` | `D6 / PB10` | Planned GPIO input. |
+| Right encoder phase A | Motor encoder `A` | `D7 / PA8` | Planned GPIO input. |
+| Right encoder phase B | Motor encoder `B` | `D8 / PA9` | Planned GPIO input. |
 | Encoder supply | Encoder `VCC` | Nucleo `3V3` | Current test wiring uses 3.3 V. Verify the encoder's exact supply requirement before assuming 3.3 V is valid. |
 | Encoder return | Encoder `GND` | Nucleo `GND` | This ground must also be tied to the L298N/Nucleo signal ground. |
 | Steering servo control | Servo PWM signal | `D12 / PA6 / TIM3_CH1` | Planned PWM target (Zephyr `pwm3`, channel 1), 20 ms period. Displaces right encoder phase A; firmware setup remains a later remap task. |
 | Front-left blinker | FL control input | `D15 / PB8` | GPIO output retained in the planned map. |
 | Front-right blinker | FR control input | **TBD** (was `D4 / PB5`) | Displaced by planned `IN1`; select a new GPIO before rewiring this LED. |
-| Rear-left blinker | RL control input | `D6 / PB10` | GPIO output. |
-| Rear-right blinker | RR control input | `D7 / PA8` | GPIO output. |
+| Rear-left blinker | RL control input | **TBD** (was `D6 / PB10`) | Displaced by planned left encoder phase B; select a new GPIO before rewiring this LED. |
+| Rear-right blinker | RR control input | **TBD** (was `D7 / PA8`) | Displaced by planned right encoder phase A; select a new GPIO before rewiring this LED. |
 | Right-motor current sense | Current-sensor analog output | `A3 / PB0 / ADC1_IN8` | Firmware reports raw 12-bit ADC samples; sensor wiring and calibration remain to be verified. |
 | Left-motor current sense | Current-sensor analog output | **TBD** (was `A5 / PC0 / ADC1_IN10`) | Displaced by planned `IN4`; choose a new ADC-capable pin before rewiring. |
 | Servo current sense | Current-sensor analog output | `A1 / PA1 / ADC1_IN1` | Planned ADC target; displaced from A4 by planned `IN3`. ADC firmware setup remains a later remap task. |
 | Pi-to-STM32 serial | Pi `TX` → STM32 `RX` | **TBD** (was `D2 / PA10 / USART1_RX`) | Displaced by planned `ENA`; the Pi UART receive mapping must be reassigned before rewiring. |
-| STM32-to-Pi serial | Pi `RX` ← STM32 `TX` | `D8 / PA9 / USART1_TX` | 115200 baud, 3.3 V logic. |
+| STM32-to-Pi serial | Pi `RX` ← STM32 `TX` | **TBD** (was `D8 / PA9 / USART1_TX`) | Displaced by planned right encoder phase B; the Pi UART transmit mapping must be reassigned before rewiring. |
 | Pi ground | Pi `GND` | Nucleo `GND` | Required for the UART link. |
 
 ### Current firmware allocation (before remap)
