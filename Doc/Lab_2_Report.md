@@ -8,4 +8,4 @@
 ---
 
 ### System Diagram
-
+![Top Level Block Diagram](assets/Lab2_Block_Diagram.png)
