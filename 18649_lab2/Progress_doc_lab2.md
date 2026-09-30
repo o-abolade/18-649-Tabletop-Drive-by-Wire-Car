@@ -25,14 +25,18 @@ Logitech wheel --USB--> Laptop proxy --UDP:8000--> Raspberry Pi 4
     ├── boards/
     │   └── nucleo_f401re.overlay   # enables USART1 (PA9/PA10) for the Pi link
     ├── include/
+    │   ├── current.h
     │   ├── encoder.h
     │   ├── motor_control.h
     │   └── pi_stm32_uart.h
     └── src/
+        ├── current.c                # ADC current-sense acquisition
         ├── main.c                  # control thread + status-heartbeat thread
         ├── encoder.c                # quadrature decoder + raw edge diagnostics
         ├── motor_control.c          # safe L298N outputs + bounded bench pulse
+        ├── pid_controller.c          # PID implementation; disabled until encoder validation
         ├── pi_stm32_uart.c         # UART RX state machine, frame parsing, CRC
+        ├── steering.c                # steering-servo PWM driver
         └── blinker.c
 ```
 
@@ -123,7 +127,8 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
 
 **Not yet tested:**
 - **150ms link-loss failsafe behavior** — logic is implemented (`age > 150ms` → `FAILSAFE` state, printed on transition) but not yet verified against the physical unplug-the-cable checkpoint.
-- Status frame's current-sensor fields are still hardcoded to 0 pending Part 3.
+- Current-sensor calibration remains unverified; status fields presently carry
+  raw 12-bit ADC samples rather than calibrated current.
 
 **Current blocker:**
 - Neither motor encoder has yet produced a trustworthy signed wheel count.
@@ -133,11 +138,10 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
   details are recorded below.
 
 **In progress:**
-- Part 3.1 motor output scaffold: the L298N control pins are defined in the
-  Nucleo overlay and initialize to a safe state (both PWM enables at 0%, all
-  direction inputs low). A bounded console-only pulse test has verified both
-  L298N channels and both motors with the wheels off the table. There is still
-  no throttle-driven motor command in this revision.
+- Part 3.1 motor control: L298N outputs initialize in a safe coast state,
+  then valid throttle commands use the verified forward direction and PWM.
+  Brake and link-loss paths request dynamic braking; these electrical states
+  still require wheels-raised verification.
 - Part 3.1 encoder bring-up: firmware records raw A/B edges, decodes valid
   quadrature transitions into signed counts, and exposes `encoder_status`,
   `encoder_zero`, `encoder_levels`, `encoder_edges`, `encoder_monitor`, and
@@ -147,22 +151,24 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
   In contrast, motor-driven pulses have produced uneven or intermittent raw
   A/B edges but signed counts remain zero; right motor pulses have produced
   no right encoder edges. Connector mapping and signal quality remain in
-  progress; PID and speed control are intentionally disabled.
+  progress. The PID controller is coded but deliberately disabled by default
+  until both encoders produce valid, repeatable signed counts.
+- Steering, blinkers, and raw current-sensor sampling are integrated into the
+  control/status threads. Their hardware calibration and final wiring remain
+  to be verified.
 
 **Not started:**
-- Encoder speed estimation and closed-loop speed controller
-- Part 3.2 brake-state verification, Part 3.3 servo, Part 3.4 blinkers,
-  and Part 3.5 current sensors
+- PID gain tuning after encoder repair; encoder scaling/sign calibration
+- Dynamic-brake, steering, blinker, and current-sensor hardware verification
 - Part 4 (formal RTOS thread/priority/deadline table)
 - Part 5 (final power/wiring pass, test point breakout board)
 
 ## Part 3.1 motors and encoders -- software plan
 
 The motor path has passed its bounded, wheels-raised pulse test and the encoder
-harnesses are wired. This bring-up firmware still does not use encoder feedback
-to command a motor: it only observes encoder transitions during hand or
-motor-driven tests. Neither encoder signal pair has passed the wheel-count
-check yet.
+harnesses are wired. Normal throttle currently uses open-loop PWM so the lab
+can proceed. The software PID path samples encoder count deltas at 10 ms, but
+it remains disabled until both encoder signal pairs pass the wheel-count check.
 
 ### Pseudocode
 
@@ -218,11 +224,15 @@ every fixed control period:
 | ENB | D9 / PC7 / TIM3_CH2 | L298N channel B PWM; physical left wheel |
 
 `motor_control_init()` configures those pins and immediately calls
-`motor_control_safe_stop()`, which sets
-ENA/ENB to 0% and IN1--IN4 low. It does **not** apply motor power or dynamic
-braking. `IN4` was moved from `A3/PB0` to Arduino-header `D10/PB6` so PB0
+`motor_control_safe_stop()`, which sets ENA/ENB to 0% and IN1--IN4 low.
+`IN4` was moved from `A3/PB0` to Arduino-header `D10/PB6` so PB0
 remains available for the planned Part 3.5 current-sensor ADC input. SPI1 is
 disabled because its default pins overlap D10 and the D11/D12 encoder inputs.
+
+The Pi link keeps D2/PA10 for USART1 RX and D8/PA9 for USART1 TX. To avoid
+that conflict, the front-left blinker uses D15/PB8 rather than D2. D7/PA8 and
+D15/PB8 are blinker GPIOs, so I2C1 and I2C3 are disabled. The steering PWM is
+D13/PA5 (TIM2_CH1), leaving encoder right-A on D3/PB3 available.
 
 For a wheels-off-the-table wiring check, the Nucleo console exposes only the
 bounded command `motor_pulse <a|b>`. It currently applies 100% PWM to the
@@ -303,3 +313,5 @@ counts. Disconnect USB and 12 V before changing connector wiring.
   inconsistent with usable signed wheel counts, pending waveform inspection.
 - Moved L298N IN4 from A3/PB0 to D10/PB6, disabled overlapping SPI1 pin use,
   and added continuous encoder level/count shell monitors with Ctrl-C exit.
+- Integrated steering, blinkers, raw ADC status reporting, open-loop throttle,
+  dynamic-brake paths, and a PID controller guarded by `pid_enable <0|1>`.

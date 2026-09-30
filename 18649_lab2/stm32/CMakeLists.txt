@@ -27,7 +27,12 @@ target_link_libraries(encoder PUBLIC zephyr_interface)
 add_dependencies(encoder zephyr_generated_headers)
 
 # --- main app ---
-target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE
+    src/main.c
+    src/steering.c
+    src/current.c
+    src/pid_controller.c
+)
 target_link_libraries(app PRIVATE pi_stm32_uart)
 target_link_libraries(app PRIVATE blinker)
 target_link_libraries(app PRIVATE motor_control)

@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdlib.h>
 
 #include <zephyr/kernel.h>
 #include <zephyr/shell/shell.h>
@@ -7,9 +8,21 @@
 #include "blinker.h"
 #include "encoder.h"
 #include "motor_control.h"
+#include "current.h"
+#include "pid_controller.h"
+#include "steering.h"
 
-#define SLEEP_LED_TIME_MS   400
 #define ENCODER_MONITOR_PERIOD_MS 100
+#define CONTROL_PERIOD_MS 10U
+#define CONTROL_DT_SECONDS ((float)CONTROL_PERIOD_MS / 1000.0f)
+#define BRAKE_ACTIVE_THRESHOLD 50U
+#define BLINK_PERIOD_MS 500U
+
+/* Tune these only after the encoder wiring produces valid signed counts. */
+#define PID_MAX_SPEED_TRANSITIONS_PER_SECOND 2000.0f
+#define PID_KP_DEFAULT 0.02f
+#define PID_KI_DEFAULT 0.0f
+#define PID_KD_DEFAULT 0.0f
 
 #define STATE_INIT     0
 #define STATE_NORMAL   1
@@ -19,10 +32,74 @@
 #define FAILSAFE_TIMEOUT_MS 150
 
 static atomic_t zone_state = ATOMIC_INIT(STATE_INIT);
+static atomic_t application_initialized = ATOMIC_INIT(0);
+static atomic_t pid_enabled = ATOMIC_INIT(0);
+static struct pid_controller right_pid;
+static struct pid_controller left_pid;
+static int32_t previous_right_count;
+static int32_t previous_left_count;
+static bool have_speed_sample;
+
+static int cmd_pid_enable(const struct shell *sh, size_t argc, char **argv)
+{
+	if (argc != 2 || (argv[1][0] != '0' && argv[1][0] != '1') ||
+	    argv[1][1] != '\0') {
+		shell_error(sh, "usage: pid_enable <0|1>");
+		return -EINVAL;
+	}
+
+	atomic_set(&pid_enabled, argv[1][0] == '1');
+	pid_controller_reset(&right_pid);
+	pid_controller_reset(&left_pid);
+	shell_print(sh, "PID speed control %s", argv[1][0] == '1' ? "enabled" : "disabled");
+	if (argv[1][0] == '1') {
+		shell_warn(sh, "Enable only after both encoder counts are valid; bad feedback can command full PWM");
+	}
+	return 0;
+}
+SHELL_CMD_ARG_REGISTER(pid_enable, NULL,
+			       "Enable PID only after encoder validation: pid_enable <0|1>",
+			       cmd_pid_enable, 2, 0);
+
+static int cmd_pid_gains(const struct shell *sh, size_t argc, char **argv)
+{
+	char *end;
+	float kp;
+	float ki;
+	float kd;
+
+	if (argc != 4) {
+		shell_error(sh, "usage: pid_gains <kp> <ki> <kd>");
+		return -EINVAL;
+	}
+
+	kp = strtof(argv[1], &end);
+	if (*end != '\0') {
+		return -EINVAL;
+	}
+	ki = strtof(argv[2], &end);
+	if (*end != '\0') {
+		return -EINVAL;
+	}
+	kd = strtof(argv[3], &end);
+	if (*end != '\0') {
+		return -EINVAL;
+	}
+
+	pid_controller_set_gains(&right_pid, kp, ki, kd);
+	pid_controller_set_gains(&left_pid, kp, ki, kd);
+	pid_controller_reset(&right_pid);
+	pid_controller_reset(&left_pid);
+	shell_print(sh, "PID gains set: Kp=%g Ki=%g Kd=%g", (double)kp,
+		    (double)ki, (double)kd);
+	return 0;
+}
+SHELL_CMD_ARG_REGISTER(pid_gains, NULL, "Set both motor PID gains: pid_gains <kp> <ki> <kd>",
+			       cmd_pid_gains, 4, 0);
 
 /*
  * Bench-only command: `motor_pulse <a|b>`.
- * Each invocation is a 50%, 300 ms pulse and ends in the safe state.
+ * Each invocation uses the configured duty/duration and ends in the safe state.
  */
 static int cmd_motor_pulse(const struct shell *sh, size_t argc, char **argv)
 {
@@ -207,6 +284,80 @@ SHELL_CMD_REGISTER(encoder_count_monitor, NULL,
 			   "Continuously show transition counts; Ctrl-C stops it",
 			   cmd_encoder_count_monitor);
 
+static uint16_t current_status_value(enum current_id id)
+{
+	int raw = current_read_raw(id);
+
+	return raw < 0 ? 0U : (uint16_t)raw;
+}
+
+static void set_blinkers(bool left_request, bool right_request, bool hazards)
+{
+	bool on = ((k_uptime_get_32() / BLINK_PERIOD_MS) & 1U) == 0U;
+	bool left_on = on && (hazards || left_request);
+	bool right_on = on && (hazards || right_request);
+
+	blinker_set(BLINKER_FL, left_on);
+	blinker_set(BLINKER_RL, left_on);
+	blinker_set(BLINKER_FR, right_on);
+	blinker_set(BLINKER_RR, right_on);
+}
+
+static void reset_speed_controllers(void)
+{
+	pid_controller_reset(&right_pid);
+	pid_controller_reset(&left_pid);
+	have_speed_sample = false;
+}
+
+static void apply_throttle(uint16_t throttle)
+{
+	int32_t right_count;
+	int32_t left_count;
+	float right_speed;
+	float left_speed;
+	float target_speed;
+	unsigned int right_duty;
+	unsigned int left_duty;
+
+	if (throttle > 1000U) {
+		throttle = 1000U;
+	}
+
+	if (atomic_get(&pid_enabled) == 0) {
+		/* Encoder-independent fallback used until feedback is verified. */
+		(void)motor_control_drive_forward(throttle / 10U);
+		return;
+	}
+
+	encoder_get_counts(&right_count, &left_count);
+	if (!have_speed_sample) {
+		previous_right_count = right_count;
+		previous_left_count = left_count;
+		have_speed_sample = true;
+		(void)motor_control_drive_forward(0U);
+		return;
+	}
+
+	right_speed = (float)(right_count - previous_right_count) / CONTROL_DT_SECONDS;
+	left_speed = (float)(left_count - previous_left_count) / CONTROL_DT_SECONDS;
+	previous_right_count = right_count;
+	previous_left_count = left_count;
+	target_speed = ((float)throttle / 1000.0f) *
+		       PID_MAX_SPEED_TRANSITIONS_PER_SECOND;
+
+	right_duty = (unsigned int)pid_controller_update(&right_pid, target_speed,
+								 right_speed,
+								 CONTROL_DT_SECONDS);
+	left_duty = (unsigned int)pid_controller_update(&left_pid, target_speed,
+							       left_speed,
+							       CONTROL_DT_SECONDS);
+	(void)motor_control_set_state(MOTOR_CHANNEL_A, MOTOR_CONTROL_FORWARD,
+				      right_duty);
+	(void)motor_control_set_state(MOTOR_CHANNEL_B, MOTOR_CONTROL_FORWARD,
+				      left_duty);
+}
+
 /*
  * Part 3 implementation plan (pseudocode only -- no motor pins are driven yet)
  *
@@ -247,10 +398,16 @@ static void status_thread_fn(void *a, void *b, void *c)
         status_frame_t st;
         st.state = (uint8_t)atomic_get(&zone_state);
 
-        // TODO Part 3: replace with real ADC current-sensor readings
-        st.motor1_current = 0;
-        st.motor2_current = 0;
-        st.servo_current  = 0;
+        /* Raw 12-bit ADC samples; calibration remains in current.c. */
+        if (atomic_get(&application_initialized) != 0) {
+            st.motor1_current = current_status_value(CURRENT_MOTOR_A);
+            st.motor2_current = current_status_value(CURRENT_MOTOR_B);
+            st.servo_current  = current_status_value(CURRENT_SERVO);
+        } else {
+            st.motor1_current = 0;
+            st.motor2_current = 0;
+            st.servo_current  = 0;
+        }
 
         cmd_frame_t last_cmd;
         if (pi_stm32_uart_get_latest_cmd(&last_cmd)) {
@@ -271,6 +428,11 @@ static void control_thread_fn(void *a, void *b, void *c)
     ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
 
     while (1) {
+		if (atomic_get(&application_initialized) == 0) {
+			k_sleep(K_MSEC(CONTROL_PERIOD_MS));
+			continue;
+		}
+
         cmd_frame_t cmd;
         bool have = pi_stm32_uart_get_latest_cmd(&cmd);
         uint32_t age = pi_stm32_uart_ms_since_last_cmd();
@@ -281,11 +443,11 @@ static void control_thread_fn(void *a, void *b, void *c)
             }
             atomic_set(&zone_state, STATE_FAILSAFE);
 
-            /* Safe now: PWM=0 and direction pins low. Dynamic braking is a
-             * separate, board-verified state to add after bench testing. */
             if (!motor_control_manual_test_active()) {
-                motor_control_safe_stop();
+				(void)motor_control_dynamic_brake();
             }
+			reset_speed_controllers();
+			set_blinkers(false, false, true);
 
         } else {
             if (atomic_get(&zone_state) == STATE_FAILSAFE) {
@@ -297,13 +459,20 @@ static void control_thread_fn(void *a, void *b, void *c)
                    cmd.seq, cmd.steering, cmd.throttle, cmd.brake,
                    cmd.buttons, age);
 
-            /* No drive command exists yet, so a valid command is safe too. */
             if (!motor_control_manual_test_active()) {
-                motor_control_safe_stop();
+				(void)set_wheel_angle(cmd.steering);
+				if (cmd.brake >= BRAKE_ACTIVE_THRESHOLD) {
+					(void)motor_control_dynamic_brake();
+					reset_speed_controllers();
+				} else {
+					apply_throttle(cmd.throttle);
+				}
             }
+			set_blinkers((cmd.buttons & BIT(0)) != 0U,
+				     (cmd.buttons & BIT(1)) != 0U, false);
         }
 
-        k_sleep(K_MSEC(10));
+        k_sleep(K_MSEC(CONTROL_PERIOD_MS));
     }
 }
 K_THREAD_DEFINE(control_tid, 1024, control_thread_fn, NULL, NULL, NULL, 5, 0, 0);
@@ -321,6 +490,29 @@ int main(void)
 	int encoder_rc = encoder_init();
 	if (encoder_rc != 0) {
 		printk("Encoder initialization failed: %d\n", encoder_rc);
+	}
+
+	int steering_rc = servo_init();
+	if (steering_rc != 0) {
+		printk("Steering initialization failed: %d\n", steering_rc);
+	}
+
+	int current_rc = current_init();
+	if (current_rc != 0) {
+		printk("Current-sense initialization failed: %d\n", current_rc);
+	}
+
+	int blinker_rc = blinker_init_all();
+	if (blinker_rc != 0) {
+		printk("Blinker initialization failed: %d\n", blinker_rc);
+	}
+
+	pid_controller_init(&right_pid, PID_KP_DEFAULT, PID_KI_DEFAULT,
+			    PID_KD_DEFAULT, 0.0f, 100.0f);
+	pid_controller_init(&left_pid, PID_KP_DEFAULT, PID_KI_DEFAULT,
+			    PID_KD_DEFAULT, 0.0f, 100.0f);
+	if (motor_rc == 0) {
+		atomic_set(&application_initialized, 1);
 	}
     printk("Lab 2 STM32 online. Waiting for commands...\n");
 

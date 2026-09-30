@@ -41,6 +41,25 @@ static int first_error(int previous, int candidate)
 	return previous != 0 ? previous : candidate;
 }
 
+static int set_directions(const struct gpio_dt_spec *first,
+			  const struct gpio_dt_spec *second, int first_value,
+			  int second_value)
+{
+	int rc = gpio_pin_set_dt(first, first_value);
+
+	return first_error(rc, gpio_pin_set_dt(second, second_value));
+}
+
+static int set_pwm_percent(const struct pwm_dt_spec *pwm, unsigned int duty_percent)
+{
+	if (duty_percent > 100U) {
+		return -EINVAL;
+	}
+
+	return pwm_set_dt(pwm, pwm->period,
+			  (pwm->period * duty_percent) / 100U);
+}
+
 int motor_control_safe_stop(void)
 {
 	int rc = 0;
@@ -55,6 +74,83 @@ int motor_control_safe_stop(void)
 	}
 
 	return rc;
+}
+
+int motor_control_set_state(enum motor_control_channel channel,
+			    enum motor_control_state state, unsigned int duty_percent)
+{
+	const struct pwm_dt_spec *pwm;
+	const struct gpio_dt_spec *first;
+	const struct gpio_dt_spec *second;
+	int forward_first;
+	int forward_second;
+	int rc;
+
+	if (channel == MOTOR_CHANNEL_A) {
+		pwm = &motor_left_pwm;
+		first = &motor_left_in1;
+		second = &motor_left_in2;
+		forward_first = 1;
+		forward_second = 0;
+	} else if (channel == MOTOR_CHANNEL_B) {
+		pwm = &motor_right_pwm;
+		first = &motor_right_in3;
+		second = &motor_right_in4;
+		forward_first = 0;
+		forward_second = 1;
+	} else {
+		return -EINVAL;
+	}
+
+	if (state != MOTOR_CONTROL_BRAKE && duty_percent > 100U) {
+		return -EINVAL;
+	}
+
+	/* Never change H-bridge direction while its PWM enable is asserted. */
+	rc = set_pwm_percent(pwm, 0U);
+	if (rc != 0) {
+		return rc;
+	}
+
+	switch (state) {
+	case MOTOR_CONTROL_COAST:
+		return set_directions(first, second, 0, 0);
+	case MOTOR_CONTROL_FORWARD:
+		rc = set_directions(first, second, forward_first, forward_second);
+		break;
+	case MOTOR_CONTROL_REVERSE:
+		rc = set_directions(first, second, !forward_first, !forward_second);
+		break;
+	case MOTOR_CONTROL_BRAKE:
+		rc = set_directions(first, second, 0, 0);
+		duty_percent = 100U;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (rc != 0) {
+		return rc;
+	}
+	return set_pwm_percent(pwm, duty_percent);
+}
+
+int motor_control_drive_forward(unsigned int duty_percent)
+{
+	int rc = motor_control_set_state(MOTOR_CHANNEL_A, MOTOR_CONTROL_FORWARD,
+					 duty_percent);
+
+	return first_error(rc, motor_control_set_state(MOTOR_CHANNEL_B,
+						      MOTOR_CONTROL_FORWARD,
+						      duty_percent));
+}
+
+int motor_control_dynamic_brake(void)
+{
+	int rc = motor_control_set_state(MOTOR_CHANNEL_A, MOTOR_CONTROL_BRAKE, 0U);
+
+	return first_error(rc, motor_control_set_state(MOTOR_CHANNEL_B,
+						      MOTOR_CONTROL_BRAKE, 0U));
 }
 
 int motor_control_init(void)
@@ -93,7 +189,6 @@ bool motor_control_manual_test_active(void)
 
 int motor_control_pulse(enum motor_control_channel channel)
 {
-	const struct pwm_dt_spec *pwm;
 	int rc;
 
 	if (channel != MOTOR_CHANNEL_A && channel != MOTOR_CHANNEL_B) {
@@ -111,20 +206,8 @@ int motor_control_pulse(enum motor_control_channel channel)
 		goto done;
 	}
 
-	if (channel == MOTOR_CHANNEL_A) {
-		/* Verified: OUT1/OUT2 is the physical right wheel; 1/0 is forward. */
-		gpio_pin_set_dt(&motor_left_in1, 1);
-		gpio_pin_set_dt(&motor_left_in2, 0);
-		pwm = &motor_left_pwm;
-	} else {
-		/* Verified: OUT3/OUT4 is the physical left wheel; 0/1 is forward. */
-		gpio_pin_set_dt(&motor_right_in3, 0);
-		gpio_pin_set_dt(&motor_right_in4, 1);
-		pwm = &motor_right_pwm;
-	}
-
-	rc = pwm_set_dt(pwm, pwm->period,
-			(pwm->period * MOTOR_TEST_DUTY_PERCENT) / 100U);
+	rc = motor_control_set_state(channel, MOTOR_CONTROL_FORWARD,
+				     MOTOR_TEST_DUTY_PERCENT);
 	if (rc == 0) {
 		k_sleep(K_MSEC(MOTOR_TEST_DURATION_MS));
 	}
