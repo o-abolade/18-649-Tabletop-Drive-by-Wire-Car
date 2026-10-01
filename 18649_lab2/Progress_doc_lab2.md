@@ -105,10 +105,17 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
 
 ### Wiring
 
-- Pi TX → STM32 PA10 (USART1 RX)
-- Pi RX → STM32 PA9 (USART1 TX)
+- Pi TX → STM32 D2 / PA10 (USART1 RX)
+- Pi RX ← STM32 D8 / PA9 (USART1 TX)
 - Common ground between Pi and STM32 (required)
 - Both sides 3.3V logic
+
+The ST-Link console remains on USART2 (D0/D1). The Pi protocol uses USART1
+at 115200 baud, 8N1; binary status frames should not appear on the console.
+The remap moved the right motor ENB PWM from D2 to D11 / PA7
+(TIM1_CH1N, complementary channel 1), and right encoder phase B from D8 to
+D13 / PA5. The D11 complementary output uses inverted polarity so a 100% PWM
+request drives ENB high. D13 must be wired to the encoder signal, not motor power.
 
 ## Status (as of this checkpoint)
 
@@ -142,37 +149,36 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
 - Part 4 (formal RTOS thread/priority/deadline table)
 - Part 5 (final power/wiring pass, test point breakout board)
 
-## Part 3.1 motor and encoder bring-up (`part-3.1` branch)
+## Current motor and encoder pin mapping
 
-The motor-control scaffold starts in a coast state: ENA/ENB are set to 0%
-PWM and IN1--IN4 are driven low. The bounded `motor_pulse <a|b>` command
-currently drives one channel at 100% PWM for 3000 ms and always returns to the
-safe state. This remains a bench test; throttle-driven control, reverse, and
-dynamic braking are not implemented yet.
+The table below follows the current STM32 overlay. Channel A drives the left
+wheel through OUT1/OUT2; channel B drives the right wheel through OUT3/OUT4.
+At startup, during failsafe, and at zero throttle, the controller requests
+dynamic braking: IN1--IN4 high and both enables at 100%. This resists wheel
+motion while the bridge has power; it is not a mechanical wheel lock.
 
 ### L298N control pins
 
 | L298N signal | Nucleo pin | Purpose |
 |---|---|---|
-| ENA | D5 / PB4 / TIM3_CH1 | channel A PWM; physical right wheel |
-| IN1 | A0 / PA0 | channel A direction |
-| IN2 | A1 / PA1 | channel A direction |
-| IN3 | A2 / PA4 | channel B direction |
-| IN4 | D10 / PB6 | channel B direction |
-| ENB | D9 / PC7 / TIM3_CH2 | channel B PWM; physical left wheel |
+| ENA | A0 / PA0 / TIM2_CH1 | channel A PWM; physical left wheel |
+| IN1 | A4 / PC1 | channel A direction |
+| IN2 | A5 / PC0 | channel A direction |
+| IN3 | D4 / PB5 | channel B direction |
+| IN4 | D3 / PB3 | channel B direction |
+| ENB | D11 / PA7 / TIM1_CH1N | channel B PWM; physical right wheel |
 
-SPI1 is disabled on the branch because its default pins overlap D10 and the
-D11/D12 encoder GPIOs. A3/PB0 remains reserved for the planned current-sensor
-ADC input.
+SPI1 is disabled because its default pins overlap application pins. The
+current-sensor inputs are A2/PA4 (left), A3/PB0 (right), and A1/PA1 (servo).
 
 ### Encoder pins and diagnostics
 
 | Encoder signal | Nucleo pin |
 |---|---|
-| Right A | D3 / PB3 |
-| Right B | D11 / PA7 |
-| Left A | D12 / PA6 |
-| Left B | D14 / PB9 |
+| Right A | D7 / PA8 |
+| Right B | D13 / PA5 |
+| Left A | D5 / PB4 |
+| Left B | D6 / PB10 |
 
 Available shell diagnostics on the branch are:
 
