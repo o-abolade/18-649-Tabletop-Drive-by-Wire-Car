@@ -90,16 +90,16 @@ int motor_control_set_state(enum motor_control_channel channel,
 		pwm = &motor_left_pwm;
 		first = &motor_left_in1;
 		second = &motor_left_in2;
-		/* Left motor: red -> OUT1, black -> OUT2; verified forward polarity. */
-		forward_first = 1;
-		forward_second = 0;
+		/* Left wheel: OUT1/OUT2 polarity that moves the vehicle forward. */
+		forward_first = 0;
+		forward_second = 1;
 	} else if (channel == MOTOR_CHANNEL_B) {
 		pwm = &motor_right_pwm;
 		first = &motor_right_in3;
 		second = &motor_right_in4;
-		/* Right motor: verified forward polarity on OUT3/OUT4. */
-		forward_first = 0;
-		forward_second = 1;
+		/* Right wheel: OUT3/OUT4 polarity that moves the vehicle forward. */
+		forward_first = 1;
+		forward_second = 0;
 	} else {
 		return -EINVAL;
 	}

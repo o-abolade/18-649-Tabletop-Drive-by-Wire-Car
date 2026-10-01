@@ -52,7 +52,7 @@
 		};
 		motor_right_pwm: motor_right_pwm {
 			pwms = <&pwm1 1 PWM_USEC(100)
-				(PWM_POLARITY_INVERTED | STM32_PWM_COMPLEMENTARY)>;
+				(PWM_POLARITY_NORMAL | STM32_PWM_COMPLEMENTARY)>;
 		};
 	};
 
