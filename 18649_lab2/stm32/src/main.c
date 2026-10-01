@@ -46,10 +46,20 @@ static int32_t previous_right_count;
 static int32_t previous_left_count;
 static bool have_speed_sample;
 
-static uint16_t current_status_value(enum current_id id)
+static float current_status_value(enum current_id id)
 {
-	int raw = current_read_raw(id);
-	return raw < 0 ? 0U : (uint16_t)raw;
+	float amps;
+	int ret = current_read_amps(id, &amps);
+
+	if (ret < 0) {
+		printk("Current read failed for channel %d: %d\n", id, ret);
+		return 0.0f;
+	}
+
+	if (amps < 0.0f) {
+		amps = -amps;
+	}
+	return amps;
 }
 
 void reset_speed_controllers(void)
@@ -130,12 +140,16 @@ static void status_thread_fn(void *a, void *b, void *c)
 			st.motor2_current = current_status_value(CURRENT_MOTOR_B);
 			st.servo_current  = current_status_value(CURRENT_SERVO);
 		} else {
-			st.motor1_current = 0;
-			st.motor2_current = 0;
-			st.servo_current  = 0;
+			st.motor1_current = 0.0f;
+			st.motor2_current = 0.0f;
+			st.servo_current  = 0.0f;
 		}
-
+         
 		cmd_frame_t last_cmd;
+		printk("Motor 1 current %d mA, motor 2 current %d mA, servo current %d mA\n",
+		       (int)(st.motor1_current * 1000.0f),
+		       (int)(st.motor2_current * 1000.0f),
+		       (int)(st.servo_current * 1000.0f));
 		st.seq = pi_stm32_uart_get_latest_cmd(&last_cmd) ? last_cmd.seq : 0;
 
 		pi_stm32_uart_send_status(&st);
@@ -164,7 +178,7 @@ static void control_thread_fn(void *a, void *b, void *c)
 		uint32_t age = pi_stm32_uart_ms_since_last_cmd();
 
 		if (!have || age > FAILSAFE_TIMEOUT_MS) {
-			if (atomic_get(&zone_state) != STATE_FAILSAFE) {
+ 			if (atomic_get(&zone_state) != STATE_FAILSAFE) {
 				printk("*** ENTERING FAILSAFE (age=%ums) ***\n", age);
 				blinker_set_hazard(true);
 			}
@@ -182,8 +196,8 @@ static void control_thread_fn(void *a, void *b, void *c)
 			}
 			atomic_set(&zone_state, STATE_NORMAL);
 
-			// printk("seq=%u steer=%d thr=%u brk=%u btn=0x%02x age=%ums\n",
-			//        cmd.seq, cmd.steering, cmd.throttle, cmd.brake, cmd.buttons, age);
+			printk("seq=%u steer=%d thr=%u brk=%u btn=0x%02x age=%ums\n",
+			       cmd.seq, cmd.steering, cmd.throttle, cmd.brake, cmd.buttons, age);
 
 			if (!motor_control_manual_test_active()) {
 				(void)set_wheel_angle(cmd.steering);
@@ -194,7 +208,7 @@ static void control_thread_fn(void *a, void *b, void *c)
 					apply_throttle(cmd.throttle);
 				}
 			}
-
+            
 			bool left_now   = cmd.buttons & LEFT_TURN_BIT;
 			bool right_now  = cmd.buttons & RIGHT_TURN_BIT;
 			bool left_prev  = prev_buttons & LEFT_TURN_BIT;

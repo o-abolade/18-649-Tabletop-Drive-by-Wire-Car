@@ -3,15 +3,20 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/sys/crc.h>
+#include <float.h>
 #include <string.h>
 
 #define SYNC0       0xAA
 #define SYNC1       0x55
 #define TYPE_CMD    0x01
 #define TYPE_STATUS 0x02
-#define FRAME_LEN   13          // total bytes including sync+crc
-#define PAYLOAD_LEN (FRAME_LEN - 2 - 2)  // minus 2 sync, minus 2 crc
+#define CMD_FRAME_LEN    13
+#define STATUS_FRAME_LEN 19
 #define BYTE_TIMEOUT_MS 20
+
+_Static_assert(sizeof(float) == sizeof(uint32_t), "status protocol requires 32-bit floats");
+_Static_assert(FLT_RADIX == 2 && FLT_MANT_DIG == 24 && FLT_MAX_EXP == 128,
+	       "status protocol requires IEEE-754 binary32 floats");
 
 // Validation ranges
 #define STEERING_MIN -1000
@@ -25,7 +30,7 @@ static const struct device *uart_dev = DEVICE_DT_GET(DT_ALIAS(rpilink));
 enum rx_state { SEEK_SYNC0, SEEK_SYNC1, COLLECT };
 
 static enum rx_state rx_state = SEEK_SYNC0;
-static uint8_t  rx_buf[FRAME_LEN];
+static uint8_t  rx_buf[CMD_FRAME_LEN];
 static uint8_t  rx_idx;
 
 // Shared "latest command" slot
@@ -115,7 +120,7 @@ static void uart_isr(const struct device *dev, void *user_data)
 		case COLLECT:
 			rx_buf[rx_idx++] = current_byte;
 			k_timer_start(&byte_timer, K_MSEC(BYTE_TIMEOUT_MS), K_NO_WAIT); /* reset watchdog */
-			if (rx_idx >= FRAME_LEN) {
+			if (rx_idx >= CMD_FRAME_LEN) {
 				k_timer_stop(&byte_timer);
 				handle_complete_frame();
 				rx_state = SEEK_SYNC0;
@@ -153,24 +158,33 @@ uint32_t pi_stm32_uart_ms_since_last_cmd(void)
 
 void pi_stm32_uart_send_status(const status_frame_t *st)
 {
-	uint8_t buf[FRAME_LEN];
+	uint8_t buf[STATUS_FRAME_LEN];
 	buf[0] = SYNC0;
 	buf[1] = SYNC1;
 	buf[2] = TYPE_STATUS;
 	buf[3] = st->seq;
 	buf[4] = st->state;
-	buf[5] = st->motor1_current & 0xFF;
-	buf[6] = (st->motor1_current >> 8) & 0xFF;
-	buf[7] = st->motor2_current & 0xFF;
-	buf[8] = (st->motor2_current >> 8) & 0xFF;
-	buf[9] = st->servo_current & 0xFF;
-	buf[10] = (st->servo_current >> 8) & 0xFF;
 
-	uint16_t crc = crc16_ccitt(0xFFFF, &buf[2], 9);
-	buf[11] = crc & 0xFF;
-	buf[12] = (crc >> 8) & 0xFF;
+	const float currents[] = {
+		st->motor1_current,
+		st->motor2_current,
+		st->servo_current,
+	};
+	for (size_t i = 0; i < ARRAY_SIZE(currents); i++) {
+		uint32_t bits;
+		memcpy(&bits, &currents[i], sizeof(bits));
+		size_t offset = 5 + i * sizeof(bits);
+		buf[offset] = bits & 0xFF;
+		buf[offset + 1] = (bits >> 8) & 0xFF;
+		buf[offset + 2] = (bits >> 16) & 0xFF;
+		buf[offset + 3] = (bits >> 24) & 0xFF;
+	}
 
-	for (int i = 0; i < FRAME_LEN; i++) {
+	uint16_t crc = crc16_ccitt(0xFFFF, &buf[2], 15);
+	buf[17] = crc & 0xFF;
+	buf[18] = (crc >> 8) & 0xFF;
+
+	for (int i = 0; i < STATUS_FRAME_LEN; i++) {
 		uart_poll_out(uart_dev, buf[i]);
 	}
 }

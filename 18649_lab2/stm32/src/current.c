@@ -8,6 +8,9 @@
 #define ACS712_VCC_MV     5000
 #define ACS712_ZERO_MV    (ACS712_VCC_MV / 2)  /* nominal VIOUT(Q), 2500 mV */
 #define ACS712_MV_PER_A   185.0f    /* 5A variant: 180-190 mV/A, typ 185 */
+#define DIVIDER_TOP_OHM   10000.0f
+#define DIVIDER_BOTTOM_OHM 14700.0f
+#define DIVIDER_GAIN      ((DIVIDER_TOP_OHM + DIVIDER_BOTTOM_OHM) / DIVIDER_BOTTOM_OHM)
 
 static const struct adc_dt_spec current_channels[CURRENT_COUNT] = {
     [CURRENT_MOTOR_A] = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 0),
@@ -51,14 +54,14 @@ int current_read_raw(enum current_id id)
     if (ret < 0) {
         return ret;
     }
-
     return sample_buf;
 }
 
 float current_raw_to_amps(int32_t raw_count)
 {
-    float pin_mv = (raw_count * (float)ADC_VREF_MV) / ADC_MAX_COUNT;
-    return (pin_mv - ACS712_ZERO_MV) / ACS712_MV_PER_A;
+    float adc_pin_mv = (raw_count * (float)ADC_VREF_MV) / ADC_MAX_COUNT;
+    float sensor_output_mv = adc_pin_mv * DIVIDER_GAIN;
+    return (sensor_output_mv - ACS712_ZERO_MV) / ACS712_MV_PER_A;
 }
 
 int current_read_amps(enum current_id id, float *out_amps)
@@ -67,6 +70,8 @@ int current_read_amps(enum current_id id, float *out_amps)
     if (raw < 0) {
         return raw;
     }
+
     *out_amps = current_raw_to_amps(raw);
+
     return 0;
 }

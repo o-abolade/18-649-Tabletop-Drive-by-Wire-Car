@@ -34,7 +34,8 @@ Logitech wheel --USB--> Laptop proxy --UDP:8000--> Raspberry Pi 4
 
 ## Part 2 protocol — Pi ↔ STM32 UART frames
 
-Both directions use a fixed 13-byte frame, 115200 baud, 8N1.
+Command frames are 13 bytes and status frames are 19 bytes, at 115200 baud,
+8N1.
 
 **Sync bytes:** `0xAA 0x55` — chosen as bitwise complements of each other with alternating bits, to minimize the chance of payload data accidentally looking like a sync sequence, and to be easy to spot on a scope/logic analyzer.
 
@@ -61,10 +62,10 @@ Both directions use a fixed 13-byte frame, 115200 baud, 8N1.
 | 2 | TYPE | 1B | `0x02` |
 | 3 | SEQ | 1B | mirrors the last received command's SEQ |
 | 4 | STATE | 1B | 0=INIT, 1=NORMAL, 2=FAILSAFE, 3=SELFTEST |
-| 5–6 | MOTOR1_CURRENT | uint16 LE | placeholder (0) until Part 3 current sensors are wired |
-| 7–8 | MOTOR2_CURRENT | uint16 LE | placeholder (0) |
-| 9–10 | SERVO_CURRENT | uint16 LE | placeholder (0) |
-| 11–12 | CRC16 | uint16 LE | over bytes 2–10 |
+| 5–8 | MOTOR1_CURRENT | IEEE-754 binary32 LE | current magnitude in amps |
+| 9–12 | MOTOR2_CURRENT | IEEE-754 binary32 LE | current magnitude in amps |
+| 13–16 | SERVO_CURRENT | IEEE-754 binary32 LE | current magnitude in amps |
+| 17–18 | CRC16 | uint16 LE | over bytes 2–16 |
 
 ### Design notes
 
@@ -103,10 +104,16 @@ gcc -O2 -Wall -o pi_bridge pi_bridge.c
 
 `wheel_monitor` and `pi_bridge` both bind UDP port 8000 — only run one at a time.
 
+`pi_bridge` also drives BCM GPIO 18 (physical header pin 12) high when a UDP
+datagram is received and low after the subsequent serial command write returns.
+It uses `/dev/gpiochip0`; the process needs permission to request that GPIO line.
+
 ### Wiring
 
 - Pi TX → STM32 D2 / PA10 (USART1 RX)
 - Pi RX ← STM32 D8 / PA9 (USART1 TX)
+- BCM GPIO 18 (physical pin 12) is high from UDP reception until the subsequent
+  serial command write completes.
 - Common ground between Pi and STM32 (required)
 - Both sides 3.3V logic
 
