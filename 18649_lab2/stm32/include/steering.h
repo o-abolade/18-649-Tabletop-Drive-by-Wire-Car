@@ -22,4 +22,4 @@ int set_wheel_angle(int16_t wheel_state);
 /* For breaking, disables servo output */
 int servo_disable(void);
 
-#endif
+#endif /* STEERING_H */

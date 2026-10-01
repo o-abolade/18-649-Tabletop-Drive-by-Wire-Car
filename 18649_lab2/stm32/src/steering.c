@@ -31,7 +31,7 @@ int servo_disable(void)
 }
 
 // according to currently defined mapping -1000 to 1000
-int set_wheel_angle(int16_t wheel_state) 
+int set_wheel_angle(int16_t wheel_state)
 {
     if (wheel_state < MIN_WHEEL_STATE) {
         wheel_state = MIN_WHEEL_STATE;

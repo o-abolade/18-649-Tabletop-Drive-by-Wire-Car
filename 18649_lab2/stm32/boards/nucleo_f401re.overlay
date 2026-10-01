@@ -1,84 +1,170 @@
 /* boards/nucleo_f401re.overlay */
+#include <zephyr/dt-bindings/pwm/stm32_pwm.h>
 / {
 	aliases {
-		rpilink = &usart1;
-        servo-pwm = &servo_pwm;
+		rpilink = &usart2;
+		servo-pwm = &servo_pwm;
 		blinker-fl = &blinker_fl;
-        blinker-fr = &blinker_fr;
-        blinker-rl = &blinker_rl;
-        blinker-rr = &blinker_rr;
+		blinker-fr = &blinker_fr;
+		blinker-rl = &blinker_rl;
+		blinker-rr = &blinker_rr;
+		motor-left-pwm = &motor_left_pwm;
+		motor-right-pwm = &motor_right_pwm;
+		motor-left-in1 = &motor_left_in1;
+		motor-left-in2 = &motor_left_in2;
+		motor-right-in3 = &motor_right_in3;
+		motor-right-in4 = &motor_right_in4;
+		encoder-right-a = &encoder_right_a;
+		encoder-right-b = &encoder_right_b;
+		encoder-left-a = &encoder_left_a;
+		encoder-left-b = &encoder_left_b;
 	};
 
-    zephyr,user {
-        io-channels = <&adc1 8>, <&adc1 10>, <&adc1 11>;
-    };
-
-    pwm-outputs {
-        compatible = "pwm-leds";
-
-        servo_pwm: servo-pwm {
-            pwms = <&pwm2 2 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
-        };
-    };
+	zephyr,user {
+		/* index 0: left motor current (PA4), 1: right motor current (PB0),
+		 * 2: servo current (PA1). Order matches current.c's enum
+		 * CURRENT_MOTOR_A, CURRENT_MOTOR_B, CURRENT_SERVO. */
+		io-channels = <&adc1 4>, <&adc1 8>, <&adc1 1>;
+	};
 
 	blinkers {
-        compatible = "gpio-leds";
+		compatible = "gpio-leds";
 
-        blinker_fl: blinker_fl {
-            gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>;   /* D3 */
-        };
-        blinker_fr: blinker_fr {
-            gpios = <&gpiob 5 GPIO_ACTIVE_HIGH>;    /* D4 */
-        };
-        blinker_rl: blinker_rl {
-            gpios = <&gpiob 10 GPIO_ACTIVE_HIGH>;   /* D6 */
-        };
-        blinker_rr: blinker_rr {
-            gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>;    /* D7 */
-        };
-    };
+		blinker_fl: blinker_fl {
+			gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>;    /* D14 */
+		};
+		blinker_fr: blinker_fr {
+			gpios = <&gpiob 8 GPIO_ACTIVE_HIGH>;    /* D15 */
+		};
+		blinker_rl: blinker_rl {
+			gpios = <&gpioc 7 GPIO_ACTIVE_HIGH>;    /* D9 */
+		};
+		blinker_rr: blinker_rr {
+			gpios = <&gpiob 6 GPIO_ACTIVE_HIGH>;    /* D10 */
+		};
+	};
+
+	motor_pwm_outputs {
+		compatible = "pwm-leds";
+
+		motor_left_pwm: motor_left_pwm {
+			pwms = <&pwm2 1 PWM_USEC(100) PWM_POLARITY_NORMAL>;
+		};
+		motor_right_pwm: motor_right_pwm {
+			pwms = <&pwm1 1 PWM_USEC(100)
+				(PWM_POLARITY_NORMAL | STM32_PWM_COMPLEMENTARY)>;
+		};
+	};
+
+	servo_outputs {
+		compatible = "pwm-leds";
+
+		servo_pwm: servo_pwm {
+			pwms = <&pwm3 1 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+		};
+	};
+
+	motor_direction_outputs {
+		compatible = "gpio-leds";
+
+		motor_left_in1: motor_left_in1 {
+			gpios = <&gpioc 1 GPIO_ACTIVE_HIGH>; /* A4 */
+		};
+		motor_left_in2: motor_left_in2 {
+			gpios = <&gpioc 0 GPIO_ACTIVE_HIGH>; /* A5 */
+		};
+		motor_right_in3: motor_right_in3 {
+			gpios = <&gpiob 5 GPIO_ACTIVE_HIGH>; /* D4 */
+		};
+		motor_right_in4: motor_right_in4 {
+			gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>; /* D3 */
+		};
+	};
+
+	encoder_inputs {
+		compatible = "gpio-keys";
+
+		encoder_right_a: encoder_right_a {
+			gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>; /* D7, phase A */
+		};
+		encoder_right_b: encoder_right_b {
+			gpios = <&gpioa 5 GPIO_ACTIVE_HIGH>; /* D13, phase B */
+		};
+		encoder_left_a: encoder_left_a {
+			gpios = <&gpiob 4 GPIO_ACTIVE_HIGH>; /* D5, phase A */
+		};
+		encoder_left_b: encoder_left_b {
+			gpios = <&gpiob 10 GPIO_ACTIVE_HIGH>; /* D6, phase B */
+		};
+	};
 };
 
-&adc1 {
-    #address-cells = <1>;
-    #size-cells = <0>;
-    status = "okay";
+&spi1 { status = "disabled"; };
+&i2c1 { status = "disabled"; };
+&i2c3 { status = "disabled"; };
 
-    channel@8 {
-        reg = <8>;
-        zephyr,gain = "ADC_GAIN_1";
-        zephyr,reference = "ADC_REF_INTERNAL";
-        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-        zephyr,input-positive = <8>; /* IN8, PB0 / A3 */
-        zephyr,resolution = <12>;
-    };
-    channel@a {
-        reg = <10>;
-        zephyr,gain = "ADC_GAIN_1";
-        zephyr,reference = "ADC_REF_INTERNAL";
-        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-        zephyr,input-positive = <10>; /* IN10, PC0 / A5 */
-        zephyr,resolution = <12>;
-    };
-    channel@b {
-        reg = <11>;
-        zephyr,gain = "ADC_GAIN_1";
-        zephyr,reference = "ADC_REF_INTERNAL";
-        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-        zephyr,input-positive = <11>; /* IN11, PC1 / A4 */
-        zephyr,resolution = <12>;
-    };
+&adc1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	pinctrl-0 = <&adc1_in1_pa1 &adc1_in4_pa4 &adc1_in8_pb0>;
+	pinctrl-names = "default";
+
+	channel@1 {
+		reg = <1>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,input-positive = <1>; /* IN1, PA1 / A1, servo current */
+		zephyr,resolution = <12>;
+	};
+	channel@4 {
+		reg = <4>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,input-positive = <4>; /* IN4, PA4 / A2, left motor current */
+		zephyr,resolution = <12>;
+	};
+	channel@8 {
+		reg = <8>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,input-positive = <8>; /* IN8, PB0 / A3, right motor current */
+		zephyr,resolution = <12>;
+	};
 };
 
 &usart1 {
+	/* Pi link: D8/PA9 TX, D2/PA10 RX */
 	status = "okay";
 	current-speed = <115200>;
 	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
 	pinctrl-names = "default";
 };
 
+&timers1 {
+	status = "okay";
+	pwm1: pwm {
+		status = "okay";
+        pinctrl-0 = <&tim1_ch1n_pa7>;
+        pinctrl-names = "default";
+	};
+};
+
+&timers3 {
+	st,prescaler = <27>;
+	status = "okay";
+	pwm3: pwm {
+		status = "okay";
+		pinctrl-0 = <&tim3_ch1_pa6>;
+		pinctrl-names = "default";
+	};
+};
+
 &pwm2 {
-    status = "okay";
-    pinctrl-0 = <&tim2_ch2_pb3>;
-    pinctrl-names = "default";
+	status = "okay";
+	pinctrl-0 = <&tim2_ch1_pa0>;
+	pinctrl-names = "default";
 };
