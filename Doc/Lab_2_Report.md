@@ -11,7 +11,7 @@
 ![Top Level Block Diagram](assets/Lab2_Block_Diagram.png)
 
 ## Circuit Diagram
-![Top Level Block Diagram](assets/lab2_circuit_diagram.png)
+![Circuit Diagram](assets/18649_Lab2_Circuit_Schematic.png)
 
 ## Team-Defined Values
 
