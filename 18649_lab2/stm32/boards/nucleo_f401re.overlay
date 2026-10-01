@@ -2,7 +2,7 @@
 #include <zephyr/dt-bindings/pwm/stm32_pwm.h>
 / {
 	aliases {
-		rpilink = &usart2;
+		rpilink = &usart1;
 		servo-pwm = &servo_pwm;
 		blinker-fl = &blinker_fl;
 		blinker-fr = &blinker_fr;
