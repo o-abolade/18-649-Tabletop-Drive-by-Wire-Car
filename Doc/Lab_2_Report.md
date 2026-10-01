@@ -304,6 +304,17 @@
 
 ## Task Table
 
+| Name | Type | Period | Priority | Deadline | Talks to |
+|---|---|---|---|---|---|
+| UART RX ISR (`uart_isr`) | ISR | Event-driven, per byte | Hardware interrupt (preempts all threads) | Drain each byte before the next arrives (~87µs @ 115200 baud) | USART1 peripheral; writes `latest_cmd` (spinlock), restarts byte-timeout timer, gives `cmd_received_sem` |
+| Byte-timeout timer (`byte_timeout_expired`) | `k_timer` callback | One-shot, restarted on every byte; fires after 20ms of silence | Timer/workqueue context | Fire within 20ms to force parser resync | Resets `rx_state`/`rx_idx` in `pi_stm32_uart.c` |
+| Encoder edge ISRs (`phase_a_callback` / `phase_b_callback`, ×2 wheels) | ISR | Event-driven, per quadrature edge | Hardware interrupt | Process each edge before the next arrives at max wheel RPM | GPIO interrupt lines; updates atomic `count`/edge counters in `encoder.c` |
+| Control thread (`control_thread_fn`) | Thread | Event-driven (wakes on `cmd_received_sem`), with a 10ms fallback timeout | 5 | 2ms (R2.1/R2.2 throttle/brake), 50ms (R2.3 steering) | Reads latest command via `pi_stm32_uart`; drives `motor_control`, `steering`, `blinker_ctrl`; runs PID via `apply_throttle` |
+| Blinker thread (`blinker_thread_fn`) | Thread | Variable: 500ms (normal, 1Hz) / 250ms (hazard, 2Hz), toggling each half-period | 6 | 100ms to start blinking (R2.4); blink rate ±10% of nominal | `blinker.c` GPIOs; reads `blink_state`/`past_threshold` (mutex-protected) |
+| Status/heartbeat thread (`status_thread_fn`) | Thread | 20ms | 7 | 20ms ±10% heartbeat cadence | Reads `current` sensors (ADC); sends status frame via `pi_stm32_uart` |
+| Main (`main()`) | Thread, runs once at boot | N/A | 0 (default) | N/A | Initializes every module once at startup |
+| Bench/shell commands (`motor_pulse`, `steering_test`, `encoder_monitor`, etc.) | Thread (shell), manually triggered | Aperiodic | Shell thread priority | N/A — bench-only, not part of runtime control loop | Directly drives `motor_control` / `steering` / `encoder` on demand |
+
 ## Integration Writeup
 
 In the final design, the Raspberry Pi continues to perform the same functions as in Lab 2. It receives the UDP wheel stream from the laptop proxy, decodes it, sends commands to the microcontroller at least every 50 ms, and returns a status frame every 20 ms. The single STM32 is divided into two zones connected by a physical CAN bus. The steering zone takes over the steering servo, the servo current sensor, and the front blinkers (FL and FR). The drivetrain zone takes over motor driving, the motor current sensors, the encoders, and the rear blinkers (RL and RR). We assume the Pi's UART terminates on the steering zone, which acts as a gateway: it translates Pi commands into CAN frames and collects CAN status data for the Pi's status frame.
