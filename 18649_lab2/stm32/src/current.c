@@ -7,7 +7,7 @@
 #define ADC_MAX_COUNT     4095      /* maximum code for a 12-bit ADC */
 #define DIVIDER_RATIO     2.0f
 #define CURRENT_ZERO_MV   2500.0f
-#define CURRENT_MV_PER_A  500.0f    /* 2.5 V to 5 V spans 0 A to 5 A */
+#define CURRENT_MV_PER_A  185.0f    /* 2.5 V to 5 V spans 0 A to 5 A */
 
 static const struct adc_dt_spec current_channels[CURRENT_COUNT] = {
     [CURRENT_MOTOR_A] = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 0),
