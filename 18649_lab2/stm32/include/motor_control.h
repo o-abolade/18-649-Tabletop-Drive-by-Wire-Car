@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-#define MOTOR_TEST_DURATION_MS  3000U
-#define MOTOR_TEST_DUTY_PERCENT 100U
+#define MOTOR_TEST_DURATION_MS  2000U
+#define MOTOR_TEST_DUTY_PERCENT 75U
 
 /*
  * Low-level interface to the L298N. Initialization applies dynamic braking

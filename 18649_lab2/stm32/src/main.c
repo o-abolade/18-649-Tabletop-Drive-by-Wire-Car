@@ -14,10 +14,15 @@
 #define CONTROL_DT_SECONDS ((float)CONTROL_PERIOD_MS / 1000.0f)
 #define BRAKE_ACTIVE_THRESHOLD 50U
 
-#define PID_MAX_SPEED_TRANSITIONS_PER_SECOND 2000.0f
+#define PID_MAX_SPEED_TRANSITIONS_PER_SECOND 6500.0f   // 14454.0 counts / 2 seconds = 7227 max -> 6500 = ~90% of measured 7227 max
 #define PID_KP_DEFAULT 0.02f
-#define PID_KI_DEFAULT 0.0f
+#define PID_KI_DEFAULT 0.01f
 #define PID_KD_DEFAULT 0.0f
+
+#define RIGHT_ENCODER_SIGN  1   /* set to -1 if right wheel reads backward */
+#define LEFT_ENCODER_SIGN   -1   /* set to -1 if left wheel reads backward */
+
+#define MOTOR_MIN_EFFECTIVE_DUTY 55U
 
 #define STATE_INIT     0
 #define STATE_NORMAL   1
@@ -33,7 +38,7 @@ static atomic_t zone_state = ATOMIC_INIT(STATE_INIT);
 static atomic_t application_initialized = ATOMIC_INIT(0);
 
 /* Shared with bench_commands.c via control_state.h */
-atomic_t pid_enabled = ATOMIC_INIT(0);
+atomic_t pid_enabled = ATOMIC_INIT(1);
 struct pid_controller right_pid;
 struct pid_controller left_pid;
 
@@ -83,17 +88,32 @@ static void apply_throttle(uint16_t throttle)
 		return;
 	}
 
-	right_speed = (float)(right_count - previous_right_count) / CONTROL_DT_SECONDS;
-	left_speed = (float)(left_count - previous_left_count) / CONTROL_DT_SECONDS;
+	right_speed = RIGHT_ENCODER_SIGN  * (float)(right_count - previous_right_count) / CONTROL_DT_SECONDS;
+	left_speed = LEFT_ENCODER_SIGN * (float)(left_count - previous_left_count) / CONTROL_DT_SECONDS;
 	previous_right_count = right_count;
 	previous_left_count = left_count;
 	target_speed = ((float)throttle / 1000.0f) * PID_MAX_SPEED_TRANSITIONS_PER_SECOND;
 
 	right_duty = (unsigned int)pid_controller_update(&right_pid, target_speed, right_speed, CONTROL_DT_SECONDS);
-	left_duty = (unsigned int)pid_controller_update(&left_pid, target_speed, left_speed, CONTROL_DT_SECONDS);
+	left_duty  = (unsigned int)pid_controller_update(&left_pid, target_speed, left_speed, CONTROL_DT_SECONDS);
+
+	if (right_duty > 0 && right_duty < MOTOR_MIN_EFFECTIVE_DUTY) {
+		right_duty = MOTOR_MIN_EFFECTIVE_DUTY;
+	}
+	if (left_duty > 0 && left_duty < MOTOR_MIN_EFFECTIVE_DUTY) {
+		left_duty = MOTOR_MIN_EFFECTIVE_DUTY;
+	}
 
 	(void)motor_control_set_state(MOTOR_CHANNEL_A, MOTOR_CONTROL_FORWARD, left_duty);
 	(void)motor_control_set_state(MOTOR_CHANNEL_B, MOTOR_CONTROL_FORWARD, right_duty);
+
+	// Prints what PID is doing
+	static uint32_t debug_counter = 0;
+	if (++debug_counter % 20 == 0) {  /* print roughly every 200ms, not every 10ms */
+		printk("target=%.1f right_spd=%.1f right_duty=%u | left_spd=%.1f left_duty=%u\n",
+			(double)target_speed, (double)right_speed, right_duty,
+			(double)left_speed, left_duty);
+	}
 }
 
 // Status heartbeat thread: sends every 20ms
@@ -162,8 +182,8 @@ static void control_thread_fn(void *a, void *b, void *c)
 			}
 			atomic_set(&zone_state, STATE_NORMAL);
 
-			printk("seq=%u steer=%d thr=%u brk=%u btn=0x%02x age=%ums\n",
-			       cmd.seq, cmd.steering, cmd.throttle, cmd.brake, cmd.buttons, age);
+			// printk("seq=%u steer=%d thr=%u brk=%u btn=0x%02x age=%ums\n",
+			//        cmd.seq, cmd.steering, cmd.throttle, cmd.brake, cmd.buttons, age);
 
 			if (!motor_control_manual_test_active()) {
 				(void)set_wheel_angle(cmd.steering);
