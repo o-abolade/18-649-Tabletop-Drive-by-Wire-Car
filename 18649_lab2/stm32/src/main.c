@@ -63,6 +63,11 @@ static void apply_throttle(uint16_t throttle)
 	if (throttle > 1000U) {
 		throttle = 1000U;
 	}
+	if (throttle == 0U) {
+		(void)motor_control_dynamic_brake();
+		reset_speed_controllers();
+		return;
+	}
 
 	if (atomic_get(&pid_enabled) == 0) {
 		(void)motor_control_drive_forward(throttle / 10U);
