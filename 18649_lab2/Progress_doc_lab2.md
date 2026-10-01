@@ -114,7 +114,7 @@ The ST-Link console remains on USART2 (D0/D1). The Pi protocol uses USART1
 at 115200 baud, 8N1; binary status frames should not appear on the console.
 The remap moved the right motor ENB PWM from D2 to D11 / PA7
 (TIM1_CH1N, complementary channel 1), and right encoder phase B from D8 to
-D13 / PA5. The D11 complementary output uses inverted polarity so a 100% PWM
+D13 / PA5. The D11 complementary output uses normal polarity so a 100% PWM
 request drives ENB high. D13 must be wired to the encoder signal, not motor power.
 
 ## Status (as of this checkpoint)
@@ -167,6 +167,9 @@ motion while the bridge has power; it is not a mechanical wheel lock.
 | IN3 | D4 / PB5 | channel B direction |
 | IN4 | D3 / PB3 | channel B direction |
 | ENB | D11 / PA7 / TIM1_CH1N | channel B PWM; physical right wheel |
+
+Forward direction: IN1=0, IN2=1 for the left wheel; IN3=1, IN4=0 for the
+right wheel. Reverse swaps each pair.
 
 SPI1 is disabled because its default pins overlap application pins. The
 current-sensor inputs are A2/PA4 (left), A3/PB0 (right), and A1/PA1 (servo).
