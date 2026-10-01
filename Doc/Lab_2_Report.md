@@ -12,3 +12,10 @@
 
 ### Circuit Diagram
 ![Top Level Block Diagram](assets/lab2_circuit_diagram.png)
+
+### Team-Defined Values
+
+### Task Table
+
+### Integration Writeup
+
