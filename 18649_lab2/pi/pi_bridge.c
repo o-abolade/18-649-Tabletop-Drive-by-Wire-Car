@@ -8,11 +8,6 @@
  * Build:  gcc -O2 -Wall -o pi_bridge pi_bridge.c
  * Run:    ./pi_bridge <serial-device> [--invalid-test]
  *         e.g. ./pi_bridge /dev/ttyAMA0
- *
- * --invalid-test sends normal, valid command frames (so the STM32 can reach
- * NORMAL) until it reports STATE_NORMAL in a status frame; only after that
- * does every subsequent frame get its throttle corrupted out of range
- * (BL-08: "out-of-range value sent from a valid normal state").
  */
 
 #include <stdio.h>
@@ -20,6 +15,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -41,6 +37,7 @@
 #define STATUS_FRAME_LEN 19
 #define UDP_PORT     8000
 #define SEND_PERIOD_MS 50
+#define INVALID_TEST_VALID_MS 1000
 
 #define STEER_RAW_LEFT     (-32768)
 #define STEER_RAW_CENTER   (0)
@@ -245,18 +242,23 @@ static void make_frame_invalid(uint8_t *buf)
     buf[12] = (crc >> 8) & 0xFF;
 }
 
+static int64_t monotonic_ms(void)
+{
+    struct timespec ts;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        perror("clock_gettime");
+        exit(1);
+    }
+
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
 // Status frame RX state machine (mirrors the STM32 side)
 enum rx_state { SEEK_SYNC0, SEEK_SYNC1, COLLECT };
 static enum rx_state st_state = SEEK_SYNC0;
 static uint8_t st_buf[STATUS_FRAME_LEN];
 static uint8_t st_idx = 0;
-
-#define STM32_STATE_NORMAL 1
-
-/* Set once the STM32 has reported STATE_NORMAL at least once. --invalid-test
- * waits on this so the out-of-range command is only injected from a valid
- * NORMAL state (BL-08's precondition), never during INIT. */
-static bool seen_normal = false;
 
 static void handle_status_frame(const uint8_t *f)
 {
@@ -282,11 +284,6 @@ static void handle_status_frame(const uint8_t *f)
     memcpy(&m2, &bits, 4);
     memcpy(&bits, &f[13], 4);
     memcpy(&srv, &bits, 4);
-
-    if (state == STM32_STATE_NORMAL && !seen_normal) {
-        seen_normal = true;
-        printf(">>> STM32 reached NORMAL; invalid-frame injection armed <<<\n");
-    }
 
     const char *state_str[] = {"INIT", "NORMAL", "FAILSAFE", "SELFTEST"};
     printf("STATUS seq=%u state=%s m1=%.3fA m2=%.3fA srv=%.3fA\n",
@@ -345,6 +342,7 @@ int main(int argc, char **argv)
        sizeof(DIJOYSTATE2_t), 4 + sizeof(DIJOYSTATE2_t));
 
     uint8_t seq = 0;
+    const int64_t invalid_test_start_ms = monotonic_ms();
     long last_steer_raw = STEER_RAW_CENTER;
     long last_throttle_raw = THROTTLE_RAW_REST;
     long last_brake_raw = BRAKE_RAW_REST;
@@ -403,7 +401,10 @@ int main(int argc, char **argv)
 
         uint8_t frame[FRAME_LEN];
         build_command_frame(frame, steering, throttle, brake, last_buttons, seq++);
-        if (invalid_test && seen_normal) {
+        /* Let the STM32 receive valid traffic and enter NORMAL before the
+         * test injects an otherwise well-formed, out-of-range command. */
+        if (invalid_test &&
+            monotonic_ms() - invalid_test_start_ms >= INVALID_TEST_VALID_MS) {
             make_frame_invalid(frame);
         }
 
