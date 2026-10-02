@@ -35,50 +35,50 @@
 <tbody>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Steering input</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">TBD: min, center, max; raw units</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Read UDP values; check wheel model and direction.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Needs calibration</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Normalized command: −1000 to +1000; wheel raw range: −32768 to +32767</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">The Pi maps its wheel input to the normalized command before transmitting it to the STM32.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Implemented in Lab 2</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Servo travel</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">TBD: left, center, right; degrees and pulse width</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Depends on servo, linkage and chassis travel.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Hardware-dependent</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">20 ms period; left/center/right = 1000/1500/2000 µs (allowed range 500–2500 µs)</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Values were verified with the front steering servos and retain margin from the electrical endpoints.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Implemented and tested</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Steering mapping</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Monotonic; full usable steering range</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Required behavior; endpoints need calibration.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Fixed rule; values TBD</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Linear: −1000/0/+1000 → 1000/1500/2000 µs</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Monotonic mapping across the tested usable steering range.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Implemented in Lab 2</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Throttle input</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">TBD: released/full values; raw units</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Read UDP pedal values; measure rest noise.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Needs calibration</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Normalized command: 0 to 1000; raw pedal released/full: +32767/−32768</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">The Pi normalizes throttle and brake before transmission; remaining pedal-noise tuning is outside this Lab 2 value.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Implemented in Lab 2</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Throttle mapping</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Linear target speed vs pedal travel</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Starting point for S1; normalize input first.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Proposed</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Linear: 0–1000 command → 0–6500 encoder transitions/s target</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">The target is used by the per-motor PID when encoder feedback is valid.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Implemented; feedback calibration pending</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Maximum speed</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">TBD; wheel rpm or m/s</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Depends on motor, gearing, wheel size and supply.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Hardware-dependent</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">6500 encoder transitions/s target (about 90% of the 7227 transitions/s observed maximum)</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Physical wheel speed in rpm or m/s still depends on verified encoder scale and wheel diameter.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Provisional Lab 2 value</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Brake activation</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">TBD threshold; raw or normalized units</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">S2 uses brake &gt; 0; confirm encoding and noise.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Needs calibration</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Brake command ≥50 on the normalized 0–1000 scale</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Small brake-input noise below this threshold does not engage braking.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Implemented in Lab 2</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Brake priority</td>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Brake overrides throttle</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Required by S2; dynamic braking with PWM off.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Required by S2; dynamic braking sets each H-bridge input pair high and holds its enable at 100%.</td>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Fixed by handout</td>
 </tr>
 </tbody></table>
@@ -101,21 +101,21 @@
 <tbody>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Turn thresholds</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">TBD: left/right; steering units or degrees</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Choose from calibrated steering range.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Needs calibration</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Left ≤−400; right ≥+400 on the normalized steering scale</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Thresholds are approximately 40% of the normalized steering range.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Implemented in Lab 2</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Cancel hysteresis</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">TBD; steering units or degrees</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">If needed, avoid noise around turn thresholds.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Proposed; calibrate</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">None in Lab 2; cancel occurs after crossing the same threshold on the return stroke</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">No separate cancellation hysteresis was needed for the Lab 2 implementation.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Implemented in Lab 2</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Repeated turn press</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Same-side press leaves signal active</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Simple rule; still cancels on completed turn.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Proposed</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Same-side press toggles that signal off</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">A turn signal can also cancel after the completed steering maneuver.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Implemented in Lab 2</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Both turn buttons</td>
@@ -125,7 +125,7 @@
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Held turn button</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Act on press edge, not every UDP update</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Act on press edge, not every UART command update</td>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Avoid repeated actions while held.</td>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Proposed</td>
 </tr>
@@ -191,27 +191,27 @@
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Speed feedback</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Average of both encoder speeds</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Rear Zone description.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Fixed by handout</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Per-motor quadrature transition rate measured over the control period</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Each rear motor has an independent PID; encoder signal reliability still requires hardware validation.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Implemented; validation pending</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Speed-control period</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">TBD; ms</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Encoder rate, MCU/RTOS budget and motor response.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Design-dependent</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">10 ms</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">The firmware updates commands and speed control at this period.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Implemented in Lab 2</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Control gains</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">TBD; units follow chosen controller</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Choose controller, then tune on actual drivetrain.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Needs calibration</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">PID: Kp = 0.02, Ki = 0.01, Kd = 0.00</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Initial values in firmware; tune only after repeatable encoder feedback is verified.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Provisional Lab 2 values</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Maximum PWM</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">TBD; % duty cycle</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Motor, driver, supply and thermal limits.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Hardware-dependent</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">100%; minimum effective nonzero drive duty = 55%</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">The 55% floor avoids commands below the observed motor-drive threshold; thermal/current limits remain uncalibrated.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Implemented; limits pending</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Stuck-wheel trigger</td>
@@ -227,9 +227,9 @@
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Motor current limits</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">TBD: open/overload thresholds; A</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Motor startup/load current and sensor accuracy.</td>
-<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Hardware-dependent</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">No ampere thresholds in Lab 2; raw 12-bit ADC reads are available on A2 (left), A3 (right), and A1 (steering)</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">Planned divider per 5 V sensor: 10 kΩ top and 14.7 kΩ bottom (10 kΩ + 4.7 kΩ), yielding a 0.595 ratio and 2.98 V at 5 V input. Sensor calibration is still required.</td>
+<td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#fff;">ADC mapping implemented; thresholds TBD</td>
 </tr>
 <tr>
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;">Current-fault filtering</td>
@@ -240,6 +240,8 @@
 </tbody></table>
 
 ### CAN communication and fault handling
+
+**Inherited-table note:** These CAN and zone-fault values were not implemented or revised during Lab 2; they remain as inherited planning entries.
 
 <table style="width:100%; max-width:100%; table-layout:fixed; border-collapse:collapse; font-size:7pt; line-height:1.15;">
 <colgroup>
@@ -301,6 +303,17 @@
 
 
 ## Task Table
+
+| Name | Type | Period | Priority | Deadline | Talks to |
+|---|---|---|---|---|---|
+| UART RX ISR (`uart_isr`) | ISR | Event-driven, per byte | Hardware interrupt (preempts all threads) | Drain each byte before the next arrives (~87µs @ 115200 baud) | USART1 peripheral; writes `latest_cmd` (spinlock), restarts byte-timeout timer, gives `cmd_received_sem` |
+| Byte-timeout timer (`byte_timeout_expired`) | `k_timer` callback | One-shot, restarted on every byte; fires after 20ms of silence | Timer/workqueue context | Fire within 20ms to force parser resync | Resets `rx_state`/`rx_idx` in `pi_stm32_uart.c` |
+| Encoder edge ISRs (`phase_a_callback` / `phase_b_callback`, ×2 wheels) | ISR | Event-driven, per quadrature edge | Hardware interrupt | Process each edge before the next arrives at max wheel RPM | GPIO interrupt lines; updates atomic `count`/edge counters in `encoder.c` |
+| Control thread (`control_thread_fn`) | Thread | Event-driven (wakes on `cmd_received_sem`), with a 10ms fallback timeout | 5 | 2ms (R2.1/R2.2 throttle/brake), 50ms (R2.3 steering) | Reads latest command via `pi_stm32_uart`; drives `motor_control`, `steering`, `blinker_ctrl`; runs PID via `apply_throttle` |
+| Blinker thread (`blinker_thread_fn`) | Thread | Variable: 500ms (normal, 1Hz) / 250ms (hazard, 2Hz), toggling each half-period | 6 | 100ms to start blinking (R2.4); blink rate ±10% of nominal | `blinker.c` GPIOs; reads `blink_state`/`past_threshold` (mutex-protected) |
+| Status/heartbeat thread (`status_thread_fn`) | Thread | 20ms | 7 | 20ms ±10% heartbeat cadence | Reads `current` sensors (ADC); sends status frame via `pi_stm32_uart` |
+| Main (`main()`) | Thread, runs once at boot | N/A | 0 (default) | N/A | Initializes every module once at startup |
+| Bench/shell commands (`motor_pulse`, `steering_test`, `encoder_monitor`, etc.) | Thread (shell), manually triggered | Aperiodic | Shell thread priority | N/A — bench-only, not part of runtime control loop | Directly drives `motor_control` / `steering` / `encoder` on demand |
 
 ## Integration Writeup
 
