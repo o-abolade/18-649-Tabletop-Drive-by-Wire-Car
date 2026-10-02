@@ -18,6 +18,8 @@
 		encoder-right-b = &encoder_right_b;
 		encoder-left-a = &encoder_left_a;
 		encoder-left-b = &encoder_left_b;
+		tp-cmd-rx = &tp_cmd_rx;
+		tp-pwm-set = &tp_pwm_set;
 	};
 
 	zephyr,user {
@@ -41,6 +43,17 @@
 		};
 		blinker_rr: blinker_rr {
 			gpios = <&gpiob 6 GPIO_ACTIVE_HIGH>;    /* D10 */
+		};
+	};
+
+	test_points {
+		compatible = "gpio-leds";
+
+		tp_cmd_rx: tp_cmd_rx {
+			gpios = <&gpioc 8 GPIO_ACTIVE_HIGH>;
+		};
+		tp_pwm_set: tp_pwm_set  {
+			gpios = <&gpioc 6 GPIO_ACTIVE_HIGH>;
 		};
 	};
 
@@ -168,3 +181,5 @@
 	pinctrl-0 = <&tim2_ch1_pa0>;
 	pinctrl-names = "default";
 };
+
+

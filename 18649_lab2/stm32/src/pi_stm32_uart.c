@@ -5,6 +5,7 @@
 #include <zephyr/sys/crc.h>
 #include <float.h>
 #include <string.h>
+#include "testpoints.h"
 
 #define SYNC0       0xAA
 #define SYNC1       0x55
@@ -38,6 +39,14 @@ static struct k_spinlock cmd_lock;
 static cmd_frame_t latest_cmd;
 static bool        have_cmd;
 static int64_t     last_cmd_uptime_ms;
+
+K_SEM_DEFINE(cmd_received_sem, 0, 1);
+
+static void cmd_rx_pulse_timer_expired(struct k_timer *t)
+{
+	testpoint_set(TP_CMD_RX, false);
+}
+K_TIMER_DEFINE(cmd_rx_pulse_timer, cmd_rx_pulse_timer_expired, NULL);
 
 // byte-timeout timer: resyncs parser if a frame stalls mid-collect
 static void byte_timeout_expired(struct k_timer *t)
@@ -82,6 +91,12 @@ static void handle_complete_frame(void)
 	have_cmd = true;
 	last_cmd_uptime_ms = k_uptime_get();
 	k_spin_unlock(&cmd_lock, key);
+
+	testpoint_set(TP_CMD_RX, true);
+	k_busy_wait(100);
+	testpoint_set(TP_CMD_RX, false);
+
+	k_sem_give(&cmd_received_sem);
 }
 
 static void uart_isr(const struct device *dev, void *user_data)

@@ -8,6 +8,7 @@
 #include <zephyr/sys/atomic.h>
 
 #include "motor_control.h"
+#include "testpoints.h"
 
 /*
  * Device-tree aliases make this file read like the wiring diagram rather
@@ -135,7 +136,11 @@ int motor_control_set_state(enum motor_control_channel channel,
 	if (rc != 0) {
 		return rc;
 	}
-	return set_pwm_percent(pwm, duty_percent);
+	rc = set_pwm_percent(pwm, duty_percent);
+	testpoint_set(TP_PWM_SET, true);
+	k_busy_wait(100);
+	testpoint_set(TP_PWM_SET, false);
+	return rc;
 }
 
 int motor_control_drive_forward(unsigned int duty_percent)

@@ -20,6 +20,8 @@ typedef struct {
 	float    servo_current;  /* amps */
 } status_frame_t;
 
+extern struct k_sem cmd_received_sem;
+
 void pi_stm32_uart_init(void);
 
 /* Returns true if a valid command has ever been received.

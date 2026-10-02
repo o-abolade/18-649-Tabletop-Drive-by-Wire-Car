@@ -50,6 +50,12 @@ target_include_directories(pid_controller PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/inc
 target_link_libraries(pid_controller PUBLIC zephyr_interface)
 add_dependencies(pid_controller zephyr_generated_headers)
 
+# --- testpoints module ---
+add_library(testpoints STATIC src/testpoints.c)
+target_include_directories(testpoints PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(testpoints PUBLIC zephyr_interface)
+add_dependencies(testpoints zephyr_generated_headers)
+
 # --- main app ---
 target_sources(app PRIVATE src/main.c src/bench_commands.c)
 target_link_libraries(app PRIVATE pi_stm32_uart)
@@ -60,3 +66,4 @@ target_link_libraries(app PRIVATE steering)
 target_link_libraries(app PRIVATE motor_control)
 target_link_libraries(app PRIVATE encoder)
 target_link_libraries(app PRIVATE pid_controller)
+target_link_libraries(app PRIVATE testpoints)
