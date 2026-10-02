@@ -31,6 +31,10 @@ bool pi_stm32_uart_get_latest_cmd(cmd_frame_t *out);
 
 uint32_t pi_stm32_uart_ms_since_last_cmd(void);
 
+/* Returns true once for each malformed, wrong-type, or out-of-range command
+ * frame. The control state machine uses this to enter its safe error state. */
+bool pi_stm32_uart_take_invalid_cmd(void);
+
 void pi_stm32_uart_send_status(const status_frame_t *st);
 
 #endif

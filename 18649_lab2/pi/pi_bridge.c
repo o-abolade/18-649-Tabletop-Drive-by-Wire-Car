@@ -6,7 +6,7 @@
  * and listens for/prints 13-byte status frames coming back.
  *
  * Build:  gcc -O2 -Wall -o pi_bridge pi_bridge.c
- * Run:    ./pi_bridge <serial-device>
+ * Run:    ./pi_bridge <serial-device> [--invalid-test]
  *         e.g. ./pi_bridge /dev/ttyAMA0
  */
 
@@ -175,6 +175,19 @@ static void build_command_frame(uint8_t *buf, int16_t steering, uint16_t throttl
     buf[12] = (crc >> 8) & 0xFF;
 }
 
+/* Test-only command: valid framing and CRC, but throttle = 1001, outside the
+ * STM32's permitted [0, 1000] range. */
+static void make_frame_invalid(uint8_t *buf)
+{
+    const uint16_t invalid_throttle = 1001;
+    buf[6] = invalid_throttle & 0xFF;
+    buf[7] = (invalid_throttle >> 8) & 0xFF;
+
+    uint16_t crc = crc16_ccitt(0xFFFF, &buf[2], 9);
+    buf[11] = crc & 0xFF;
+    buf[12] = (crc >> 8) & 0xFF;
+}
+
 // Status frame RX state machine (mirrors the STM32 side)
 enum rx_state { SEEK_SYNC0, SEEK_SYNC1, COLLECT };
 static enum rx_state st_state = SEEK_SYNC0;
@@ -235,8 +248,12 @@ static void feed_status_byte(uint8_t byte)
 
 int main(int argc, char **argv)
 {
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s <serial-device>\n", argv[0]);
+    bool invalid_test = false;
+
+    if (argc == 3 && strcmp(argv[2], "--invalid-test") == 0) {
+        invalid_test = true;
+    } else if (argc != 2) {
+        fprintf(stderr, "usage: %s <serial-device> [--invalid-test]\n", argv[0]);
         return 1;
     }
 
@@ -258,7 +275,8 @@ int main(int argc, char **argv)
     fds[1].fd = serial_fd;
     fds[1].events = POLLIN;
 
-    printf("Bridge running. Sending commands every <=%dms.\n", SEND_PERIOD_MS);
+    printf("Bridge running. Sending commands every <=%dms%s.\n", SEND_PERIOD_MS,
+           invalid_test ? " (INVALID-FRAME TEST ENABLED)" : "");
 
     while (1) {
         int ret = poll(fds, 2, SEND_PERIOD_MS);
@@ -302,6 +320,9 @@ int main(int argc, char **argv)
 
         uint8_t frame[FRAME_LEN];
         build_command_frame(frame, steering, throttle, brake, last_buttons, seq++);
+        if (invalid_test) {
+            make_frame_invalid(frame);
+        }
 
         ssize_t written = write(serial_fd, frame, FRAME_LEN);
         if (written != FRAME_LEN) {
