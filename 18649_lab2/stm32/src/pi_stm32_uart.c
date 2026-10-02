@@ -39,6 +39,7 @@ static struct k_spinlock cmd_lock;
 static cmd_frame_t latest_cmd;
 static bool        have_cmd;
 static int64_t     last_cmd_uptime_ms;
+static atomic_t    invalid_cmd_pending = ATOMIC_INIT(0);
 
 K_SEM_DEFINE(cmd_received_sem, 0, 1);
 
@@ -56,6 +57,13 @@ static void byte_timeout_expired(struct k_timer *t)
 }
 K_TIMER_DEFINE(byte_timer, byte_timeout_expired, NULL);
 
+static void note_invalid_command(void)
+{
+	atomic_set(&invalid_cmd_pending, 1);
+	/* Wake the control thread immediately instead of waiting up to 10 ms. */
+	k_sem_give(&cmd_received_sem);
+}
+
 static void handle_complete_frame(void)
 {
 	// rx_buf[0-1] = sync, [2]=type, [3]=seq, [4-10]=payload, [11-12]=crc
@@ -64,11 +72,13 @@ static void handle_complete_frame(void)
 
 	// Check for malformed frame
 	if (rx_crc != calc_crc) {
+		note_invalid_command();
 		return;
 	}
 
 	// Check if it's a command frame
 	if (rx_buf[2] != TYPE_CMD) {
+		note_invalid_command();
 		return;
 	}
 
@@ -81,8 +91,8 @@ static void handle_complete_frame(void)
 
 	// Range validation (Part 2 requirement)
 	if (parsed.steering < STEERING_MIN || parsed.steering > STEERING_MAX ||
-	    parsed.throttle < 0 || parsed.throttle > THROTTLE_MAX ||
-	    parsed.brake < 0 || parsed.brake > BRAKE_MAX) {
+	    parsed.throttle > THROTTLE_MAX || parsed.brake > BRAKE_MAX) {
+		note_invalid_command();
 		return;
 	}
 
@@ -169,6 +179,11 @@ uint32_t pi_stm32_uart_ms_since_last_cmd(void)
 	int64_t last = last_cmd_uptime_ms;
 	k_spin_unlock(&cmd_lock, key);
 	return (uint32_t)(k_uptime_get() - last);
+}
+
+bool pi_stm32_uart_take_invalid_cmd(void)
+{
+	return atomic_cas(&invalid_cmd_pending, 1, 0);
 }
 
 void pi_stm32_uart_send_status(const status_frame_t *st)

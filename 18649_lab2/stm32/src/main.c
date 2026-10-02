@@ -192,10 +192,56 @@ static void control_thread_fn(void *a, void *b, void *c)
 		cmd_frame_t cmd;
 		bool have = pi_stm32_uart_get_latest_cmd(&cmd);
 		uint32_t age = pi_stm32_uart_ms_since_last_cmd();
+		bool invalid_cmd = pi_stm32_uart_take_invalid_cmd();
 
-		if (!have || age > FAILSAFE_TIMEOUT_MS || atomic_get(&self_test_failed)) {
+		/*
+		 * Evaluate the self-test edge before the failure-state branch.
+		 * Otherwise LOCAL_FAIL prevents the second press from ever being
+		 * observed, making double-press restoration impossible.
+		 */
+		if (have) {
+			bool left_now = cmd.buttons & LEFT_TURN_BIT;
+			bool right_now = cmd.buttons & RIGHT_TURN_BIT;
+			bool self_test_now = cmd.buttons & SELF_TEST_BIT;
+
+			bool left_prev = prev_buttons & LEFT_TURN_BIT;
+			bool right_prev = prev_buttons & RIGHT_TURN_BIT;
+			bool self_test_prev = prev_buttons & SELF_TEST_BIT;
+
+			if (!atomic_get(&self_test_failed)) {
+				if (left_now && !left_prev) {
+					blinker_signal_left_pressed();
+				}
+				if (right_now && !right_prev) {
+					blinker_signal_right_pressed();
+				}
+			}
+
+			if (self_test_now && !self_test_prev) {
+				int64_t now_ms = k_uptime_get();
+				int64_t delta = now_ms - last_self_test_press_ms;
+
+				printk("SELF-TEST EDGE: delta_since_last=%lldms, currently_failed=%ld\n",
+					delta, atomic_get(&self_test_failed));
+				if (atomic_get(&self_test_failed) &&
+				    delta <= SELF_TEST_DOUBLE_PRESS_WINDOW_MS) {
+					atomic_set(&self_test_failed, 0);
+					printk("*** SELF-TEST: RESTORED (double press) ***\n");
+				} else {
+					atomic_set(&self_test_failed, 1);
+					printk("*** SELF-TEST: FAILED (single press) ***\n");
+				}
+				last_self_test_press_ms = now_ms;
+			}
+
+			prev_buttons = cmd.buttons;
+		}
+
+		if (!have || age > FAILSAFE_TIMEOUT_MS ||
+		    atomic_get(&self_test_failed) || invalid_cmd) {
  			if (atomic_get(&zone_state) != STATE_FAILSAFE) {
-				printk("*** ENTERING FAILSAFE (age=%ums) ***\n", age);
+				printk("*** ENTERING FAILSAFE (age=%ums%s) ***\n", age,
+				       invalid_cmd ? ", invalid command" : "");
 				blinker_set_hazard(true);
 			}
 			atomic_set(&zone_state, STATE_FAILSAFE);
@@ -224,38 +270,6 @@ static void control_thread_fn(void *a, void *b, void *c)
 					apply_throttle(cmd.throttle);
 				}
 			}
-            
-			bool left_now   = cmd.buttons & LEFT_TURN_BIT;
-			bool right_now  = cmd.buttons & RIGHT_TURN_BIT;
-			bool self_test_now = cmd.buttons & SELF_TEST_BIT;
-
-			bool left_prev  = prev_buttons & LEFT_TURN_BIT;
-			bool right_prev = prev_buttons & RIGHT_TURN_BIT;
-			bool self_test_prev = prev_buttons & SELF_TEST_BIT;
-
-			if (left_now && !left_prev) {
-				blinker_signal_left_pressed();
-			}
-			if (right_now && !right_prev) {
-				blinker_signal_right_pressed();
-			}
-			if (self_test_now && !self_test_prev) {
-				int64_t now_ms = k_uptime_get();
-				int64_t delta = now_ms - last_self_test_press_ms;
-				printk("SELF-TEST EDGE: delta_since_last=%lldms, currently_failed=%ld\n",
-					delta, atomic_get(&self_test_failed));
-				if (atomic_get(&self_test_failed) && delta <= SELF_TEST_DOUBLE_PRESS_WINDOW_MS) {
-					atomic_set(&self_test_failed, 0);
-					printk("*** SELF-TEST: RESTORED (double press) ***\n");
-				} else {
-					atomic_set(&self_test_failed, 1);
-					printk("*** SELF-TEST: FAILED (single press) ***\n");
-				}
-				last_self_test_press_ms = now_ms;
-			}
-
-			prev_buttons = cmd.buttons;
-
 			blinker_update_steering(cmd.steering);
 		}
 	}
