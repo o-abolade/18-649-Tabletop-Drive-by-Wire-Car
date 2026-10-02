@@ -8,6 +8,11 @@
  * Build:  gcc -O2 -Wall -o pi_bridge pi_bridge.c
  * Run:    ./pi_bridge <serial-device> [--invalid-test]
  *         e.g. ./pi_bridge /dev/ttyAMA0
+ *
+ * --invalid-test sends normal, valid command frames (so the STM32 can reach
+ * NORMAL) until it reports STATE_NORMAL in a status frame; only after that
+ * does every subsequent frame get its throttle corrupted out of range
+ * (BL-08: "out-of-range value sent from a valid normal state").
  */
 
 #include <stdio.h>
@@ -194,6 +199,13 @@ static enum rx_state st_state = SEEK_SYNC0;
 static uint8_t st_buf[FRAME_LEN];
 static uint8_t st_idx = 0;
 
+#define STM32_STATE_NORMAL 1
+
+/* Set once the STM32 has reported STATE_NORMAL at least once. --invalid-test
+ * waits on this so the out-of-range command is only injected from a valid
+ * NORMAL state (BL-08's precondition), never during INIT. */
+static bool seen_normal = false;
+
 static void handle_status_frame(const uint8_t *f)
 {
     uint16_t rx_crc = f[11] | (f[12] << 8);
@@ -211,6 +223,11 @@ static void handle_status_frame(const uint8_t *f)
     uint16_t m1 = f[5] | (f[6] << 8);
     uint16_t m2 = f[7] | (f[8] << 8);
     uint16_t srv = f[9] | (f[10] << 8);
+
+    if (state == STM32_STATE_NORMAL && !seen_normal) {
+        seen_normal = true;
+        printf(">>> STM32 reached NORMAL; invalid-frame injection armed <<<\n");
+    }
 
     const char *state_str[] = {"INIT", "NORMAL", "FAILSAFE", "SELFTEST"};
     printf("STATUS seq=%u state=%s m1=%u m2=%u srv=%u\n",
@@ -320,7 +337,7 @@ int main(int argc, char **argv)
 
         uint8_t frame[FRAME_LEN];
         build_command_frame(frame, steering, throttle, brake, last_buttons, seq++);
-        if (invalid_test) {
+        if (invalid_test && seen_normal) {
             make_frame_invalid(frame);
         }
 
