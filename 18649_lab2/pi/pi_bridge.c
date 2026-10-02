@@ -23,6 +23,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <gpiod.h>
 
 #include "state.h"   // DIJOYSTATE2_t definition, from receiver.c's setup
 
@@ -32,6 +33,7 @@
 #define TYPE_CMD     0x01
 #define TYPE_STATUS  0x02
 #define FRAME_LEN    13
+#define STATUS_FRAME_LEN 19
 #define UDP_PORT     8000
 #define SEND_PERIOD_MS 50
 
@@ -48,6 +50,56 @@
 #define BTN_RIGHT_TURN_SIG  4
 #define BTN_LEFT_TURN_SIG   5
 #define BTN_SELF_TEST_SIG   6
+
+#define LEFT_TURN_BIT  0x01
+#define RIGHT_TURN_BIT 0x02
+#define SELF_TEST_BIT  0x04
+
+#define GPIO_CHIP_PATH   "/dev/gpiochip0"
+#define UDP_RX_OFFSET    18
+#define CMD_TX_OFFSET    27
+
+static struct gpiod_chip *gpio_chip;
+static struct gpiod_line_request *testpoint_request;
+
+static int testpoints_init(void)
+{
+    gpio_chip = gpiod_chip_open(GPIO_CHIP_PATH);
+    if (!gpio_chip) {
+        perror("gpiod_chip_open");
+        return -1;
+    }
+
+    struct gpiod_line_settings *settings = gpiod_line_settings_new();
+    gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
+    gpiod_line_settings_set_output_value(settings, GPIOD_LINE_VALUE_INACTIVE);
+
+    struct gpiod_line_config *line_cfg = gpiod_line_config_new();
+    unsigned int offsets[] = { UDP_RX_OFFSET, CMD_TX_OFFSET };
+    gpiod_line_config_add_line_settings(line_cfg, offsets, 2, settings);
+
+    struct gpiod_request_config *req_cfg = gpiod_request_config_new();
+    gpiod_request_config_set_consumer(req_cfg, "pi_bridge");
+
+    testpoint_request = gpiod_chip_request_lines(gpio_chip, req_cfg, line_cfg);
+
+    gpiod_request_config_free(req_cfg);
+    gpiod_line_config_free(line_cfg);
+    gpiod_line_settings_free(settings);
+
+    if (!testpoint_request) {
+        perror("gpiod_chip_request_lines");
+        return -1;
+    }
+
+    return 0;
+}
+
+static void testpoint_pulse(unsigned int offset)
+{
+    gpiod_line_request_set_value(testpoint_request, offset, GPIOD_LINE_VALUE_ACTIVE);
+    gpiod_line_request_set_value(testpoint_request, offset, GPIOD_LINE_VALUE_INACTIVE);
+}
 
 // CRC16-CCITT, must match Zephyr's crc16_ccitt(0xFFFF, ...) 
 static uint16_t crc16_ccitt(uint16_t seed, const uint8_t *src, size_t len)
@@ -191,13 +243,13 @@ static void make_frame_invalid(uint8_t *buf)
 // Status frame RX state machine (mirrors the STM32 side)
 enum rx_state { SEEK_SYNC0, SEEK_SYNC1, COLLECT };
 static enum rx_state st_state = SEEK_SYNC0;
-static uint8_t st_buf[FRAME_LEN];
+static uint8_t st_buf[STATUS_FRAME_LEN];
 static uint8_t st_idx = 0;
 
 static void handle_status_frame(const uint8_t *f)
 {
-    uint16_t rx_crc = f[11] | (f[12] << 8);
-    uint16_t calc_crc = crc16_ccitt(0xFFFF, &f[2], 9);
+    uint16_t rx_crc = f[17] | (f[18] << 8);
+    uint16_t calc_crc = crc16_ccitt(0xFFFF, &f[2], 15);
     if (rx_crc != calc_crc) {
         printf("STATUS: bad CRC, dropped\n");
         return;
@@ -208,13 +260,20 @@ static void handle_status_frame(const uint8_t *f)
 
     uint8_t seq = f[3];
     uint8_t state = f[4];
-    uint16_t m1 = f[5] | (f[6] << 8);
-    uint16_t m2 = f[7] | (f[8] << 8);
-    uint16_t srv = f[9] | (f[10] << 8);
+
+    float m1, m2, srv;
+    uint32_t bits;
+
+    memcpy(&bits, &f[5], 4);
+    memcpy(&m1, &bits, 4);
+    memcpy(&bits, &f[9], 4);
+    memcpy(&m2, &bits, 4);
+    memcpy(&bits, &f[13], 4);
+    memcpy(&srv, &bits, 4);
 
     const char *state_str[] = {"INIT", "NORMAL", "FAILSAFE", "SELFTEST"};
-    printf("STATUS seq=%u state=%s m1=%u m2=%u srv=%u\n",
-          seq, (state < 4) ? state_str[state] : "UNKNOWN", m1, m2, srv);
+    printf("STATUS seq=%u state=%s m1=%.3fA m2=%.3fA srv=%.3fA\n",
+           seq, (state < 4) ? state_str[state] : "UNKNOWN", m1, m2, srv);
 }
 
 static void feed_status_byte(uint8_t byte)
@@ -237,7 +296,7 @@ static void feed_status_byte(uint8_t byte)
         break;
     case COLLECT:
         st_buf[st_idx++] = byte;
-        if (st_idx >= FRAME_LEN) {
+        if (st_idx >= STATUS_FRAME_LEN) {
             handle_status_frame(st_buf);
             st_state = SEEK_SYNC0;
             st_idx = 0;
@@ -259,6 +318,11 @@ int main(int argc, char **argv)
 
     int udp_fd = open_udp();
     int serial_fd = open_serial(argv[1]);
+
+    if (testpoints_init() < 0) {
+        fprintf(stderr, "Failed to initialize testpoints\n");
+        return 1;
+    }
 
     printf("sizeof(DIJOYSTATE2_t) = %zu, expected packet size = %zu\n",
        sizeof(DIJOYSTATE2_t), 4 + sizeof(DIJOYSTATE2_t));
@@ -291,6 +355,8 @@ int main(int argc, char **argv)
             uint8_t packet[4 + sizeof(DIJOYSTATE2_t)];
             ssize_t n = recvfrom(udp_fd, packet, sizeof(packet), 0, NULL, NULL);
 
+            testpoint_pulse(UDP_RX_OFFSET);
+
             if (n == sizeof(packet)) {
                 DIJOYSTATE2_t *js = (DIJOYSTATE2_t *)(packet + 4);
                 last_steer_raw = js->lX;
@@ -298,9 +364,9 @@ int main(int argc, char **argv)
                 last_brake_raw = js->lRz;
 
                 last_buttons = 0;
-                if (button_pressed(js, BTN_LEFT_TURN_SIG))  last_buttons |= 0x01;
-                if (button_pressed(js, BTN_RIGHT_TURN_SIG)) last_buttons |= 0x02;
-                if (button_pressed(js, BTN_SELF_TEST_SIG))  last_buttons |= 0x04;
+                if (button_pressed(js, BTN_LEFT_TURN_SIG))  last_buttons |= LEFT_TURN_BIT;
+                if (button_pressed(js, BTN_RIGHT_TURN_SIG)) last_buttons |= RIGHT_TURN_BIT;
+                if (button_pressed(js, BTN_SELF_TEST_SIG))  last_buttons |= SELF_TEST_BIT;
             }
         }
 
@@ -325,6 +391,7 @@ int main(int argc, char **argv)
         }
 
         ssize_t written = write(serial_fd, frame, FRAME_LEN);
+        testpoint_pulse(CMD_TX_OFFSET);
         if (written != FRAME_LEN) {
             perror("write serial");
         }
@@ -332,5 +399,6 @@ int main(int argc, char **argv)
 
     close(udp_fd);
     close(serial_fd);
+    gpiod_chip_close(gpio_chip);
     return 0;
 }
