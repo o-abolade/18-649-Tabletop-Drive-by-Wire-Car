@@ -6,7 +6,7 @@
 **Misho Alexandrov (mvalexan), Ore Abolade (oabolade), T'sairus Beasley (tbeasley)**
 
 **Repository:** https://github.com/o-abolade/18-649-Tabletop-Drive-by-Wire-Car
-**Latest commit:** `94ad3ee`
+**Latest commit:** `7102d34`
 
 ---
 
