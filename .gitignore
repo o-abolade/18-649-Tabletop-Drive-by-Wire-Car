@@ -30,3 +30,7 @@ Thumbs.db
 
 # Editor/IDE (keep .vscode/ tracked on purpose — see note below)
 *.swp
+
+# Local-only Claude context docs — not pushed to GitHub
+18649_lab2/docs/
+18649_lab2/CLAUDE.md

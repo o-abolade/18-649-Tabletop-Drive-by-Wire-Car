@@ -137,9 +137,9 @@ static void apply_throttle(uint16_t throttle)
 
 	static uint32_t debug_counter = 0;
 	if (++debug_counter % 5 == 0) {
-		printk("dt=%.4f target=%.1f right_spd=%.1f right_duty=%u | left_spd=%.1f left_duty=%u\n",
-			(double)dt_seconds, (double)target_speed, (double)right_speed, right_duty,
-			(double)left_speed, left_duty);
+		// printk("dt=%.4f target=%.1f right_spd=%.1f right_duty=%u | left_spd=%.1f left_duty=%u\n",
+		// 	(double)dt_seconds, (double)target_speed, (double)right_speed, right_duty,
+		// 	(double)left_speed, left_duty);
 	}
 }
 
@@ -177,6 +177,7 @@ static void control_thread_fn(void *a, void *b, void *c)
 	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
 
 	uint8_t prev_buttons = 0;
+	int64_t last_debug_print_ms = 0;
 
 	while (1) {
 		/* Wake immediately when a command arrives, or after
@@ -258,8 +259,16 @@ static void control_thread_fn(void *a, void *b, void *c)
 			}
 			atomic_set(&zone_state, STATE_NORMAL);
 
-			printk("seq=%u steer=%d thr=%u brk=%u btn=0x%02x age=%ums\n",
-			       cmd.seq, cmd.steering, cmd.throttle, cmd.brake, cmd.buttons, age);
+			/* Commands arrive far faster than the console UART can
+			 * drain text; printing every one overflows the log
+			 * ring buffer and triggers "messages dropped". Throttle
+			 * to a human-readable cadence instead. */
+			int64_t now_ms = k_uptime_get();
+			if (now_ms - last_debug_print_ms >= 100) {
+				printk("seq=%u steer=%d thr=%u brk=%u btn=0x%02x age=%ums\n",
+				       cmd.seq, cmd.steering, cmd.throttle, cmd.brake, cmd.buttons, age);
+				last_debug_print_ms = now_ms;
+			}
 
 			if (!motor_control_manual_test_active()) {
 				(void)set_wheel_angle(cmd.steering);
