@@ -173,6 +173,80 @@ CAN A: ERROR-ACTIVE  TEC=0 REC=0
 The Zephyr MCP2515 driver's init only **writes** to the chip, so "device ready"
 doesn't prove the module is connected. The SPI probe is the real check.
 
+### Part 1: wiring the dual bus
+
+**Bus order and termination.** Same order on both buses: **N1 (Pi) at one end,
+N2 (steering) in the middle, N3 (drivetrain) at the other end.** With no discrete
+resistors, short **P1** on N1's two modules and N3's two modules; leave N2's open.
+Each bus then has one 120 Ω at each end. Pulling an N1 or N3 jumper removes that
+end's terminator (the P1 terminator sits behind the jumper). That's a known
+trade-off of using P1.
+
+1. **Common ground first:** one GND wire between the Pi, both Nucleos and the
+   bus breadboard, before anything else.
+2. **Four rails** on the bus breadboard: `A_H`, `A_L`, `B_H`, `B_L`. One wire
+   color per bus, buses on different rails.
+3. **Each module:** screw-terminal CANH → its bus's `_H` rail, CANL → `_L` rail,
+   with one jumper each (these jumpers are the R4.8 fault-injection points).
+   N1's and N3's taps go at the two ends of each rail, N2's in between.
+4. **Power everything off and measure CANH–CANL on each bus: 60 Ω.**
+   120 Ω = one terminator missing, 40 Ω = an extra P1 is shorted.
+5. Keep the bus wires short, and twist each H/L pair if you can.
+
+### Part 1: flashing with a node number
+
+Each Nucleo sends test frame `0x700 | (node << 4)` every 100ms on **both**
+buses, so N2 sends `0x720` and N3 sends `0x730`. Byte 0 is the node number,
+byte 1 is the bus letter (`0x41` 'A' / `0x42` 'B'), and bytes 2–5 are a counter,
+the same on both buses. Build with the board's node number:
+
+```bash
+west build -p always -b nucleo_f401re <repo>/lab3_CAN/can_bringup -d <repo>/lab3_CAN/can_bringup/build/n2 -- -DCONFIG_BRINGUP_NODE_ID=2
+west flash -d <repo>/lab3_CAN/can_bringup/build/n2
+# other board: n3 / NODE_ID=3
+```
+
+Once a second each Nucleo prints one line per bus:
+
+```
+CAN A: ERROR-ACTIVE  TEC=  0 REC=  0 | tx ok 10 err  0 full  0 | rx/s N1 10 N2  0 N3 10 other 0
+```
+
+`tx ok` should be about 10/s. `rx/s` counts frames heard from each node.
+A node alone on a bus gets no ACK: `tx err` climbs and the state goes
+ERROR-PASSIVE. That's expected until a second node is connected.
+`-DCONFIG_BRINGUP_TX_PERIOD_MS=0` turns sending off.
+
+### Part 1: Pi side
+
+```bash
+candump -c -t d any        # every frame on both buses, with time between frames
+```
+
+Make the Pi act as N1 (`0x710`, 10 Hz on both buses) in a second terminal:
+
+```bash
+i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
+  cansend can0 710#0141${c}0000000000; cansend can1 710#0142${c}0000000000
+  i=$((i+1)); sleep 0.1; done
+```
+
+### Part 1 checkpoint (handout)
+
+1. **One node at a time:** with only N2 running, `candump` shows `0x720` on
+   both `can0` and `can1` about every 100ms. Repeat with only N3 (`0x730`).
+2. **All together:** both Nucleos plus the Pi sender. Each Nucleo's `rx/s`
+   shows about 10 from each of the other two nodes, on both buses.
+3. **Pull one node's bus A jumper** (pick N2, the unterminated middle node):
+   - bus B traffic is unchanged everywhere;
+   - bus A still carries `0x710` and `0x730` between N1 and N3;
+   - N2's CAN A shows `tx err` and goes ERROR-PASSIVE, and N2 disappears from
+     `can0`. Re-insert: N2's CAN A returns to ERROR-ACTIVE on its own
+     (automatic bus-off recovery is on by default).
+4. **Scope CANH and CANL of each bus:** the idle (recessive) level, where CANH
+   and CANL sit at about the same voltage, and one frame, where CANH rises
+   and CANL falls in the dominant bits.
+
 ## Status
 
 | Part | Item | Status |

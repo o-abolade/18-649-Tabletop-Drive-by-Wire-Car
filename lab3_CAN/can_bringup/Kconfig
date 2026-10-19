@@ -1,0 +1,20 @@
+mainmenu "Lab 3 CAN bring-up"
+
+config BRINGUP_NODE_ID
+	int "Node number of this Nucleo (2 = steering, 3 = drivetrain)"
+	range 2 3
+	default 2
+	help
+	  Test frames are sent with ID 0x700 | (node << 4), so N2 sends 0x720
+	  and N3 sends 0x730. Set per board at build time with
+	  -DCONFIG_BRINGUP_NODE_ID=3.
+
+config BRINGUP_TX_PERIOD_MS
+	int "Test frame period in ms (0 = don't transmit)"
+	default 100
+	help
+	  Period of the Part 1 test frame sent on both buses. A node that
+	  transmits with nobody else on the bus gets no ACK and goes
+	  error-passive; set 0 to reproduce the Part 0 single-node check.
+
+source "Kconfig.zephyr"

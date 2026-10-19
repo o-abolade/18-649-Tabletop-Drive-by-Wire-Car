@@ -7,6 +7,11 @@
  *                         alone does NOT prove the module is there.)
  *  2. loopback TX->RX  -> SPI read/write AND the INT pin -> driver thread path
  *  3. normal mode      -> can_get_state reports ERROR-ACTIVE (handout checkpoint)
+ *
+ * Part 1: then sends test frame 0x700 | (node << 4) every
+ * CONFIG_BRINGUP_TX_PERIOD_MS on both buses, and once a second prints, per
+ * bus, TX results and how many frames it heard from each node (N1 = Pi
+ * sending 0x710, N2 = 0x720, N3 = 0x730).
  */
 
 #include <string.h>
@@ -19,29 +24,86 @@
 #define LOOPBACK_TEST_ID 0x7AB
 #define STATUS_PERIOD_MS 1000
 
+#define NODE_ID          CONFIG_BRINGUP_NODE_ID
+#define TX_PERIOD_MS     CONFIG_BRINGUP_TX_PERIOD_MS
+#define TEST_ID_BASE     0x700
+#define TEST_ID(node)    (TEST_ID_BASE | ((node) << 4))
+#define MAX_NODE         3
+
 #define MCP2515_OP_READ      0x03
 #define MCP2515_REG_CANSTAT  0x0E   /* CANCTRL (0x0F) follows via auto-increment */
 #define MCP2515_OPMOD_CONFIG 0x4    /* CANSTAT[7:5] after reset */
 
 #define PROBE_SPI_OP (SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_OP_MODE_CONTROLLER)
 
+/* Counters touched from the MCP2515 driver thread, read and cleared by main */
+struct port_stats {
+	atomic_t tx_ok;
+	atomic_t tx_err;      /* completed with error (e.g. no ACK) */
+	atomic_t tx_full;     /* all 3 TX buffers busy, frame not queued */
+	atomic_t rx_from[MAX_NODE + 1];   /* index = sender node number */
+	atomic_t rx_other;
+};
+
 struct can_port {
 	const char *name;
+	char bus;             /* 'A' or 'B', also sent in the payload */
 	const struct device *dev;
 	struct spi_dt_spec spi;
 	struct k_msgq *rx_q;
 	bool ok;
+	struct port_stats stats;
 };
 
 CAN_MSGQ_DEFINE(rx_q_a, 2);
 CAN_MSGQ_DEFINE(rx_q_b, 2);
 
 static struct can_port ports[] = {
-	{ "CAN A", DEVICE_DT_GET(DT_ALIAS(can_a)),
-	  SPI_DT_SPEC_GET(DT_ALIAS(can_a), PROBE_SPI_OP), &rx_q_a, false },
-	{ "CAN B", DEVICE_DT_GET(DT_ALIAS(can_b)),
-	  SPI_DT_SPEC_GET(DT_ALIAS(can_b), PROBE_SPI_OP), &rx_q_b, false },
+	{ .name = "CAN A", .bus = 'A', .dev = DEVICE_DT_GET(DT_ALIAS(can_a)),
+	  .spi = SPI_DT_SPEC_GET(DT_ALIAS(can_a), PROBE_SPI_OP), .rx_q = &rx_q_a },
+	{ .name = "CAN B", .bus = 'B', .dev = DEVICE_DT_GET(DT_ALIAS(can_b)),
+	  .spi = SPI_DT_SPEC_GET(DT_ALIAS(can_b), PROBE_SPI_OP), .rx_q = &rx_q_b },
 };
+
+/* Runs in the MCP2515 driver's cooperative thread: count only, never print */
+static void rx_count_cb(const struct device *dev, struct can_frame *frame, void *user_data)
+{
+	struct port_stats *s = user_data;
+	uint32_t node = (frame->id >> 4) & 0xF;
+
+	ARG_UNUSED(dev);
+	if ((frame->id & ~0x0F0U) == TEST_ID_BASE && node >= 1 && node <= MAX_NODE) {
+		atomic_inc(&s->rx_from[node]);
+	} else {
+		atomic_inc(&s->rx_other);
+	}
+}
+
+static void tx_done_cb(const struct device *dev, int error, void *user_data)
+{
+	struct port_stats *s = user_data;
+
+	ARG_UNUSED(dev);
+	atomic_inc(error ? &s->tx_err : &s->tx_ok);
+}
+
+/* Payload: [0] node, [1] bus letter, [2..5] counter LE. Same counter on both
+ * buses so candump shows the A and B copies side by side. */
+static void send_test_frame(struct can_port *p, uint32_t counter)
+{
+	struct can_frame f = {
+		.id = TEST_ID(NODE_ID),
+		.dlc = 8,
+		.data = { NODE_ID, (uint8_t)p->bus,
+			  counter & 0xFF, (counter >> 8) & 0xFF,
+			  (counter >> 16) & 0xFF, (counter >> 24) & 0xFF, 0, 0 },
+	};
+	int ret = can_send(p->dev, &f, K_NO_WAIT, tx_done_cb, &p->stats);
+
+	if (ret) {
+		atomic_inc(&p->stats.tx_full);
+	}
+}
 
 /* Read CANSTAT and CANCTRL directly. The driver leaves the chip in
  * configuration mode after reset, so a live MCP2515 reads CANSTAT = 0x80
@@ -108,6 +170,21 @@ static void print_state(const struct can_port *p)
 	}
 	printk("%s: %s  TEC=%u REC=%u\n", p->name, state_name(state),
 	       cnt.tx_err_cnt, cnt.rx_err_cnt);
+}
+
+/* One line per bus per second; counters are per-second because they are cleared */
+static void print_stats(struct can_port *p)
+{
+	enum can_state state;
+	struct can_bus_err_cnt cnt = { 0 };
+	struct port_stats *s = &p->stats;
+
+	(void)can_get_state(p->dev, &state, &cnt);
+	printk("%s: %-13s TEC=%3u REC=%3u | tx ok %2ld err %2ld full %2ld | rx/s N1 %2ld N2 %2ld N3 %2ld other %ld\n",
+	       p->name, state_name(state), cnt.tx_err_cnt, cnt.rx_err_cnt,
+	       atomic_clear(&s->tx_ok), atomic_clear(&s->tx_err), atomic_clear(&s->tx_full),
+	       atomic_clear(&s->rx_from[1]), atomic_clear(&s->rx_from[2]),
+	       atomic_clear(&s->rx_from[3]), atomic_clear(&s->rx_other));
 }
 
 static bool loopback_test(const struct can_port *p)
@@ -200,6 +277,16 @@ static void bring_up(struct can_port *p)
 		printk("%s: set normal mode failed (%d)\n", p->name, ret);
 		return;
 	}
+
+	/* Accept every standard ID; the callback sorts test frames by sender */
+	const struct can_filter all = { .id = 0, .mask = 0, .flags = 0 };
+
+	ret = can_add_rx_filter(p->dev, rx_count_cb, &p->stats, &all);
+	if (ret < 0) {
+		printk("%s: add rx filter failed (%d)\n", p->name, ret);
+		return;
+	}
+
 	ret = can_start(p->dev);
 	if (ret) {
 		printk("%s: can_start (normal) failed (%d)\n", p->name, ret);
@@ -211,19 +298,42 @@ static void bring_up(struct can_port *p)
 
 int main(void)
 {
-	printk("\n=== Lab 3 CAN bring-up (500 kbit/s, 16 MHz osc) ===\n");
+	printk("\n=== Lab 3 CAN bring-up: node N%d, test ID 0x%03x, ", NODE_ID, TEST_ID(NODE_ID));
+	if (TX_PERIOD_MS > 0) {
+		printk("TX every %d ms on both buses ===\n", TX_PERIOD_MS);
+	} else {
+		printk("TX disabled ===\n");
+	}
 
 	for (size_t i = 0; i < ARRAY_SIZE(ports); i++) {
 		bring_up(&ports[i]);
 	}
 
-	/* Nothing transmits in normal mode: a lone node gets no ACK and would
-	 * walk itself to ERROR-PASSIVE. Just report state for the checkpoint. */
+	/* With TX enabled, a node alone on a bus gets no ACK: tx err climbs and
+	 * it goes ERROR-PASSIVE. That's expected until another node is wired. */
+	uint32_t counter = 0;
+	int64_t next_print = k_uptime_get() + STATUS_PERIOD_MS;
+	const int32_t tick_ms = (TX_PERIOD_MS > 0) ? TX_PERIOD_MS : STATUS_PERIOD_MS;
+
 	while (1) {
-		k_msleep(STATUS_PERIOD_MS);
-		for (size_t i = 0; i < ARRAY_SIZE(ports); i++) {
-			if (ports[i].ok) {
-				print_state(&ports[i]);
+		k_msleep(tick_ms);
+
+		if (TX_PERIOD_MS > 0) {
+			/* Back to back on both buses with one counter value */
+			for (size_t i = 0; i < ARRAY_SIZE(ports); i++) {
+				if (ports[i].ok) {
+					send_test_frame(&ports[i], counter);
+				}
+			}
+			counter++;
+		}
+
+		if (k_uptime_get() >= next_print) {
+			next_print += STATUS_PERIOD_MS;
+			for (size_t i = 0; i < ARRAY_SIZE(ports); i++) {
+				if (ports[i].ok) {
+					print_stats(&ports[i]);
+				}
 			}
 		}
 	}
