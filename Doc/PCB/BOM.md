@@ -4,4 +4,8 @@
 | MCP2515T-I/ST | 6 | CAN Controller | [Datasheet](https://ww1.microchip.com/downloads/en/DeviceDoc/MCP2515-Stand-Alone-CAN-Controller-with-SPI-20001801J.pdf) | Y | - | - |
 | SN65HVD230MDREP | 6 | CAN Transceiver | [Datasheet](https://www.ti.com/general/docs/suppproductinfo.tsp?distId=10&gotoUrl=https%3A%2F%2Fwww.ti.com%2Flit%2Fgpn%2Fsn65hvd230m-ep) | Y | - | - |
 | L298P | 1 | Full Bridge Driver | [Datasheet](https://www.st.com/content/ccc/resource/technical/document/datasheet/82/cc/3f/39/0a/29/4d/f0/CD00000240.pdf/files/CD00000240.pdf/jcr:content/translations/en.CD00000240.pdf) | Y | - | - |
-
+| STM32F401RET6TR | 2 | STM 32 Controller | In Docs | Y | - | - |
+| ACS712ELCTR-05B-T | 2 | Motor Current Sense | [Datasheet](https://www.allegromicro.com/~/media/Files/Datasheets/ACS712-Datasheet.ashx) | Y | - | - |
+| 151031YS06000 | 4 | Turn Signal LEDs | [Datasheet](https://www.we-online.com/components/products/datasheet/151031YS06000.pdf) | Y | - | - |
+| 151031SS06000 | 6 | Bus Status LEDs | [Datasheet](https://www.we-online.com/components/products/datasheet/151031SS06000.pdf) | Y | - | - |
+| SWT0210-045026GSA | 3 | Self Test Buttons | [Datasheet](https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/8937/swt0210-spec.pdf) | Y | - | - |
