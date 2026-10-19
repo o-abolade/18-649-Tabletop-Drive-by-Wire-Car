@@ -1,0 +1,47 @@
+/*
+ * Dual MCP2515 (XIAO CAN Bus Expansion) on SPI1, handout wiring.
+ * Same overlay for N2 and N3.
+ *
+ *   SCK  PA5 (D13)   MISO PA6 (D12)   MOSI PA7 (D11)
+ *   CAN A: CS PB6 (D10), INT PA10 (D2)  -> EXTI10
+ *   CAN B: CS PC7 (D9),  INT PB5  (D4)  -> EXTI5
+ *
+ * XIAO module crystal is 16 MHz. SPI1 is clocked from 84 MHz APB2 with
+ * power-of-two dividers, so a 10 MHz request (MCP2515 max) yields 5.25 MHz.
+ */
+
+/ {
+	aliases {
+		can-a = &can_a;
+		can-b = &can_b;
+	};
+};
+
+&spi1 {
+	status = "okay";
+	cs-gpios = <&gpiob 6 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
+		   <&gpioc 7 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+
+	can_a: can@0 {
+		compatible = "microchip,mcp2515";
+		reg = <0>;
+		spi-max-frequency = <10000000>;
+		int-gpios = <&gpioa 10 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		osc-freq = <16000000>;
+		/* Without this the driver falls back to CONFIG_CAN_DEFAULT_BITRATE (125k) */
+		bitrate = <500000>;
+		sample-point = <875>;
+		status = "okay";
+	};
+
+	can_b: can@1 {
+		compatible = "microchip,mcp2515";
+		reg = <1>;
+		spi-max-frequency = <10000000>;
+		int-gpios = <&gpiob 5 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		osc-freq = <16000000>;
+		bitrate = <500000>;
+		sample-point = <875>;
+		status = "okay";
+	};
+};

@@ -97,7 +97,52 @@ candump -c -t d any
 ### Part 0 bring-up app (`can_bringup/`)
 
 Standalone Zephyr app with only the dual-MCP2515 overlay. The same build goes on
-both Nucleos. **Don't connect any bus wire yet.** Each node must come up alone.
+both Nucleos. **Don't connect any bus wire yet.** Each node must come up alone,
+so leave every module's CANH/CANL screw terminal empty.
+
+#### Nucleo wiring (identical on both boards)
+
+The XIAO module's pins use **XIAO** names (D6–D10), not Nucleo Arduino names.
+Module "D10" is MISO, while Nucleo "D10" is CAN A's CS. Wire by function.
+
+Unplug any Lab 2 wiring on PA5, PA6, PA7, PB6, PC7, PA10 or PB5 first (encoder,
+servo, motor enable, blinkers, Pi UART, motor IN3), or two outputs will fight.
+
+| XIAO module pin | Function | CAN A module → Nucleo | CAN B module → Nucleo |
+|---|---|---|---|
+| 3V3 | power | 3V3 (power header) | 3V3 |
+| GND | ground | GND | GND |
+| D8 | SCK | D13 (PA5) | D13 (shared) |
+| D10 | MISO | D12 (PA6) | D12 (shared) |
+| D9 | MOSI | D11 (PA7) | D11 (shared) |
+| D7 | CS | D10 (PB6) | D9 (PC7) |
+| D6 (left header) | INT | D2 (PA10) | D4 (PB5) |
+| 5V | — | leave unconnected | leave unconnected |
+
+**3.3V only.** Never connect the module's 5V pin. There is no level shifting.
+
+#### Pi wiring
+
+Disconnect the Lab 2 UART wires to the STM32 first. The Lab 2 test points on
+GPIO18/GPIO27 don't conflict.
+
+| XIAO module pin | Function | CAN A (`can0`) → Pi | CAN B (`can1`) → Pi |
+|---|---|---|---|
+| 3V3 | power | pin 1 | pin 17 |
+| GND | ground | pin 20 | pin 25 |
+| D8 | SCK | pin 23 (GPIO11) | pin 23 (shared) |
+| D10 | MISO | pin 21 (GPIO9) | pin 21 (shared) |
+| D9 | MOSI | pin 19 (GPIO10) | pin 19 (shared) |
+| D7 | CS | pin 24 (CE0) | pin 26 (CE1) |
+| D6 | INT | pin 22 (GPIO25) | pin 18 (GPIO24) |
+
+After adding the `config.txt` lines and rebooting, `dmesg | grep -i mcp251`
+should show one "successfully initialized" line per chip.
+
+#### Build and flash
+
+Build directories aren't in git, so build locally first. Flash with only one
+Nucleo plugged in so you can't flash the wrong board.
 
 ```bash
 west build -p always -b nucleo_f401re <repo>/lab3_CAN/can_bringup -d <repo>/lab3_CAN/can_bringup/build
