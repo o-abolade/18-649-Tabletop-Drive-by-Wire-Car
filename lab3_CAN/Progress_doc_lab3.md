@@ -213,8 +213,12 @@ CAN A: ERROR-ACTIVE  TEC=  0 REC=  0 | tx ok 10 err  0 full  0 | rx/s N1 10 N2  
 ```
 
 `tx ok` should be about 10/s. `rx/s` counts frames heard from each node.
-A node alone on a bus gets no ACK: `tx err` climbs and the state goes
-ERROR-PASSIVE. That's expected until a second node is connected.
+A node alone on a bus gets no ACK. The MCP2515 retries the frame
+automatically forever, so `tx err` stays **0**. Instead `tx ok` drops to 0,
+the three TX buffers fill, and `full` climbs to about 10/s. `TEC` jumps by 8
+per failed attempt to **128** and stops there (an error-passive node doesn't
+count ACK errors), and the state is ERROR-PASSIVE. That's expected until a
+second node is connected.
 `-DCONFIG_BRINGUP_TX_PERIOD_MS=0` turns sending off.
 
 ### Part 1: Pi side
@@ -240,9 +244,15 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
 3. **Pull one node's bus A jumper** (pick N2, the unterminated middle node):
    - bus B traffic is unchanged everywhere;
    - bus A still carries `0x710` and `0x730` between N1 and N3;
-   - N2's CAN A shows `tx err` and goes ERROR-PASSIVE, and N2 disappears from
-     `can0`. Re-insert: N2's CAN A returns to ERROR-ACTIVE on its own
-     (automatic bus-off recovery is on by default).
+   - N2's CAN A shows `tx ok 0`, `full` about 10/s and `TEC` parked at 128
+     (ERROR-PASSIVE; `tx err` stays 0 because the controller keeps retrying),
+     and N2 disappears from `can0`.
+   - Re-insert: the 3 frames stuck in N2's TX buffers go out at once (a burst
+     of old counter values on `candump`), `TEC` drops below 128, and CAN A
+     returns to ERROR-ACTIVE on its own.
+   - **Design note:** those buffered frames arrive late. Harmless for test
+     frames, but a stale CTRL/brake frame must be rejected by the receiver's
+     sequence check, or aborted at the sender when its bus degrades.
 4. **Scope CANH and CANL of each bus:** the idle (recessive) level, where CANH
    and CANL sit at about the same voltage, and one frame, where CANH rises
    and CANL falls in the dominant bits.
