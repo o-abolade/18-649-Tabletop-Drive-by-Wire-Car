@@ -1,2 +1,2 @@
 
-![Power Tree Diagram](assets/Power Tree.drawio.png)
+![Power Tree Diagram](../assets/Power Tree.drawio.png)
