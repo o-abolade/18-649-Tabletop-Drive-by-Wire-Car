@@ -244,12 +244,15 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
 3. **Pull one node's bus A jumper** (pick N2, the unterminated middle node):
    - bus B traffic is unchanged everywhere;
    - bus A still carries `0x710` and `0x730` between N1 and N3;
-   - N2's CAN A shows `tx ok 0`, `full` about 10/s and `TEC` parked at 128
-     (ERROR-PASSIVE; `tx err` stays 0 because the controller keeps retrying),
-     and N2 disappears from `can0`.
-   - Re-insert: the 3 frames stuck in N2's TX buffers go out at once (a burst
-     of old counter values on `candump`), `TEC` drops below 128, and CAN A
-     returns to ERROR-ACTIVE on its own.
+   - N2's CAN A shows `tx ok 0`, `full` about 10/s, `rx/s` all 0 and
+     ERROR-PASSIVE, and N2 disappears from `can0`. `tx err` stays 0 because
+     the controller keeps retrying. Which error counter passes 127 depends on
+     how the loose wires float: with no ACK `TEC` parks at 128, and with a
+     noisy stub `REC` climbs instead and the node may never start a
+     transmission. **Measured 2026-10-19: `TEC=0 REC=135`.**
+   - Re-insert: N2's CAN A returns to ERROR-ACTIVE on its own with both counters
+     back to 0. Any frames stuck in its TX buffers go out at once (a burst of
+     old counter values on `candump`). **Measured: full recovery, no reset.**
    - **Design note:** those buffered frames arrive late. Harmless for test
      frames, but a stale CTRL/brake frame must be rejected by the receiver's
      sequence check, or aborted at the sender when its bus degrades.
@@ -265,7 +268,7 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
 | 0 | CAN bring-up app (`can_bringup/`) on each Nucleo, controller active | Board 1: CAN A + B pass. Board 2: CAN A passes, CAN B reads all zeros (local wiring/module, being fixed) |
 | 0 | Pi can0/can1 ERROR-ACTIVE @ 500k (`pi_cockpit/can_up.sh`) | can0 passes (ERROR-ACTIVE, 500 kbit/s, 8 MHz clock, sample point 0.875). can1 pending: only one module wired so far |
 | 1 | Bus wiring, 60Ω termination check, common ground | Bus A wired: 58 Ω measured (P1 on N1 and N3). Bus B: CAN B modules not wired yet on any node |
-| 1 | candump sees both Nucleos on both buses; jumper-pull test | Bus A: `candump can0` shows `0x720` (N2) and `0x730` (N3) every ~100.2 ms, counters continuous, no error frames; Nucleos hear each other 10/s with 0 TX errors. Pending: Pi as N1 sender, jumper pull, bus B |
+| 1 | candump sees both Nucleos on both buses; jumper-pull test | Bus A: `candump can0` shows `0x720` (N2) and `0x730` (N3) every ~100.2 ms, counters continuous, no error frames; Nucleos hear each other 10/s with 0 TX errors. With the Pi sending `0x710`, all three nodes hear each other on bus A. **N2 bus A jumper pull:** N3 unaffected (ERROR-ACTIVE, 0 errors, still hears N1); N2 isolated (ERROR-PASSIVE via REC=135, tx ok 0, buffers full); re-insert → N2 back to ERROR-ACTIVE, TEC=REC=0, no reset. **Pending: bus B wiring and the same tests on B; scope captures** |
 | 2 | Task communication graph figure | Not started |
 | 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | Not started |
 | 4 | Dual-bus + relay design and re-analysis | Not started |
