@@ -152,14 +152,21 @@ west flash -d <repo>/lab3_CAN/can_bringup/build --dev-id <ST-Link serial>
 Expected console output for each of CAN A and CAN B:
 
 ```
-CAN A: ready, core clock 8000000 Hz (expect 8000000 = 16 MHz osc / 2)
+CAN A: SPI probe CANSTAT=0x80 CANCTRL=0x87 -> OK (configuration mode)
+CAN A: core clock 8000000 Hz (expect 8000000 = 16 MHz osc / 2)
 CAN A: loopback OK (id=0x7ab dlc=8)
 CAN A: ERROR-ACTIVE  TEC=0 REC=0
 ```
 
-`device NOT ready` = SPI/CS/power wiring. `loopback frame NOT received` = INT
-pin not reaching the STM32. The loopback test exercises SPI, the INT line and
-the driver's RX path without needing a bus.
+| Output | Means |
+|---|---|
+| SPI probe reads all zeros | Chip isn't answering: 3V3/GND, SCK, MISO (module D10 → Nucleo D12, not swapped with MOSI D9 → D11), or CS |
+| SPI probe reads all `0xFF` | MISO floating high, or CS not reaching the module |
+| Probe OK, `loopback frame NOT received` | SPI works but INT isn't reaching the STM32 |
+| `Timeout trying to set MCP2515 operation mode` | Same as all zeros: the driver can't read the mode back |
+
+The Zephyr MCP2515 driver's init only **writes** to the chip, so "device ready"
+doesn't prove the module is connected. The SPI probe is the real check.
 
 ## Status
 
