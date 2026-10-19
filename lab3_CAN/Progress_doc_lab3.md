@@ -254,8 +254,8 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
 | 0 | Read XIAO crystal frequency | Done: 16 MHz |
 | 0 | CAN bring-up app (`can_bringup/`) on each Nucleo, controller active | Board 1: CAN A + B pass. Board 2: CAN A passes, CAN B reads all zeros (local wiring/module, being fixed) |
 | 0 | Pi can0/can1 ERROR-ACTIVE @ 500k (`pi_cockpit/can_up.sh`) | can0 passes (ERROR-ACTIVE, 500 kbit/s, 8 MHz clock, sample point 0.875). can1 pending: only one module wired so far |
-| 1 | Bus wiring, 60Ω termination check, common ground | Not started |
-| 1 | candump sees both Nucleos on both buses; jumper-pull test | Not started |
+| 1 | Bus wiring, 60Ω termination check, common ground | Bus A wired: 58 Ω measured (P1 on N1 and N3). Bus B: CAN B modules not wired yet on any node |
+| 1 | candump sees both Nucleos on both buses; jumper-pull test | Bus A: `candump can0` shows `0x720` (N2) and `0x730` (N3) every ~100.2 ms, counters continuous, no error frames; Nucleos hear each other 10/s with 0 TX errors. Pending: Pi as N1 sender, jumper pull, bus B |
 | 2 | Task communication graph figure | Not started |
 | 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | Not started |
 | 4 | Dual-bus + relay design and re-analysis | Not started |
