@@ -68,7 +68,8 @@ static bool spi_probe(const struct can_port *p)
 
 	if (canstat == 0x00 && canctrl == 0x00) {
 		printk("chip NOT answering (all zeros). Check 3V3/GND, SCK (D8->D13), "
-		       "MISO (module D10 -> Nucleo D12; not swapped with MOSI D9 -> D11), CS\n");
+		       "MISO (module D9 -> Nucleo D12), MOSI (module D10 -> Nucleo D11; "
+		       "handout figure has D9/D10 backwards), CS\n");
 		return false;
 	}
 	if (canstat == 0xFF && canctrl == 0xFF) {

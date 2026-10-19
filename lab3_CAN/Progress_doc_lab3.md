@@ -103,7 +103,12 @@ so leave every module's CANH/CANL screw terminal empty.
 #### Nucleo wiring (identical on both boards)
 
 The XIAO module's pins use **XIAO** names (D6–D10), not Nucleo Arduino names.
-Module "D10" is MISO, while Nucleo "D10" is CAN A's CS. Wire by function.
+Module "D10" is MOSI, while Nucleo "D10" is CAN A's CS. Wire by function.
+
+**The handout's module figure has MISO and MOSI swapped.** It labels D9 as MOSI
+and D10 as MISO. On the real module (standard XIAO pinout) **D9 is MISO** and
+**D10 is MOSI**. Confirmed on hardware 2026-10-19: following the handout, every
+SPI read returned zeros; swapping the two wires made the probe and loopback pass.
 
 Unplug any Lab 2 wiring on PA5, PA6, PA7, PB6, PC7, PA10 or PB5 first (encoder,
 servo, motor enable, blinkers, Pi UART, motor IN3), or two outputs will fight.
@@ -113,8 +118,8 @@ servo, motor enable, blinkers, Pi UART, motor IN3), or two outputs will fight.
 | 3V3 | power | 3V3 (power header) | 3V3 |
 | GND | ground | GND | GND |
 | D8 | SCK | D13 (PA5) | D13 (shared) |
-| D10 | MISO | D12 (PA6) | D12 (shared) |
-| D9 | MOSI | D11 (PA7) | D11 (shared) |
+| D9 | MISO | D12 (PA6) | D12 (shared) |
+| D10 | MOSI | D11 (PA7) | D11 (shared) |
 | D7 | CS | D10 (PB6) | D9 (PC7) |
 | D6 (left header) | INT | D2 (PA10) | D4 (PB5) |
 | 5V | — | leave unconnected | leave unconnected |
@@ -131,8 +136,8 @@ GPIO18/GPIO27 don't conflict.
 | 3V3 | power | pin 1 | pin 17 |
 | GND | ground | pin 20 | pin 25 |
 | D8 | SCK | pin 23 (GPIO11) | pin 23 (shared) |
-| D10 | MISO | pin 21 (GPIO9) | pin 21 (shared) |
-| D9 | MOSI | pin 19 (GPIO10) | pin 19 (shared) |
+| D9 | MISO | pin 21 (GPIO9) | pin 21 (shared) |
+| D10 | MOSI | pin 19 (GPIO10) | pin 19 (shared) |
 | D7 | CS | pin 24 (CE0) | pin 26 (CE1) |
 | D6 | INT | pin 22 (GPIO25) | pin 18 (GPIO24) |
 
@@ -160,7 +165,7 @@ CAN A: ERROR-ACTIVE  TEC=0 REC=0
 
 | Output | Means |
 |---|---|
-| SPI probe reads all zeros | Chip isn't answering: 3V3/GND, SCK, MISO (module D10 → Nucleo D12, not swapped with MOSI D9 → D11), or CS |
+| SPI probe reads all zeros | Chip isn't answering: 3V3/GND, SCK, MISO (module **D9** → Nucleo D12; MOSI module **D10** → D11; the handout figure has these backwards), or CS |
 | SPI probe reads all `0xFF` | MISO floating high, or CS not reaching the module |
 | Probe OK, `loopback frame NOT received` | SPI works but INT isn't reaching the STM32 |
 | `Timeout trying to set MCP2515 operation mode` | Same as all zeros: the driver can't read the mode back |
