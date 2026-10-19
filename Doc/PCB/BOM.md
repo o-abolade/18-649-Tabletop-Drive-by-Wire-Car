@@ -9,3 +9,4 @@
 | 151031YS06000 | 4 | Turn Signal LEDs | [Datasheet](https://www.we-online.com/components/products/datasheet/151031YS06000.pdf) | Y | - | - |
 | 151031SS06000 | 6 | Bus Status LEDs | [Datasheet](https://www.we-online.com/components/products/datasheet/151031SS06000.pdf) | Y | - | - |
 | SWT0210-045026GSA | 3 | Self Test Buttons | [Datasheet](https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/8937/swt0210-spec.pdf) | Y | - | - |
+| CX3225SB16000H0FLJCC| 6 | Oscillators for CAN Controllers | [Datasheet](https://ele.kyocera.com/assets/products/crystal-device/cx3225sb_e.pdf) | Y | - | - |
