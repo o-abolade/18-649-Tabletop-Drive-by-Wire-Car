@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug (OpenOCD)",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+      "request": "launch",
+      "type": "cortex-debug",
+      "servertype": "openocd",
+      "gdbPath": "C:/Users/Tsair/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe",
+      "openocdPath": "C:/Users/Tsair/zephyr-sdk-1.0.1/hosttools/openocd/bin/openocd.exe",
+      "searchDir": [
+        "C:/Users/Tsair/zephyrproject/zephyr/boards/st/nucleo_f401re/support",
+        "C:/Users/Tsair/zephyr-sdk-1.0.1/hosttools/openocd/share/openocd/scripts"
+      ],
+      "configFiles": [
+        "C:/Users/Tsair/zephyrproject/zephyr/boards/st/nucleo_f401re/support/openocd.cfg"
+      ],
+      "runToEntryPoint": "main"
+    }
+  ]
+}
