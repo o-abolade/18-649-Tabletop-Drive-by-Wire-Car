@@ -1,5 +1,5 @@
 
-![Power Tree Diagram](../assets/Power_Tree.drawio.png)
+![Power Tree Diagram](../assets/power_tree.drawio.png)
 
 | Power Rail | Contributing Factors | Peak Current| Avg Current | Worst-Case Voltage |
 | -------- | -------- | -------- | -------- | -------- |
