@@ -179,7 +179,7 @@ doesn't prove the module is connected. The SPI probe is the real check.
 |---|---|---|
 | 0 | Read XIAO crystal frequency | Done: 16 MHz |
 | 0 | CAN bring-up app (`can_bringup/`) on each Nucleo, controller active | Board 1: CAN A + B pass. Board 2: CAN A passes, CAN B reads all zeros (local wiring/module, being fixed) |
-| 0 | Pi can0/can1 ERROR-ACTIVE @ 500k (`pi_cockpit/can_up.sh`) | Script written; not yet run |
+| 0 | Pi can0/can1 ERROR-ACTIVE @ 500k (`pi_cockpit/can_up.sh`) | can0 passes (ERROR-ACTIVE, 500 kbit/s, 8 MHz clock, sample point 0.875). can1 pending: only one module wired so far |
 | 1 | Bus wiring, 60Ω termination check, common ground | Not started |
 | 1 | candump sees both Nucleos on both buses; jumper-pull test | Not started |
 | 2 | Task communication graph figure | Not started |
