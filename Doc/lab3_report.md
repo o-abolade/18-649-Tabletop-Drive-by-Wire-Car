@@ -1,4 +1,10 @@
 
+## Section 3 ## 
 
+### Node 2 RTA
 
-## Section 3
+| Task | Priority | Header 3 |
+| -------- | -------- | -------- |
+| Row 1    | $x^2$     | Data     |
+| Row 2    | Data     | Data     |
+
