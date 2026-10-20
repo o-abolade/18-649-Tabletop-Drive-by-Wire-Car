@@ -2,13 +2,18 @@
 
 Released 2026-10-04, **due 2026-10-22 11:59pm**.
 
+> **Where the code is:** the Lab 3 implementation is on branch
+> **`lab3-can-link`** (shared CAN layer, both STM32 zones, Pi cockpit);
+> Part 0/1 bring-up tools are on `lab3-part0-can-bringup`. Neither is merged
+> to `main` yet. `git switch lab3-can-link` to build or flash.
+
 Lab 2's single STM32 is split into three zones on two independent 500 kbit/s
 CAN buses (A and B). Each node has one XIAO CAN module (MCP2515 + SN65HVD230)
 per bus.
 
 ```
 Logitech wheel --USB--> Laptop proxy --UDP:8000 (20ms)--> Raspberry Pi 4  (N1 cockpit)
-                                                              |  can0 = A, can1 = B
+                                                              |  bus A = SPI CE0, bus B = CE1
   CAN A  [120R]---+----------------+----------------+---[120R]
   CAN B  [120R]---+----------------+----------------+---[120R]
                   |                |                |
