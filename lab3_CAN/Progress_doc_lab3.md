@@ -20,14 +20,24 @@ Logitech wheel --USB--> Laptop proxy --UDP:8000 (20ms)--> Raspberry Pi 4  (N1 co
 
 ```
 lab3_CAN/
-├── pi_cockpit/        # N1: UDP -> CTRL/BLINK/HB_N1 on can0+can1, reads HB/FORCE
-├── stm32_steering/    # N2: servo, front blinkers, RELAY, FORCE_TX, TEST_BTN
-└── stm32_drivetrain/  # N3: motor PWM/DIR, PID, rear blinkers, TEST_BTN
+├── common/
+│   ├── can_proto.{h,c}    # message catalog, payload layouts, CRC-8, (ID,seq) dedup
+│   │                      #   plain C: used by the STM32s AND the Pi
+│   └── zephyr/
+│       ├── dual_can.overlay   # both MCP2515s, CAN test points, DEG/ERR LEDs, watchdog
+│       ├── can_link.{h,c}     # dual-bus RX with dedup, send on A+B, per-bus HB times
+│       ├── zone_core.{h,c}    # HB_TX, HB_MON, error state machine, TEST_BTN, FAULT, blink
+│       ├── zone_config.h      # every threshold and thread priority, in one place
+│       └── lab3_common.cmake  # shared build setup for both zones
+├── stm32_steering/    # N2: STEER, FORCE_TX, RELAY (+ zone_core)
+├── stm32_drivetrain/  # N3: DRIVE, PID (+ zone_core)
+├── pi_cockpit/        # N1: still Lab 2's pi_bridge.c; CAN version not written yet
+└── can_bringup/       # Part 0/1 bring-up and diagnostic app
 ```
 
-All three currently start as copies of the Lab 2 code
-(`../lab2_sensors_actuators/`). The UART link is to be replaced by CAN and each
-zone trimmed to its own actuators.
+On the `lab3-can-link` branch both STM32 zones are trimmed to their own
+actuators and run on the shared CAN layer. Both build without warnings but
+**have not run on hardware yet** (needs bus B wired).
 
 ## Message catalog (handout template)
 
@@ -45,9 +55,33 @@ duplicate copy by `(ID, seq)`.
 | 0x200 | BLINK | N1 → N2, N3 | on change + 500ms toggle, min 20ms | 100ms start; N2/N3 within 1ms |
 | 0x300 | FORCE | N2 → N1 | 50ms | 50ms (dummy counter) |
 
-**Team decisions still needed:** CTRL byte layout and throttle/brake u8 scale,
-CRC-8 variant, sequence counter per-ID vs shared, flag bits, FAULT reason codes,
-relay design (always-on vs on-degradation, loop prevention, RELAY priority).
+### Payload layouts (decided; defined in `common/can_proto.h`)
+
+Byte 0 for every frame: low nibble = sequence counter (**one counter per ID per
+sender**), high nibble = flags (`0x10` = relayed copy, set by N2). Unused bytes 0.
+
+| ID | Bytes 1–7 |
+|---|---|
+| CTRL `0x010` | b1–2 steer int16 LE −1000..+1000 · b3 throttle 0–100 % · b4 brake 0–100 % · b5 buttons (bit0 L, bit1 R, bit2 self-test) · b6 CRC-8 over b0 (flags masked)..b5 |
+| HB `0x10x` | b1 zone state (0 ERROR, 1 NORMAL, 2 LOCAL_FAIL) · b2 bus health seen by sender (bit0 A ok, bit1 B ok) |
+| BLINK `0x200` | b1 state (0 off, 1 left, 2 right, 3 hazard) · b2 phase (1 lamps on) |
+| FAULT `0x020` | b1 failing zone (1–3) · b2 reason (1 test button, 2 CTRL out of range, 3 heartbeat lost) |
+| FORCE `0x300` | b1 int8 (dummy counter) |
+
+- **CRC-8:** Zephyr's `crc8_ccitt()` algorithm (poly 0x07, seed 0xFF), copied
+  verbatim into `can_proto.c` so the Pi runs the same code. Check value
+  `crc8(0xFF, "123456789") = 0xFB`.
+- **CTRL test vector** (seq 3, steer −250, throttle 40 %, brake 0, left button):
+  `03 06 FF 28 00 01 5B 00`. A CTRL with throttle/brake > 100, |steer| > 1000
+  or unknown button bits is *out of range*: the zone enters ERROR and sends FAULT.
+- **Dedup:** a frame is accepted if its seq is 1..7 ahead of the last accepted
+  one for that ID, or if nothing arrived for 100 ms (sender reboot). This drops
+  the second bus's copy, the relayed copy, and stale frames released from a TX
+  buffer after a jumper is re-inserted.
+- **Relay:** N2 **always** forwards, so there's no 60 ms detection delay in
+  scenario (c). It forwards every first copy it didn't send itself (CTRL, BLINK,
+  HB_N1, HB_N3, other zones' FAULT) onto the other bus with the relayed flag.
+  No loops: only N2 relays, and it never forwards a flagged frame.
 
 ## STM32 CAN pins (decided: handout wiring, both zones)
 
@@ -63,8 +97,52 @@ owns and moves the ones it keeps:
   PB10 → **PB0 / A3** (PB10 shares EXTI10 with CAN A's INT on PA10),
   RL → **PB8 / D15**, RR → **PB9 / D14**.
 
-Test-point, degraded-LED, ERR and test-button pins are still to be assigned.
-The on-board user button B1 (PC13) can serve as TEST_BTN.
+**Test points and status LEDs, same pins on both STM32s** (morpho headers):
+
+| Signal | Pin | | Signal | Pin |
+|---|---|---|---|---|
+| CAN_RX_A | PC8 | | DEG_A (LED) | PC2 |
+| CAN_RX_B | PC9 | | DEG_B (LED) | PC3 |
+| CAN_TX_A | PC10 | | ERR (LED) | PC12 |
+| CAN_TX_B | PC11 | | TEST_BTN | on-board B1 (PC13) |
+
+Zone-specific: N2 SRV PB4, FL PB9, FR PB8, RELAY_TX PB7. N3 PWM_SET PC6,
+PWM_OUT PA0, DIR_A PB3 (IN4), RL PB8, RR PB9.
+
+The board's default devicetree enables USART1 on PB6/PB7, I2C1 on PB8/PB9, I2C3
+on PA8/PC9, SPI2 on PB12–15, the ADC on PA0 and a PWM on PA5, all on pins we
+use. The shared overlay disables them (`can_bringup` only worked by luck).
+
+### Threads and priorities (`common/zephyr/zone_config.h`)
+
+| Priority | Task | Notes |
+|---|---|---|
+| coop 2 | MCP2515 RX ×2 (driver) | SPI read, dedup, dispatch; outranks all below |
+| 0 | RELAY (N2) | on the relayed brake path |
+| 1 | STEER (N2) / DRIVE (N3) | CTRL → actuator |
+| 2 | BLINK_F / BLINK_R | BLINK → lamps; local hazard while not NORMAL |
+| 3 | TEST_BTN | single press = LOCAL_FAIL now (R2.5: ≤10 ms), double = restore |
+| 4 | PID (N3) | 10 ms, per-wheel trim on top of DRIVE's feed-forward |
+| 5 | HB_MON | 10 ms poll: per-bus HB timeout 60 ms → DEG LED; zone lost on both → ERROR; feeds watchdog |
+| 6 | HB_TX | 20 ms absolute schedule; silent while LOCAL_FAIL |
+| 7 | FORCE_TX (N2) | 50 ms |
+
+**Error state machine** (shared): power up in ERROR; NORMAL once both other
+zones' heartbeats are seen on ≥1 bus and a valid CTRL arrived within 100 ms;
+back to ERROR on a zone lost on both buses, a FAULT from another zone (held
+until that zone sends a newer heartbeat), out-of-range CTRL (also sends FAULT)
+or CTRL stale. Test button → LOCAL_FAIL (stops HB, sends FAULT). Not NORMAL =
+ERR LED on, local hazard flashing, N3 braked, N2 steering centred.
+
+### Building the zones
+
+```bash
+west build -b nucleo_f401re <repo>/lab3_CAN/stm32_steering   -d <repo>/lab3_CAN/stm32_steering/build
+west build -b nucleo_f401re <repo>/lab3_CAN/stm32_drivetrain -d <repo>/lab3_CAN/stm32_drivetrain/build
+```
+
+Each prints one status line per second:
+`N2 NORMAL | A ACTIVE T0 R0 | B ACTIVE T0 R0 | HB N1:AB N3:AB | CTRL age 4ms ...`
 
 ## Building
 
@@ -272,7 +350,7 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
 | 2 | Task communication graph figure | Not started |
 | 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | Not started |
 | 4 | Dual-bus + relay design and re-analysis | Not started |
-| 5 | Zephyr implementation (dispatch/dedup, send helper, HB_MON, RELAY, error SM, watchdog) | Not started |
+| 5 | Zephyr implementation (dispatch/dedup, send helper, HB_MON, RELAY, error SM, watchdog) | Written on `lab3-can-link`, both zones build clean; not yet run on hardware |
 | 5 | Pi cockpit (CTRL/BLINK/HB_N1 TX, HB/FORCE RX, bad-input injection) | Not started |
 | 5 | Test-point breakout boards per node | Not started |
 | — | Report, fault-injection matrix, Lab 1 revision-history entry | Not started |
