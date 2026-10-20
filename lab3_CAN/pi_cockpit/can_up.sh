@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Bring up can0 (bus A) and can1 (bus B) at 500 kbit/s and print their state.
+# Bring up both MCP2515 interfaces at 500 kbit/s and print which is which.
+# Linux numbers can0/can1 in probe order, which can swap between boots:
+# the bus is identified by SPI chip select (spi0.0 = CE0 = CAN A module,
+# spi0.1 = CE1 = CAN B module), never by the canN name.
 # Requires these lines in /boot/firmware/config.txt (then a reboot):
 #   dtparam=spi=on
 #   dtoverlay=mcp2515-can0,oscillator=16000000,interrupt=25
@@ -26,6 +29,12 @@ for ifc in can0 can1; do
     # restart-ms: automatic bus-off recovery (R4.8 wants recovery within 100 ms)
     sudo ip link set "$ifc" type can bitrate "$BITRATE" restart-ms 100
     sudo ip link set "$ifc" up
-    echo "== $ifc =="
+    spi=$(basename "$(readlink -f "/sys/class/net/$ifc/device")")
+    case "$spi" in
+        spi0.0) bus="bus A" ;;
+        spi0.1) bus="bus B" ;;
+        *)      bus="unknown bus" ;;
+    esac
+    echo "== $ifc = $bus ($spi) =="
     ip -details link show "$ifc" | grep -E "state|bitrate|clock"
 done

@@ -158,6 +158,13 @@ N1, in C with SocketCAN. It compiles the same `common/can_proto.c` as the STM32s
 | wheel test button | button 6: single press → LOCAL_FAIL + FAULT, double press → restore |
 | FORCE_RX | prints N2's dummy force counter |
 
+**`can0`/`can1` names are not stable.** Linux numbers them in whatever order
+the two MCP2515s finish probing, and they swapped between boots (observed
+2026-10-20: `can0` on `spi0.1`). The cockpit and `can_up.sh` identify each bus
+by SPI chip select instead: **`spi0.0` (CE0) = bus A, `spi0.1` (CE1) = bus B**.
+`can_up.sh` prints the mapping. When using `candump`/`cansend` by hand, check
+which `canN` is which first.
+
 Test points (BCM GPIO): UDP_RX 18 (pin 12), CMD_TX 27 (pin 13), CAN_TX_A 22
 (pin 15), CAN_TX_B 23 (pin 16), DEG_A 6 (pin 31), DEG_B 5 (pin 29). UDP_RX goes
 high on reception and low after both CTRL copies are written, followed by a
@@ -391,8 +398,8 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
 | 0 | Read XIAO crystal frequency | Done: 16 MHz |
 | 0 | CAN bring-up app (`can_bringup/`) on each Nucleo, controller active | Board 1: CAN A + B pass. Board 2: CAN A passes, CAN B reads all zeros (local wiring/module, being fixed) |
 | 0 | Pi can0/can1 ERROR-ACTIVE @ 500k (`pi_cockpit/can_up.sh`) | can0 passes (ERROR-ACTIVE, 500 kbit/s, 8 MHz clock, sample point 0.875). can1 pending: only one module wired so far |
-| 1 | Bus wiring, 60Ω termination check, common ground | Bus A wired: 58 Ω measured (P1 on N1 and N3). Bus B: CAN B modules not wired yet on any node |
-| 1 | candump sees both Nucleos on both buses; jumper-pull test | Bus A: `candump can0` shows `0x720` (N2) and `0x730` (N3) every ~100.2 ms, counters continuous, no error frames; Nucleos hear each other 10/s with 0 TX errors. With the Pi sending `0x710`, all three nodes hear each other on bus A. **N2 bus A jumper pull:** N3 unaffected (ERROR-ACTIVE, 0 errors, still hears N1); N2 isolated (ERROR-PASSIVE via REC=135, tx ok 0, buffers full); re-insert → N2 back to ERROR-ACTIVE, TEC=REC=0, no reset. **Pending: bus B wiring and the same tests on B; scope captures** |
+| 1 | Bus wiring, 60Ω termination check, common ground | **Done.** Bus A 58 Ω (P1 on N1 and N3); bus B wired 2026-10-20, same layout |
+| 1 | candump sees both Nucleos on both buses; jumper-pull test | Bus A: `candump can0` shows `0x720` (N2) and `0x730` (N3) every ~100.2 ms, counters continuous, no error frames; Nucleos hear each other 10/s with 0 TX errors. With the Pi sending `0x710`, all three nodes hear each other on bus A. **N2 bus A jumper pull:** N3 unaffected (ERROR-ACTIVE, 0 errors, still hears N1); N2 isolated (ERROR-PASSIVE via REC=135, tx ok 0, buffers full); re-insert → N2 back to ERROR-ACTIVE, TEC=REC=0, no reset. **Both buses (2026-10-20): done.** All three nodes hear each other on A and B (N2↔N3 10/s, N1 ~9/s from the shell loop), 0 errors. Pulling N2's bus A jumpers: N2's CAN B unaffected; N3 still hears N1 on A and N2 on B; N2's CAN A ERROR-PASSIVE (REC=135). Re-insert: N2 CAN A back to ERROR-ACTIVE, TEC=REC=0, no reset. **Pending: scope captures of CANH/CANL per bus** |
 | 2 | Task communication graph figure | Not started |
 | 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | Not started |
 | 4 | Dual-bus + relay design and re-analysis | Not started |

@@ -21,7 +21,9 @@
  */
 #define _GNU_SOURCE
 #include <arpa/inet.h>
+#include <dirent.h>
 #include <errno.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <gpiod.h>
 #include <linux/can.h>
@@ -81,7 +83,11 @@ static const unsigned int tp_offset[TP_COUNT] = {
 	[TP_DEG_B] = 5,       /* pin 29, LED */
 };
 
-static const char *const ifname[CANP_NUM_BUSES] = { "can0", "can1" };
+/* Linux numbers can0/can1 in whatever order the two MCP2515s finish probing,
+ * so the names swap between boots. Identify each bus by its SPI chip select
+ * instead: CE0 (spi0.0) = CAN A module, CE1 (spi0.1) = CAN B module. */
+static const char *const bus_spidev[CANP_NUM_BUSES] = { "spi0.0", "spi0.1" };
+static char bus_ifname[CANP_NUM_BUSES][IFNAMSIZ];
 
 /* ---------------- state ---------------- */
 static struct gpiod_line_request *tp_req;
@@ -166,6 +172,40 @@ static int gpio_init(void)
 		return -1;
 	}
 	return 0;
+}
+
+/* Find the canN interface whose parent device is `spidev` */
+static bool find_can_iface(const char *spidev, char *out, size_t outlen)
+{
+	DIR *dir = opendir("/sys/class/net");
+	struct dirent *e;
+	bool found = false;
+
+	if (!dir) {
+		return false;
+	}
+	while (!found && (e = readdir(dir)) != NULL) {
+		char link[PATH_MAX], target[PATH_MAX];
+
+		if (strncmp(e->d_name, "can", 3) != 0) {
+			continue;
+		}
+		snprintf(link, sizeof(link), "/sys/class/net/%s/device", e->d_name);
+		ssize_t n = readlink(link, target, sizeof(target) - 1);
+
+		if (n < 0) {
+			continue;
+		}
+		target[n] = '\0';
+		const char *base = strrchr(target, '/');
+
+		if (strcmp(base ? base + 1 : target, spidev) == 0) {
+			snprintf(out, outlen, "%s", e->d_name);
+			found = true;
+		}
+	}
+	closedir(dir);
+	return found;
 }
 
 static int open_can(const char *name)
@@ -533,11 +573,11 @@ static void hb_tx(void)
 
 static void print_status(int64_t now)
 {
-	printf("N1 %-10s | A %s%s B %s%s | N2:%c%c(%s) N3:%c%c(%s) | UDP %u/s age %lldms | "
+	printf("N1 %-10s | A(%s) %s%s B(%s) %s%s | N2:%c%c(%s) N3:%c%c(%s) | UDP %u/s age %lldms | "
 	       "blink %d/%d | force %d (%u/s) | tx A %u/%u B %u/%u\n",
 	       state_name(state),
-	       can_fd[0] < 0 ? "DOWN" : "up", deg[0] ? "/DEG" : "",
-	       can_fd[1] < 0 ? "DOWN" : "up", deg[1] ? "/DEG" : "",
+	       bus_ifname[0], can_fd[0] < 0 ? "DOWN" : "up", deg[0] ? "/DEG" : "",
+	       bus_ifname[1], can_fd[1] < 0 ? "DOWN" : "up", deg[1] ? "/DEG" : "",
 	       hb_seen(2, 0, now) ? 'A' : '-', hb_seen(2, 1, now) ? 'B' : '-',
 	       state_name(remote_state[2]),
 	       hb_seen(3, 0, now) ? 'A' : '-', hb_seen(3, 1, now) ? 'B' : '-',
@@ -604,8 +644,15 @@ int main(int argc, char **argv)
 		fprintf(stderr, "N1: continuing without test-point GPIOs\n");
 	}
 	for (int b = 0; b < CANP_NUM_BUSES; b++) {
-		can_fd[b] = open_can(ifname[b]);
-		printf("N1: %s (bus %c) %s\n", ifname[b], 'A' + b, can_fd[b] < 0 ? "DOWN" : "up");
+		if (!find_can_iface(bus_spidev[b], bus_ifname[b], sizeof(bus_ifname[b]))) {
+			fprintf(stderr, "N1: no CAN interface on %s (bus %c): check dmesg | grep mcp251\n",
+				bus_spidev[b], 'A' + b);
+			snprintf(bus_ifname[b], sizeof(bus_ifname[b]), "-");
+			continue;
+		}
+		can_fd[b] = open_can(bus_ifname[b]);
+		printf("N1: bus %c = %s (%s) %s\n", 'A' + b, bus_ifname[b], bus_spidev[b],
+		       can_fd[b] < 0 ? "DOWN" : "up");
 	}
 	int udp_fd = open_udp();
 	int tfd = timerfd_create(CLOCK_MONOTONIC, 0);
