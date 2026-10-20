@@ -13,4 +13,4 @@
 | HB_TX | Thread | 4 | 3 | 120 µs | 20 ms | 20 ms | 20 µs | - |
 | FORCE_TX | Thread | 5 | 4 | 120 µs | 50 ms | 50 ms | 20 µs | - |
 
-BLINK_F R value computed as follows : $R_0= 20 \micro s+20 \micro s + \lceil \frac{20 \micro s}{20 ms} * 80 \micro s = 120 \micro s$, $R_1 = 20 \micro s+20 \micro s + \lceil \frac{120 \micro s}{20 ms} * 80 \micro s = 120 \micro s$
+BLINK_F R value computed as follows : $R_0= 20 \micro s+20 \micro s + \lceil \frac{20 \micro s}{20 ms} \rceil * 80 \micro s = 120 \micro s$, $R_1 = 20 \micro s+20 \micro s + \lceil \frac{120 \micro s}{20 ms} \rceil * 80 \micro s = 120 \micro s$
