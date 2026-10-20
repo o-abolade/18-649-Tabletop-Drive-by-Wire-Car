@@ -3,14 +3,13 @@
 
 #include <stdbool.h>
 
+/* N3-only synthetic test points. The CAN test points live in can_link. */
 enum testpoint_id {
-    TP_CMD_RX,
     TP_PWM_SET,
     TESTPOINT_COUNT
 };
 
 int testpoints_init(void);
 void testpoint_set(enum testpoint_id id, bool on);
-void testpoint_pulse(enum testpoint_id id);
 
 #endif /* TESTPOINTS_H */

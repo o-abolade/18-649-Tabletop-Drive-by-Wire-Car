@@ -1,331 +1,209 @@
+/*
+ * N3 drivetrain zone (rear).
+ *   DRIVE  on CTRL: brake -> dynamic brake now (DIR_A = IN4); throttle ->
+ *          feed-forward duty written now (PWM_SET), so R2.1/R2.2 don't wait
+ *          for the PID period.
+ *   PID    10 ms timer: per-wheel speed correction added on top of the
+ *          feed-forward duty, with real elapsed dt (Lab 2 lesson).
+ *   BLINK_R, HB_TX, HB_MON, TEST_BTN, error state: common/zephyr/zone_core.c
+ *
+ * Every motor command goes through motor_lock: DRIVE, PID and the safe-state
+ * hook all touch the H-bridge, and motor_control_set_state() must not be
+ * interleaved (it disables PWM before changing direction).
+ */
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
-#include "pi_stm32_uart.h"
-#include "blinker.h"
-#include "blinker_ctrl.h"
+
+#include "can_link.h"
 #include "encoder.h"
 #include "motor_control.h"
-#include "current.h"
 #include "pid_controller.h"
-#include "steering.h"
-#include "control_state.h"
 #include "testpoints.h"
+#include "zone_config.h"
+#include "zone_core.h"
 
-#define CONTROL_PERIOD_MS 10U
-#define BRAKE_ACTIVE_THRESHOLD 50U
+#define PID_PERIOD_MS            10
+#define BRAKE_ACTIVE_PCT         5     /* Lab 2: 50/1000 */
+#define MOTOR_MIN_EFFECTIVE_DUTY 55U   /* measured breakaway duty (Lab 2) */
+#define PID_TRIM_LIMIT           40.0f /* PID adds -40..+40 % to feed-forward */
 
-#define PID_MAX_SPEED_TRANSITIONS_PER_SECOND 6500.0f   // 14454.0 counts / 2 seconds = 7227 max -> 6500 = ~90% of measured 7227 max
-#define PID_KP_DEFAULT 0.15f
-#define PID_KI_DEFAULT 0.04f
-#define PID_KD_DEFAULT 0.0f
+/* Lab 2 measured values. Gains need re-tuning: PID is now a trim, 10 ms */
+#define PID_MAX_SPEED            6500.0f   /* encoder transitions/s at 100 % */
+#define PID_KP                   0.15f
+#define PID_KI                   0.04f
+#define PID_KD                   0.0f
+#define RIGHT_ENCODER_SIGN       1
+#define LEFT_ENCODER_SIGN        (-1)
 
-#define RIGHT_ENCODER_SIGN  1   /* set to -1 if right wheel reads backward */
-#define LEFT_ENCODER_SIGN   -1   /* set to -1 if left wheel reads backward */
+static K_MUTEX_DEFINE(motor_lock);
 
-#define MOTOR_MIN_EFFECTIVE_DUTY 55U
+/* Protected by motor_lock */
+static bool driving;
+static uint8_t target_throttle;          /* 0..100 % */
+static float trim_left, trim_right;
+static unsigned int duty_left, duty_right;
+static struct pid_controller pid_left, pid_right;
+static int32_t prev_right_count, prev_left_count;
+static int64_t prev_pid_ms;
+static bool have_sample;
 
-#define STATE_INIT     0
-#define STATE_NORMAL   1
-#define STATE_FAILSAFE 2
-#define STATE_SELFTEST 3
-
-#define FAILSAFE_TIMEOUT_MS 100
-
-#define LEFT_TURN_BIT  0x01
-#define RIGHT_TURN_BIT 0x02
-#define SELF_TEST_BIT  0x04
-
-#define PID_UPDATE_PERIOD_MS 20U   /* minimum real time between PID recalculations */
-
-#define SELF_TEST_DOUBLE_PRESS_WINDOW_MS 500U
-
-static atomic_t zone_state = ATOMIC_INIT(STATE_INIT);
-static atomic_t application_initialized = ATOMIC_INIT(0);
-
-/* Shared with bench_commands.c via control_state.h */
-atomic_t pid_enabled = ATOMIC_INIT(1);
-struct pid_controller right_pid;
-struct pid_controller left_pid;
-
-static int32_t previous_right_count;
-static int32_t previous_left_count;
-static bool have_speed_sample;
-static int64_t previous_apply_time_ms;
-
-static atomic_t self_test_failed = ATOMIC_INIT(0);
-static int64_t last_self_test_press_ms = 0;
-
-static float current_status_value(enum current_id id)
+static unsigned int feed_forward(uint8_t throttle)
 {
-	float amps;
-	int ret = current_read_amps(id, &amps);
-
-	if (ret < 0) {
-		printk("Current read failed for channel %d: %d\n", id, ret);
-		return 0.0f;
+	if (throttle == 0) {
+		return 0;
 	}
-
-	if (amps < 0.0f) {
-		amps = -amps;
-	}
-	return amps;
+	return MOTOR_MIN_EFFECTIVE_DUTY +
+	       ((100U - MOTOR_MIN_EFFECTIVE_DUTY) * throttle) / 100U;
 }
 
-void reset_speed_controllers(void)
+static unsigned int clamp_duty(float d)
 {
-	pid_controller_reset(&right_pid);
-	pid_controller_reset(&left_pid);
-	have_speed_sample = false;
-	previous_apply_time_ms = k_uptime_get();
+	if (d < (float)MOTOR_MIN_EFFECTIVE_DUTY) {
+		return MOTOR_MIN_EFFECTIVE_DUTY;
+	}
+	return d > 100.0f ? 100U : (unsigned int)d;
 }
 
-static void apply_throttle(uint16_t throttle)
+/* Caller holds motor_lock */
+static void brake_locked(void)
 {
-	int64_t now_ms = k_uptime_get();
+	(void)motor_control_dynamic_brake();
+	driving = false;
+	target_throttle = 0;
+	trim_left = trim_right = 0.0f;
+	pid_controller_reset(&pid_left);
+	pid_controller_reset(&pid_right);
+	have_sample = false;
+}
 
-	if (throttle > 1000U) {
-		throttle = 1000U;
+/* Caller holds motor_lock. Only rewrite a channel whose duty changed, so the
+ * H-bridge isn't glitched to 0 % every 20 ms. */
+static void apply_duty_locked(unsigned int left, unsigned int right, bool force)
+{
+	if (force || left != duty_left) {
+		(void)motor_control_set_state(MOTOR_CHANNEL_A, MOTOR_CONTROL_FORWARD, left);
+		duty_left = left;
 	}
-	if (throttle == 0U) {
-		(void)motor_control_dynamic_brake();
-		reset_speed_controllers();
-		return;
-	}
-
-	if (atomic_get(&pid_enabled) == 0) {
-		(void)motor_control_drive_forward(throttle / 10U);
-		return;
-	}
-
-	/* Only run the PID update itself at a bounded minimum interval —
-	 * velocity-from-counts is too noisy to differentiate faster than this. */
-	if (have_speed_sample && (now_ms - previous_apply_time_ms) < PID_UPDATE_PERIOD_MS) {
-		return;   /* keep driving at the last commanded duty; don't recompute yet */
-	}
-
-	int32_t right_count, left_count;
-	float right_speed, left_speed, target_speed, dt_seconds;
-	unsigned int right_duty, left_duty;
-
-	encoder_get_counts(&right_count, &left_count);
-	if (!have_speed_sample) {
-		previous_right_count = right_count;
-		previous_left_count = left_count;
-		previous_apply_time_ms = now_ms;
-		have_speed_sample = true;
-		(void)motor_control_drive_forward(0U);
-		return;
-	}
-
-	dt_seconds = (float)(now_ms - previous_apply_time_ms) / 1000.0f;
-	previous_apply_time_ms = now_ms;
-
-	right_speed = RIGHT_ENCODER_SIGN * (float)(right_count - previous_right_count) / dt_seconds;
-	left_speed  = LEFT_ENCODER_SIGN  * (float)(left_count  - previous_left_count)  / dt_seconds;
-	previous_right_count = right_count;
-	previous_left_count = left_count;
-	target_speed = ((float)throttle / 1000.0f) * PID_MAX_SPEED_TRANSITIONS_PER_SECOND;
-
-	right_duty = (unsigned int)pid_controller_update(&right_pid, target_speed, right_speed, dt_seconds);
-	left_duty  = (unsigned int)pid_controller_update(&left_pid, target_speed, left_speed, dt_seconds);
-
-	if (right_duty > 0 && right_duty < MOTOR_MIN_EFFECTIVE_DUTY) right_duty = MOTOR_MIN_EFFECTIVE_DUTY;
-	if (left_duty > 0 && left_duty < MOTOR_MIN_EFFECTIVE_DUTY) left_duty = MOTOR_MIN_EFFECTIVE_DUTY;
-
-	(void)motor_control_set_state(MOTOR_CHANNEL_A, MOTOR_CONTROL_FORWARD, left_duty);
-	(void)motor_control_set_state(MOTOR_CHANNEL_B, MOTOR_CONTROL_FORWARD, right_duty);
-
-	static uint32_t debug_counter = 0;
-	if (++debug_counter % 5 == 0) {
-		// printk("dt=%.4f target=%.1f right_spd=%.1f right_duty=%u | left_spd=%.1f left_duty=%u\n",
-		// 	(double)dt_seconds, (double)target_speed, (double)right_speed, right_duty,
-		// 	(double)left_speed, left_duty);
+	if (force || right != duty_right) {
+		(void)motor_control_set_state(MOTOR_CHANNEL_B, MOTOR_CONTROL_FORWARD, right);
+		duty_right = right;
 	}
 }
 
-// Status heartbeat thread: sends every 20ms
-static void status_thread_fn(void *a, void *b, void *c)
+static void drive_safe(void)
+{
+	k_mutex_lock(&motor_lock, K_FOREVER);
+	brake_locked();
+	k_mutex_unlock(&motor_lock);
+}
+
+static void drive_thread(void *a, void *b, void *c)
 {
 	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
+	struct canp_ctrl cmd;
 
 	while (1) {
-		status_frame_t st;
-		st.state = (uint8_t)atomic_get(&zone_state);
-
-		if (atomic_get(&application_initialized) != 0) {
-			st.motor1_current = current_status_value(CURRENT_MOTOR_A);
-			st.motor2_current = current_status_value(CURRENT_MOTOR_B);
-			st.servo_current  = current_status_value(CURRENT_SERVO);
-		} else {
-			st.motor1_current = 0.0f;
-			st.motor2_current = 0.0f;
-			st.servo_current  = 0.0f;
+		if (zone_wait_ctrl(&cmd, K_MSEC(ZONE_CTRL_TIMEOUT_MS)) != 0) {
+			continue;   /* HB_MON moves us to ERROR and brakes via drive_safe */
 		}
-         
-		cmd_frame_t last_cmd;
-		st.seq = pi_stm32_uart_get_latest_cmd(&last_cmd) ? last_cmd.seq : 0;
 
-		pi_stm32_uart_send_status(&st);
-		k_sleep(K_MSEC(20));
+		k_mutex_lock(&motor_lock, K_FOREVER);
+		if (zone_state() != CANP_ZS_NORMAL ||
+		    cmd.brake >= BRAKE_ACTIVE_PCT || cmd.throttle == 0) {
+			if (driving || duty_left != 100U) {
+				brake_locked();
+				duty_left = duty_right = 100U;   /* brake = enables at 100 % */
+			}
+		} else {
+			bool start = !driving;
+			unsigned int ff = feed_forward(cmd.throttle);
+
+			target_throttle = cmd.throttle;
+			driving = true;
+			apply_duty_locked(clamp_duty(ff + trim_left), clamp_duty(ff + trim_right), start);
+		}
+		k_mutex_unlock(&motor_lock);
 	}
 }
-K_THREAD_DEFINE(status_tid, 1024, status_thread_fn, NULL, NULL, NULL, 7, 0, 0);
 
-// Control thread: reads latest command, checks failsafe, drives actuators
-static void control_thread_fn(void *a, void *b, void *c)
+static void pid_thread(void *a, void *b, void *c)
 {
 	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
-
-	uint8_t prev_buttons = 0;
-	int64_t last_debug_print_ms = 0;
+	int64_t next = k_uptime_get();
 
 	while (1) {
-		/* Wake immediately when a command arrives, or after
-		 * CONTROL_PERIOD_MS regardless, so failsafe/self-cancel
-		 * logic keeps running even with no commands flowing. */
-		k_sem_take(&cmd_received_sem, K_MSEC(CONTROL_PERIOD_MS));
-		if (atomic_get(&application_initialized) == 0) {
-			atomic_set(&zone_state, STATE_FAILSAFE);
-			blinker_set_hazard(true);
+		next += PID_PERIOD_MS;
+		k_sleep(K_TIMEOUT_ABS_MS(next));
+
+		k_mutex_lock(&motor_lock, K_FOREVER);
+		if (!driving) {
+			k_mutex_unlock(&motor_lock);
 			continue;
 		}
 
-		cmd_frame_t cmd;
-		bool have = pi_stm32_uart_get_latest_cmd(&cmd);
-		uint32_t age = pi_stm32_uart_ms_since_last_cmd();
-		bool invalid_cmd = pi_stm32_uart_take_invalid_cmd();
+		int64_t now = k_uptime_get();
+		int32_t right_count, left_count;
 
-		/*
-		 * Evaluate the self-test edge before the failure-state branch.
-		 * Otherwise LOCAL_FAIL prevents the second press from ever being
-		 * observed, making double-press restoration impossible.
-		 */
-		if (have) {
-			bool left_now = cmd.buttons & LEFT_TURN_BIT;
-			bool right_now = cmd.buttons & RIGHT_TURN_BIT;
-			bool self_test_now = cmd.buttons & SELF_TEST_BIT;
+		encoder_get_counts(&right_count, &left_count);
+		if (have_sample) {
+			/* Real elapsed dt, never the nominal period */
+			float dt = (float)(now - prev_pid_ms) / 1000.0f;
+			float target = (target_throttle / 100.0f) * PID_MAX_SPEED;
+			float right_speed = RIGHT_ENCODER_SIGN * (right_count - prev_right_count) / dt;
+			float left_speed = LEFT_ENCODER_SIGN * (left_count - prev_left_count) / dt;
+			unsigned int ff = feed_forward(target_throttle);
 
-			bool left_prev = prev_buttons & LEFT_TURN_BIT;
-			bool right_prev = prev_buttons & RIGHT_TURN_BIT;
-			bool self_test_prev = prev_buttons & SELF_TEST_BIT;
-
-			if (!atomic_get(&self_test_failed)) {
-				if (left_now && !left_prev) {
-					blinker_signal_left_pressed();
-				}
-				if (right_now && !right_prev) {
-					blinker_signal_right_pressed();
-				}
-			}
-
-			if (self_test_now && !self_test_prev) {
-				int64_t now_ms = k_uptime_get();
-				int64_t delta = now_ms - last_self_test_press_ms;
-
-				printk("SELF-TEST EDGE: delta_since_last=%lldms, currently_failed=%ld\n",
-					delta, atomic_get(&self_test_failed));
-				if (atomic_get(&self_test_failed) &&
-				    delta <= SELF_TEST_DOUBLE_PRESS_WINDOW_MS) {
-					atomic_set(&self_test_failed, 0);
-					printk("*** SELF-TEST: RESTORED (double press) ***\n");
-				} else {
-					atomic_set(&self_test_failed, 1);
-					printk("*** SELF-TEST: FAILED (single press) ***\n");
-				}
-				last_self_test_press_ms = now_ms;
-			}
-
-			prev_buttons = cmd.buttons;
+			trim_right = pid_controller_update(&pid_right, target, right_speed, dt);
+			trim_left = pid_controller_update(&pid_left, target, left_speed, dt);
+			apply_duty_locked(clamp_duty(ff + trim_left), clamp_duty(ff + trim_right), false);
 		}
-
-		if (!have || age > FAILSAFE_TIMEOUT_MS ||
-		    atomic_get(&self_test_failed) || invalid_cmd) {
- 			if (atomic_get(&zone_state) != STATE_FAILSAFE) {
-				printk("*** ENTERING FAILSAFE (age=%ums%s) ***\n", age,
-				       invalid_cmd ? ", invalid command" : "");
-				blinker_set_hazard(true);
-			}
-			atomic_set(&zone_state, STATE_FAILSAFE);
-
-			if (!motor_control_manual_test_active()) {
-				(void)motor_control_dynamic_brake();
-			}
-			reset_speed_controllers();
-
-		} else {
-			if (atomic_get(&zone_state) == STATE_FAILSAFE) {
-				printk("*** RECOVERED TO NORMAL ***\n");
-				blinker_set_hazard(false);
-			}
-			atomic_set(&zone_state, STATE_NORMAL);
-
-			/* Commands arrive far faster than the console UART can
-			 * drain text; printing every one overflows the log
-			 * ring buffer and triggers "messages dropped". Throttle
-			 * to a human-readable cadence instead. */
-			int64_t now_ms = k_uptime_get();
-			if (now_ms - last_debug_print_ms >= 100) {
-				printk("seq=%u steer=%d thr=%u brk=%u btn=0x%02x age=%ums\n",
-				       cmd.seq, cmd.steering, cmd.throttle, cmd.brake, cmd.buttons, age);
-				last_debug_print_ms = now_ms;
-			}
-
-			if (!motor_control_manual_test_active()) {
-				(void)set_wheel_angle(cmd.steering);
-				if (cmd.brake >= BRAKE_ACTIVE_THRESHOLD) {
-					(void)motor_control_dynamic_brake();
-					reset_speed_controllers();
-				} else {
-					apply_throttle(cmd.throttle);
-				}
-			}
-			blinker_update_steering(cmd.steering);
-		}
+		prev_right_count = right_count;
+		prev_left_count = left_count;
+		prev_pid_ms = now;
+		have_sample = true;
+		k_mutex_unlock(&motor_lock);
 	}
 }
-K_THREAD_DEFINE(control_tid, 1024, control_thread_fn, NULL, NULL, NULL, 5, 0, 0);
+
+K_THREAD_DEFINE(drive_tid, 1024, drive_thread, NULL, NULL, NULL,
+		ZONE_PRIO_ACT, 0, SYS_FOREVER_MS);
+K_THREAD_DEFINE(pid_tid, 1024, pid_thread, NULL, NULL, NULL,
+		ZONE_PRIO_PID, 0, SYS_FOREVER_MS);
+
+static const struct zone_config n3_cfg = {
+	.zone = CANP_ZONE_N3,
+	.enter_safe = drive_safe,
+	.rx_hook = NULL,   /* N3 doesn't relay */
+};
 
 int main(void)
 {
-	if (testpoints_init() < 0) {
-		printk("testpoints init failed\n");
+	printk("\n=== Lab 3 N3 drivetrain zone ===\n");
+
+	if (testpoints_init() != 0) {
+		printk("N3: test points not ready\n");
+	}
+	pid_controller_init(&pid_left, PID_KP, PID_KI, PID_KD, -PID_TRIM_LIMIT, PID_TRIM_LIMIT);
+	pid_controller_init(&pid_right, PID_KP, PID_KI, PID_KD, -PID_TRIM_LIMIT, PID_TRIM_LIMIT);
+	if (motor_control_init() != 0) {
+		printk("N3: motor outputs not ready\n");
+	}
+	if (encoder_init() != 0) {
+		printk("N3: encoders not ready\n");
 	}
 
-	pi_stm32_uart_init();
+	zone_core_init(&n3_cfg);   /* calls drive_safe: start braked */
+	k_thread_start(drive_tid);
+	k_thread_start(pid_tid);
 
-	int motor_rc = motor_control_init();
-	if (motor_rc != 0) {
-		atomic_set(&zone_state, STATE_FAILSAFE);
-		printk("Motor safe-output initialization failed: %d\n", motor_rc);
+	while (1) {
+		k_msleep(ZONE_STATUS_PERIOD_MS);
+		zone_print_status();
+
+		k_mutex_lock(&motor_lock, K_FOREVER);
+		printk("   drive: %s thr %u%% duty L%u R%u\n",
+		       driving ? "DRIVE" : "BRAKE", target_throttle, duty_left, duty_right);
+		k_mutex_unlock(&motor_lock);
 	}
-
-	int encoder_rc = encoder_init();
-	if (encoder_rc != 0) {
-		printk("Encoder initialization failed: %d\n", encoder_rc);
-	}
-
-	int steering_rc = servo_init();
-	if (steering_rc != 0) {
-		printk("Steering initialization failed: %d\n", steering_rc);
-	}
-
-	int current_rc = current_init();
-	if (current_rc != 0) {
-		printk("Current-sense initialization failed: %d\n", current_rc);
-	}
-
-	int blinker_rc = blinker_init_all();
-	if (blinker_rc != 0) {
-		printk("Blinker initialization failed: %d\n", blinker_rc);
-	}
-
-	pid_controller_init(&right_pid, PID_KP_DEFAULT, PID_KI_DEFAULT, PID_KD_DEFAULT, 0.0f, 100.0f);
-	pid_controller_init(&left_pid, PID_KP_DEFAULT, PID_KI_DEFAULT, PID_KD_DEFAULT, 0.0f, 100.0f);
-
-	if (motor_rc == 0) {
-		atomic_set(&application_initialized, 1);
-	}
-
-	printk("Lab 2 STM32 online. Waiting for commands...\n");
 	return 0;
 }

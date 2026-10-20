@@ -137,8 +137,10 @@ int motor_control_set_state(enum motor_control_channel channel,
 		return rc;
 	}
 	rc = set_pwm_percent(pwm, duty_percent);
+	/* 10 us is visible on the scope; Lab 2's 100 us delayed channel B (and
+	 * so DIR_A on IN4) by 100 us on every brake command. */
 	testpoint_set(TP_PWM_SET, true);
-	k_busy_wait(100);
+	k_busy_wait(10);
 	testpoint_set(TP_PWM_SET, false);
 	return rc;
 }

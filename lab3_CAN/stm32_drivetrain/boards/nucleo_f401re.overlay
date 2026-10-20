@@ -1,13 +1,22 @@
-/* boards/nucleo_f401re.overlay */
+/*
+ * N3 drivetrain zone (rear). Applied after common/zephyr/dual_can.overlay,
+ * which provides the CAN modules, CAN test points, DEG/ERR LEDs, TEST_BTN
+ * and the watchdog.
+ *
+ * Lab 2 pins that collided with the handout's CAN wiring were moved:
+ *   Right PWM ENB  PA7 -> PB13  (TIM1 CH1N, same channel/complementary flag)
+ *   Right IN3      PB5 -> PA9   (D8)
+ *   Encoder R-B    PA5 -> PA1   (A1, EXTI1)
+ *   Encoder L-B    PB10 -> PB0  (A3, EXTI0; EXTI10 is CAN A's INT)
+ *   RL             PC7 -> PB8   (D15)
+ *   RR             PB6 -> PB9   (D14)
+ * Unchanged: left PWM/PWM_OUT PA0, IN1 PC1, IN2 PC0, IN4/DIR_A PB3,
+ *            encoder R-A PA8, L-A PB4, PWM_SET PC6.
+ */
 #include <zephyr/dt-bindings/pwm/stm32_pwm.h>
+
 / {
 	aliases {
-		rpilink = &usart1;
-		servo-pwm = &servo_pwm;
-		blinker-fl = &blinker_fl;
-		blinker-fr = &blinker_fr;
-		blinker-rl = &blinker_rl;
-		blinker-rr = &blinker_rr;
 		motor-left-pwm = &motor_left_pwm;
 		motor-right-pwm = &motor_right_pwm;
 		motor-left-in1 = &motor_left_in1;
@@ -18,41 +27,26 @@
 		encoder-right-b = &encoder_right_b;
 		encoder-left-a = &encoder_left_a;
 		encoder-left-b = &encoder_left_b;
-		tp-cmd-rx = &tp_cmd_rx;
+		blinker-left = &blinker_rl;
+		blinker-right = &blinker_rr;
 		tp-pwm-set = &tp_pwm_set;
 	};
 
-	zephyr,user {
-		/* index 0: left motor current (PA4), 1: right motor current (PB0),
-		 * 2: servo current (PA1). Order matches current.c's enum
-		 * CURRENT_MOTOR_A, CURRENT_MOTOR_B, CURRENT_SERVO. */
-		io-channels = <&adc1 4>, <&adc1 8>, <&adc1 1>;
-	};
-
-	blinkers {
+	rear_blinkers {
 		compatible = "gpio-leds";
 
-		blinker_fl: blinker_fl {
-			gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>;    /* D14 */
-		};
-		blinker_fr: blinker_fr {
+		blinker_rl: blinker_rl {
 			gpios = <&gpiob 8 GPIO_ACTIVE_HIGH>;    /* D15 */
 		};
-		blinker_rl: blinker_rl {
-			gpios = <&gpioc 7 GPIO_ACTIVE_HIGH>;    /* D9 */
-		};
 		blinker_rr: blinker_rr {
-			gpios = <&gpiob 6 GPIO_ACTIVE_HIGH>;    /* D10 */
+			gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>;    /* D14 */
 		};
 	};
 
-	test_points {
+	n3_test_points {
 		compatible = "gpio-leds";
 
-		tp_cmd_rx: tp_cmd_rx {
-			gpios = <&gpioc 8 GPIO_ACTIVE_HIGH>;
-		};
-		tp_pwm_set: tp_pwm_set  {
+		tp_pwm_set: tp_pwm_set {
 			gpios = <&gpioc 6 GPIO_ACTIVE_HIGH>;
 		};
 	};
@@ -69,28 +63,20 @@
 		};
 	};
 
-	servo_outputs {
-		compatible = "pwm-leds";
-
-		servo_pwm: servo_pwm {
-			pwms = <&pwm3 1 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
-		};
-	};
-
 	motor_direction_outputs {
 		compatible = "gpio-leds";
 
 		motor_left_in1: motor_left_in1 {
-			gpios = <&gpioc 1 GPIO_ACTIVE_HIGH>; /* A4 */
+			gpios = <&gpioc 1 GPIO_ACTIVE_HIGH>;    /* A4 */
 		};
 		motor_left_in2: motor_left_in2 {
-			gpios = <&gpioc 0 GPIO_ACTIVE_HIGH>; /* A5 */
+			gpios = <&gpioc 0 GPIO_ACTIVE_HIGH>;    /* A5 */
 		};
 		motor_right_in3: motor_right_in3 {
-			gpios = <&gpiob 5 GPIO_ACTIVE_HIGH>; /* D4 */
+			gpios = <&gpioa 9 GPIO_ACTIVE_HIGH>;    /* D8 */
 		};
 		motor_right_in4: motor_right_in4 {
-			gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>; /* D3 */
+			gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>;    /* D3, DIR_A test point */
 		};
 	};
 
@@ -98,82 +84,23 @@
 		compatible = "gpio-keys";
 
 		encoder_right_a: encoder_right_a {
-			gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>; /* D7, phase A */
+			gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>;    /* D7, EXTI8 */
 		};
 		encoder_right_b: encoder_right_b {
-			gpios = <&gpioa 5 GPIO_ACTIVE_HIGH>; /* D13, phase B */
+			gpios = <&gpioa 1 GPIO_ACTIVE_HIGH>;    /* A1, EXTI1 */
 		};
 		encoder_left_a: encoder_left_a {
-			gpios = <&gpiob 4 GPIO_ACTIVE_HIGH>; /* D5, phase A */
+			gpios = <&gpiob 4 GPIO_ACTIVE_HIGH>;    /* D5, EXTI4 */
 		};
 		encoder_left_b: encoder_left_b {
-			gpios = <&gpiob 10 GPIO_ACTIVE_HIGH>; /* D6, phase B */
+			gpios = <&gpiob 0 GPIO_ACTIVE_HIGH>;    /* A3, EXTI0 */
 		};
 	};
 };
 
-&spi1 { status = "disabled"; };
-&i2c1 { status = "disabled"; };
-&i2c3 { status = "disabled"; };
-
-&adc1 {
-	#address-cells = <1>;
-	#size-cells = <0>;
+/* Re-enable TIM2 (the shared overlay disables it) with CH1 on PA0 */
+&timers2 {
 	status = "okay";
-	pinctrl-0 = <&adc1_in1_pa1 &adc1_in4_pa4 &adc1_in8_pb0>;
-	pinctrl-names = "default";
-
-	channel@1 {
-		reg = <1>;
-		zephyr,gain = "ADC_GAIN_1";
-		zephyr,reference = "ADC_REF_INTERNAL";
-		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-		zephyr,input-positive = <1>; /* IN1, PA1 / A1, servo current */
-		zephyr,resolution = <12>;
-	};
-	channel@4 {
-		reg = <4>;
-		zephyr,gain = "ADC_GAIN_1";
-		zephyr,reference = "ADC_REF_INTERNAL";
-		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-		zephyr,input-positive = <4>; /* IN4, PA4 / A2, left motor current */
-		zephyr,resolution = <12>;
-	};
-	channel@8 {
-		reg = <8>;
-		zephyr,gain = "ADC_GAIN_1";
-		zephyr,reference = "ADC_REF_INTERNAL";
-		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-		zephyr,input-positive = <8>; /* IN8, PB0 / A3, right motor current */
-		zephyr,resolution = <12>;
-	};
-};
-
-&usart1 {
-	/* Pi link: D8/PA9 TX, D2/PA10 RX */
-	status = "okay";
-	current-speed = <115200>;
-	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
-	pinctrl-names = "default";
-};
-
-&timers1 {
-	status = "okay";
-	pwm1: pwm {
-		status = "okay";
-        pinctrl-0 = <&tim1_ch1n_pa7>;
-        pinctrl-names = "default";
-	};
-};
-
-&timers3 {
-	st,prescaler = <27>;
-	status = "okay";
-	pwm3: pwm {
-		status = "okay";
-		pinctrl-0 = <&tim3_ch1_pa6>;
-		pinctrl-names = "default";
-	};
 };
 
 &pwm2 {
@@ -182,4 +109,12 @@
 	pinctrl-names = "default";
 };
 
+&timers1 {
+	status = "okay";
 
+	pwm1: pwm {
+		status = "okay";
+		pinctrl-0 = <&tim1_ch1n_pb13>;
+		pinctrl-names = "default";
+	};
+};
