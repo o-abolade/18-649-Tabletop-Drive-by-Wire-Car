@@ -31,7 +31,7 @@ lab3_CAN/
 │       └── lab3_common.cmake  # shared build setup for both zones
 ├── stm32_steering/    # N2: STEER, FORCE_TX, RELAY (+ zone_core)
 ├── stm32_drivetrain/  # N3: DRIVE, PID (+ zone_core)
-├── pi_cockpit/        # N1: still Lab 2's pi_bridge.c; CAN version not written yet
+├── pi_cockpit/        # N1: cockpit.c (UDP -> CTRL/BLINK/HB_N1 on can0+can1), can_up.sh
 └── can_bringup/       # Part 0/1 bring-up and diagnostic app
 ```
 
@@ -143,6 +143,52 @@ west build -b nucleo_f401re <repo>/lab3_CAN/stm32_drivetrain -d <repo>/lab3_CAN/
 
 Each prints one status line per second:
 `N2 NORMAL | A ACTIVE T0 R0 | B ACTIVE T0 R0 | HB N1:AB N3:AB | CTRL age 4ms ...`
+(`N1:AB` = N1's heartbeat heard on bus A and bus B; `-` = missing on that bus.)
+
+### Pi cockpit (`pi_cockpit/cockpit.c`)
+
+N1, in C with SocketCAN. It compiles the same `common/can_proto.c` as the STM32s.
+
+| Task | What it does |
+|---|---|
+| UDP_RX → CTRL_TX | every wheel UDP packet → one CTRL on can0 and can1 (R4.4). No UDP = no CTRL, so the STM32s drop to ERROR after 100 ms |
+| BLINK_TX | blinker master: left/right buttons toggle, self-cancel past ±400 and back (Lab 2 rule), lamps ON in the first frame, toggle every 500 ms (1 Hz); hazard 2 Hz while N1 isn't NORMAL |
+| HB_TX | HB_N1 every 20 ms (absolute schedule) on both buses; silent while LOCAL_FAIL |
+| HB_MON | N2/N3 heartbeats per bus → DEG_A/DEG_B; N1 is ERROR if N2 or N3 is lost on both buses, a FAULT arrived, or no wheel UDP for 100 ms |
+| wheel test button | button 6: single press → LOCAL_FAIL + FAULT, double press → restore |
+| FORCE_RX | prints N2's dummy force counter |
+
+Test points (BCM GPIO): UDP_RX 18 (pin 12), CMD_TX 27 (pin 13), CAN_TX_A 22
+(pin 15), CAN_TX_B 23 (pin 16), DEG_A 5 (pin 29), DEG_B 6 (pin 31). UDP_RX goes
+high on reception and low after both CTRL copies are written, followed by a
+CMD_TX pulse, so UDP_RX's rising edge to CMD_TX is the Pi stage of the brake chain.
+
+```bash
+cd lab3_CAN/pi_cockpit
+make                     # needs libgpiod v2 (same as Lab 2's pi_bridge)
+./can_up.sh              # after every reboot
+./cockpit                # or: sudo ./cockpit --rt  (CPU 3, SCHED_FIFO 80; Part 3 latency runs)
+```
+
+While it runs, type `b` + Enter to send **one** out-of-range CTRL (throttle 150)
+for the bad-input demo, `s` to toggle the status line, `q` to quit.
+
+### First full-system test (when bus B and the LEDs are wired)
+
+1. **Cold start:** both Nucleos flashed with their zone apps, Pi `cockpit`
+   running, proxy **stopped**. Expect ERR LED on and hazards on all three, no DEG
+   LEDs, Pi status `N1 ERROR ... (no wheel UDP)`.
+2. **Start the proxy:** within about 100 ms all three go NORMAL; N2/N3 status
+   shows `HB N1:AB N3:AB` (resp. `N2:AB`) and `CTRL age` under 20 ms.
+3. **Wheel:** SRV follows the wheel; pedal → PWM_SET/PWM_OUT on N3; brake →
+   DIR_A. Left/right buttons → FL+RL (or FR+RR) blink together.
+4. **Pull a jumper** (e.g. N2's bus A): that node's DEG_A lights within ~60 ms,
+   everything keeps working; re-insert → off.
+5. **Scenario (c):** pull N1's bus B and N3's bus A: DEG_B on N1, DEG_A on N3,
+   RELAY_TX toggling on N2, wheel still steers, blinks and brakes.
+6. **Test button:** B1 on N2 → N2 LOCAL_FAIL, N1/N3 ERROR (hazards, N3 braked);
+   double press → all NORMAL.
+7. **Bad input:** `b` in the cockpit → N2 and N3 ERROR and each sends FAULT.
 
 ## Building
 
@@ -351,7 +397,7 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
 | 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | Not started |
 | 4 | Dual-bus + relay design and re-analysis | Not started |
 | 5 | Zephyr implementation (dispatch/dedup, send helper, HB_MON, RELAY, error SM, watchdog) | Written on `lab3-can-link`, both zones build clean; not yet run on hardware |
-| 5 | Pi cockpit (CTRL/BLINK/HB_N1 TX, HB/FORCE RX, bad-input injection) | Not started |
+| 5 | Pi cockpit (CTRL/BLINK/HB_N1 TX, HB/FORCE RX, bad-input injection) | `pi_cockpit/cockpit.c` written; syntax-checked against Linux SocketCAN headers (libgpiod stubbed); not yet compiled or run on the Pi |
 | 5 | Test-point breakout boards per node | Not started |
 | — | Report, fault-injection matrix, Lab 1 revision-history entry | Not started |
 
