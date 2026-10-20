@@ -30,5 +30,5 @@ $R_1 = 30 \micro s + 20 \micro s + \lceil \frac{200 \micro s}{20 ms} \rceil * 80
 
 HB_TX R value computed as follows:
 
-$R_0 = 120 \micro s + 20 \micro s + \lceil \frac{120 \micro s}{20 ms} \rceil * 80 \micro s + \lceil \frac{120 \micro s}{20 ms} \rceil * 20 \micro s + \lceil \frac{120 \micro s}{20 ms} \rceil * 50 \micro s + \lceil \frac{120 \micro s}{20 ms} \rceil * 30 \micro s = 320 \micro s320
+$R_0 = 120 \micro s + 20 \micro s + \lceil \frac{120 \micro s}{20 ms} \rceil * 80 \micro s + \lceil \frac{120 \micro s}{20 ms} \rceil * 20 \micro s + \lceil \frac{120 \micro s}{20 ms} \rceil * 50 \micro s + \lceil \frac{120 \micro s}{20 ms} \rceil * 30 \micro s = 320 \micro s$
 $R_1 = 120 \micro s + 20 \micro s + \lceil \frac{320 \micro s}{20 ms} \rceil * 80 \micro s + \lceil \frac{320 \micro s}{20 ms} \rceil * 20 \micro s + \lceil \frac{320 \micro s}{20 ms} \rceil * 50 \micro s + \lceil \frac{320 \micro s}{20 ms} \rceil * 30 \micro s = 320 \micro s$
