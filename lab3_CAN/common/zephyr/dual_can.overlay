@@ -1,0 +1,108 @@
+/*
+ * Shared by both STM32 zones (N2 steering, N3 drivetrain), pulled in with
+ * EXTRA_DTC_OVERLAY_FILE from each zone's CMakeLists.txt. Zone-specific
+ * actuators live in the zone's own boards/nucleo_f401re.overlay.
+ *
+ * Dual MCP2515 (XIAO CAN modules) on SPI1, handout wiring:
+ *   SCK PA5 (D13), MISO PA6 (D12), MOSI PA7 (D11)
+ *   CAN A: CS PB6 (D10), INT PA10 (D2) -> EXTI10
+ *   CAN B: CS PC7 (D9),  INT PB5  (D4) -> EXTI5
+ * Module side: D9 = MISO, D10 = MOSI (the handout figure has these swapped).
+ * 16 MHz crystal; SPI actually runs at 84/16 = 5.25 MHz.
+ *
+ * Test points and status LEDs, same pins on both zones (morpho headers):
+ *   CAN_RX_A PC8, CAN_RX_B PC9, CAN_TX_A PC10, CAN_TX_B PC11
+ *   DEG_A PC2, DEG_B PC3, ERR PC12. TEST_BTN = on-board B1 (PC13, alias sw0)
+ */
+
+/ {
+	aliases {
+		can-a = &can_a;
+		can-b = &can_b;
+		tp-can-rx-a = &tp_can_rx_a;
+		tp-can-rx-b = &tp_can_rx_b;
+		tp-can-tx-a = &tp_can_tx_a;
+		tp-can-tx-b = &tp_can_tx_b;
+		led-deg-a = &led_deg_a;
+		led-deg-b = &led_deg_b;
+		led-err = &led_err;
+		test-btn = &user_button;
+		zone-wdt = &iwdg;
+	};
+
+	can_test_points {
+		compatible = "gpio-leds";
+
+		tp_can_rx_a: tp_can_rx_a {
+			gpios = <&gpioc 8 GPIO_ACTIVE_HIGH>;
+		};
+		tp_can_rx_b: tp_can_rx_b {
+			gpios = <&gpioc 9 GPIO_ACTIVE_HIGH>;
+		};
+		tp_can_tx_a: tp_can_tx_a {
+			gpios = <&gpioc 10 GPIO_ACTIVE_HIGH>;
+		};
+		tp_can_tx_b: tp_can_tx_b {
+			gpios = <&gpioc 11 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	zone_status_leds {
+		compatible = "gpio-leds";
+
+		led_deg_a: led_deg_a {
+			gpios = <&gpioc 2 GPIO_ACTIVE_HIGH>;
+		};
+		led_deg_b: led_deg_b {
+			gpios = <&gpioc 3 GPIO_ACTIVE_HIGH>;
+		};
+		led_err: led_err {
+			gpios = <&gpioc 12 GPIO_ACTIVE_HIGH>;
+		};
+	};
+};
+
+/*
+ * Board defaults that claim pins we use. Each zone's own overlay is applied
+ * after this file and may re-enable what it needs (e.g. N3's pwm2 on PA0).
+ */
+&usart1 { status = "disabled"; };   /* PB6 = CAN A CS, PB7 = RELAY_TX */
+&i2c1   { status = "disabled"; };   /* PB8/PB9 = blinkers */
+&i2c3   { status = "disabled"; };   /* PA8 = encoder, PC9 = CAN_RX_B */
+&spi2   { status = "disabled"; };   /* PB13 = N3 motor ENB */
+&adc1   { status = "disabled"; };   /* PA0 = N3 motor PWM */
+&timers2 { status = "disabled"; };  /* board puts its PWM on PA5 = SPI1 SCK */
+
+/* R4.5: independent watchdog, separate LSI clock from the main oscillator */
+&iwdg {
+	status = "okay";
+};
+
+&spi1 {
+	status = "okay";
+	cs-gpios = <&gpiob 6 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
+		   <&gpioc 7 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+
+	can_a: can@0 {
+		compatible = "microchip,mcp2515";
+		reg = <0>;
+		spi-max-frequency = <10000000>;
+		int-gpios = <&gpioa 10 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		osc-freq = <16000000>;
+		/* Without this the driver falls back to CONFIG_CAN_DEFAULT_BITRATE (125k) */
+		bitrate = <500000>;
+		sample-point = <875>;
+		status = "okay";
+	};
+
+	can_b: can@1 {
+		compatible = "microchip,mcp2515";
+		reg = <1>;
+		spi-max-frequency = <10000000>;
+		int-gpios = <&gpiob 5 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		osc-freq = <16000000>;
+		bitrate = <500000>;
+		sample-point = <875>;
+		status = "okay";
+	};
+};
