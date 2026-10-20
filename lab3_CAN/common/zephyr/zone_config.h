@@ -40,13 +40,16 @@
 /* ---- Thread priorities (lower = higher). Deadline-monotonic start point.
  * The MCP2515 RX threads are cooperative (CONFIG_CAN_MCP2515_INT_THREAD_PRIO
  * = 2, i.e. K_PRIO_COOP(2)) and outrank all of these. */
-#define ZONE_PRIO_RELAY     0   /* N2 only: on the relayed brake path */
-#define ZONE_PRIO_ACT       1   /* DRIVE (N3) / STEER (N2): CTRL -> actuator */
-#define ZONE_PRIO_BLINK     2   /* BLINK_F / BLINK_R: 0.5 ms from reception */
-#define ZONE_PRIO_BTN       3   /* TEST_BTN: local fail within 10 ms */
-#define ZONE_PRIO_PID       4   /* N3 only: 10 ms */
-#define ZONE_PRIO_HB_MON    5   /* 10 ms poll, 20 ms deadline */
-#define ZONE_PRIO_HB_TX     6   /* 20 ms */
-#define ZONE_PRIO_FORCE_TX  7   /* N2 only: 50 ms */
+#define ZONE_PRIO_CAN_TX    0   /* per-bus TX queue -> the MCP2515's single TX
+				 * buffer (can_link.c); sleeps while the
+				 * buffer is busy, so it doesn't hog the CPU */
+#define ZONE_PRIO_RELAY     1   /* N2 only: on the relayed brake path */
+#define ZONE_PRIO_ACT       2   /* DRIVE (N3) / STEER (N2): CTRL -> actuator */
+#define ZONE_PRIO_BLINK     3   /* BLINK_F / BLINK_R: 0.5 ms from reception */
+#define ZONE_PRIO_BTN       4   /* TEST_BTN: local fail within 10 ms */
+#define ZONE_PRIO_PID       5   /* N3 only: 10 ms */
+#define ZONE_PRIO_HB_MON    6   /* 10 ms poll, 20 ms deadline */
+#define ZONE_PRIO_HB_TX     7   /* 20 ms */
+#define ZONE_PRIO_FORCE_TX  8   /* N2 only: 50 ms */
 
 #endif /* ZONE_CONFIG_H */

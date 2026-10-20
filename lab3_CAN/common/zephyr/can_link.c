@@ -11,6 +11,7 @@
 #include <zephyr/sys/util.h>
 
 #include "can_link.h"
+#include "zone_config.h"
 
 /* Test-point pulses are held at least this long so a scope can trigger on
  * them (Lab 2: back-to-back set/clear was too narrow to see). */
@@ -153,34 +154,129 @@ static void tx_done(const struct device *dev, int error, void *user_data)
 	}
 }
 
+/*
+ * Per-bus TX queue, ordered by CAN ID.
+ *
+ * Zephyr's MCP2515 driver uses only ONE of the chip's three TX buffers
+ * (MCP2515_TX_CNT = 1 in drivers/can/can_mcp2515.h), so each controller holds
+ * one pending frame. Calling can_send() without waiting dropped any frame
+ * queued while another was pending (seen: every other FORCE frame lost when
+ * it coincided with HB_TX). Instead, senders put frames in this queue and a
+ * per-bus TX thread feeds the single hardware buffer:
+ *  - lowest ID first, so a relayed CTRL overtakes queued HB/FORCE the way bus
+ *    arbitration would; the only priority inversion left is the one frame
+ *    already in the hardware buffer (<= 1 frame time, 270 us);
+ *  - a dead bus only backs up its own queue, never the other bus's copy.
+ */
+#define TXQ_DEPTH        8
+#define TX_BUF_WAIT_MS   10    /* give up on one frame if the bus isn't ACKing */
+
+struct tx_item {
+	uint32_t id;
+	uint8_t data[CANP_DLC];
+};
+
+struct txq {
+	struct k_spinlock lock;
+	struct tx_item item[TXQ_DEPTH];   /* sorted, item[0] = lowest ID */
+	int count;
+	struct k_sem ready;
+};
+
+static struct txq txq[CANP_NUM_BUSES];
+
 int can_link_send_on(enum canp_bus bus, uint32_t id, const uint8_t data[CANP_DLC])
 {
-	struct bus *b = &buses[bus];
-	struct can_frame f = { .id = id, .dlc = CANP_DLC };
+	struct txq *q = &txq[bus];
+	int ret = 0;
 
-	if (!b->started) {
+	if (!buses[bus].started) {
 		return -ENETDOWN;
 	}
-	memcpy(f.data, data, CANP_DLC);
 
-	uint32_t start = k_cycle_get_32();
+	k_spinlock_key_t key = k_spin_lock(&q->lock);
 
-	gpio_pin_set_dt(&b->tp_tx, 1);
-	/* Never block: a bus that isn't ACKing must not stall the other bus */
-	int ret = can_send(b->dev, &f, K_NO_WAIT, tx_done, (void *)(uintptr_t)bus);
+	if (q->count == TXQ_DEPTH) {
+		/* Full (bus not ACKing): keep the higher-priority frames */
+		if (id >= q->item[TXQ_DEPTH - 1].id) {
+			ret = -ENOBUFS;
+		} else {
+			q->count--;   /* evict the lowest-priority (highest ID) entry */
+		}
+	}
+	if (ret == 0) {
+		int pos = q->count;
 
-	tp_end(&b->tp_tx, start);
+		/* Stable insertion: after equal IDs, so same-ID frames stay FIFO */
+		while (pos > 0 && q->item[pos - 1].id > id) {
+			q->item[pos] = q->item[pos - 1];
+			pos--;
+		}
+		q->item[pos].id = id;
+		memcpy(q->item[pos].data, data, CANP_DLC);
+		q->count++;
+	}
+	k_spin_unlock(&q->lock, key);
 
-	k_spinlock_key_t key = k_spin_lock(&lock);
-
+	key = k_spin_lock(&lock);
 	if (ret == 0) {
 		stats.tx_queued[bus]++;
 	} else {
 		stats.tx_busy[bus]++;
 	}
 	k_spin_unlock(&lock, key);
+
+	if (ret == 0) {
+		k_sem_give(&q->ready);
+	}
 	return ret;
 }
+
+static void tx_thread(void *p1, void *p2, void *p3)
+{
+	enum canp_bus bus = (enum canp_bus)(uintptr_t)p1;
+	struct bus *b = &buses[bus];
+	struct txq *q = &txq[bus];
+
+	ARG_UNUSED(p2); ARG_UNUSED(p3);
+
+	while (1) {
+		k_sem_take(&q->ready, K_FOREVER);
+
+		struct can_frame f = { .dlc = CANP_DLC };
+		k_spinlock_key_t key = k_spin_lock(&q->lock);
+
+		if (q->count == 0) {
+			k_spin_unlock(&q->lock, key);
+			continue;
+		}
+		f.id = q->item[0].id;
+		memcpy(f.data, q->item[0].data, CANP_DLC);
+		q->count--;
+		memmove(&q->item[0], &q->item[1], q->count * sizeof(q->item[0]));
+		k_spin_unlock(&q->lock, key);
+
+		/* CAN_TX_x test point: rising edge = this frame's turn, falling
+		 * edge = handed to the controller (after waiting for the one
+		 * hardware buffer). */
+		uint32_t start = k_cycle_get_32();
+
+		gpio_pin_set_dt(&b->tp_tx, 1);
+		int ret = can_send(b->dev, &f, K_MSEC(TX_BUF_WAIT_MS), tx_done, (void *)(uintptr_t)bus);
+
+		tp_end(&b->tp_tx, start);
+		if (ret != 0) {
+			key = k_spin_lock(&lock);
+			stats.tx_busy[bus]++;
+			k_spin_unlock(&lock, key);
+		}
+	}
+}
+
+K_THREAD_DEFINE(can_tx_a_tid, 1024, tx_thread, (void *)CANP_BUS_A, NULL, NULL,
+		ZONE_PRIO_CAN_TX, 0, SYS_FOREVER_MS);
+K_THREAD_DEFINE(can_tx_b_tid, 1024, tx_thread, (void *)CANP_BUS_B, NULL, NULL,
+		ZONE_PRIO_CAN_TX, 0, SYS_FOREVER_MS);
 
 int can_link_send(uint32_t id, uint8_t data[CANP_DLC])
 {
@@ -321,9 +417,12 @@ int can_link_init(can_link_rx_cb_t rx_cb)
 	}
 
 	for (int bus = 0; bus < CANP_NUM_BUSES; bus++) {
+		k_sem_init(&txq[bus].ready, 0, TXQ_DEPTH);
 		buses[bus].started = bus_init(&buses[bus], bus);
 		printk("%s: %s\n", buses[bus].name, buses[bus].started ? "up" : "DOWN");
 		up += buses[bus].started;
 	}
+	k_thread_start(can_tx_a_tid);
+	k_thread_start(can_tx_b_tid);
 	return up;
 }

@@ -118,14 +118,26 @@ use. The shared overlay disables them (`can_bringup` only worked by luck).
 | Priority | Task | Notes |
 |---|---|---|
 | coop 2 | MCP2515 RX ×2 (driver) | SPI read, dedup, dispatch; outranks all below |
-| 0 | RELAY (N2) | on the relayed brake path |
-| 1 | STEER (N2) / DRIVE (N3) | CTRL → actuator |
-| 2 | BLINK_F / BLINK_R | BLINK → lamps; local hazard while not NORMAL |
-| 3 | TEST_BTN | single press = LOCAL_FAIL now (R2.5: ≤10 ms), double = restore |
-| 4 | PID (N3) | 10 ms, per-wheel trim on top of DRIVE's feed-forward |
-| 5 | HB_MON | 10 ms poll: per-bus HB timeout 60 ms → DEG LED; zone lost on both → ERROR; feeds watchdog |
-| 6 | HB_TX | 20 ms absolute schedule; silent while LOCAL_FAIL |
-| 7 | FORCE_TX (N2) | 50 ms |
+| 0 | CAN_TX ×2 (one per bus) | per-bus queue ordered by CAN ID → the MCP2515's single TX buffer (see below) |
+| 1 | RELAY (N2) | on the relayed brake path |
+| 2 | STEER (N2) / DRIVE (N3) | CTRL → actuator |
+| 3 | BLINK_F / BLINK_R | BLINK → lamps; local hazard while not NORMAL |
+| 4 | TEST_BTN | single press = LOCAL_FAIL now (R2.5: ≤10 ms), double = restore |
+| 5 | PID (N3) | 10 ms, per-wheel trim on top of DRIVE's feed-forward |
+| 6 | HB_MON | 10 ms poll: per-bus HB timeout 60 ms → DEG LED; zone lost on both → ERROR; feeds watchdog |
+| 7 | HB_TX | 20 ms absolute schedule; silent while LOCAL_FAIL |
+| 8 | FORCE_TX (N2) | 50 ms |
+
+**The MCP2515 driver uses one TX buffer, not three.** Zephyr's driver hardcodes
+`MCP2515_TX_CNT 1` (`drivers/can/can_mcp2515.h`), so each controller holds one
+pending frame and can't arbitrate by ID among its own buffers. First hardware
+run: N2 dropped ~10 frames/s per bus (every other FORCE, whenever it coincided
+with HB_TX). Fix: `can_link` queues frames per bus **sorted by CAN ID** and a
+per-bus TX thread feeds the single buffer, so a relayed CTRL overtakes queued
+HB/FORCE. Result: 0 drops. **For Part 3:** a node's own lower-priority frame
+already in the buffer can delay its next frame by up to one frame time
+(270 µs), an extra blocking term on top of bus blocking. The Pi's `mcp251x`
+driver likewise sends one frame at a time from a FIFO qdisc.
 
 **Error state machine** (shared): power up in ERROR; NORMAL once both other
 zones' heartbeats are seen on ≥1 bus and a valid CTRL arrived within 100 ms;
