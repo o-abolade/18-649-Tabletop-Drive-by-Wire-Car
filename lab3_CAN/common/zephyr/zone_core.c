@@ -342,14 +342,28 @@ static void btn_thread(void *a, void *b, void *c)
 {
 	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
 	int64_t last_press_ms = -ZONE_BTN_DOUBLE_MS - 1;
+	bool held = false;   /* press accepted, stable release not seen yet */
 
 	while (1) {
-		k_sem_take(&btn_sem, K_FOREVER);
+		/* While held, also wake every debounce period to look for a stable
+		 * release: a release only counts once the pin reads released AND
+		 * no edge arrived for a full debounce period. Otherwise release
+		 * bounce would look like a second press = a false "double press". */
+		int ret = k_sem_take(&btn_sem, held ? K_MSEC(ZONE_BTN_DEBOUNCE_MS) : K_FOREVER);
 		int64_t now = k_uptime_get();
+		bool pressed = gpio_pin_get_dt(&test_btn) > 0;
 
-		if (now - last_press_ms < ZONE_BTN_DEBOUNCE_MS) {
-			continue;   /* contact bounce */
+		if (held) {
+			if (ret != 0 && !pressed) {
+				held = false;
+			}
+			continue;   /* bounce while pressed or while releasing */
 		}
+		if (!pressed) {
+			continue;   /* glitch: pin already back to released */
+		}
+		/* First edge of a real press: act now (R2.5), ignore what follows */
+		held = true;
 
 		k_spinlock_key_t key = k_spin_lock(&lock);
 		bool restore = local_fail && (now - last_press_ms) <= ZONE_BTN_DOUBLE_MS;
@@ -410,7 +424,8 @@ int zone_core_init(const struct zone_config *config)
 	gpio_pin_configure_dt(&test_btn, GPIO_INPUT);
 	gpio_init_callback(&btn_cb_data, btn_isr, BIT(test_btn.pin));
 	gpio_add_callback(test_btn.port, &btn_cb_data);
-	gpio_pin_interrupt_configure_dt(&test_btn, GPIO_INT_EDGE_TO_ACTIVE);
+	/* Both edges: the thread tracks release too (see btn_thread) */
+	gpio_pin_interrupt_configure_dt(&test_btn, GPIO_INT_EDGE_BOTH);
 
 	if (cfg->enter_safe) {
 		cfg->enter_safe();
