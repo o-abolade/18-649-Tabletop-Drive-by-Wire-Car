@@ -8,8 +8,8 @@
  *   Right IN3      PB5 -> PA9   (D8)
  *   Encoder R-B    PA5 -> PA1   (A1, EXTI1)
  *   Encoder L-B    PB10 -> PB0  (A3, EXTI0; EXTI10 is CAN A's INT)
- *   RL             PC7 -> PB8   (D15)
- *   RR             PB6 -> PB9   (D14)
+ *   RL             PC7 -> PB9   (D14)
+ *   RR             PB6 -> PB8   (D15)
  * Unchanged: left PWM/PWM_OUT PA0, IN1 PC1, IN2 PC0, IN4/DIR_A PB3,
  *            encoder R-A PA8, L-A PB4, PWM_SET PC6.
  */
@@ -35,11 +35,12 @@
 	rear_blinkers {
 		compatible = "gpio-leds";
 
+		/* Left = D14, right = D15 on both zones (same as N2's FL/FR) */
 		blinker_rl: blinker_rl {
-			gpios = <&gpiob 8 GPIO_ACTIVE_HIGH>;    /* D15 */
+			gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>;    /* D14 */
 		};
 		blinker_rr: blinker_rr {
-			gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>;    /* D14 */
+			gpios = <&gpiob 8 GPIO_ACTIVE_HIGH>;    /* D15 */
 		};
 	};
 

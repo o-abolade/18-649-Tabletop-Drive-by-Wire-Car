@@ -95,7 +95,7 @@ owns and moves the ones it keeps:
 - **N3 drivetrain:** right ENB PA7 → **PB13** (still TIM1 CH1N), right IN3
   PB5 → **PA9 / D8**, encoder right B PA5 → **PA1 / A1**, encoder left B
   PB10 → **PB0 / A3** (PB10 shares EXTI10 with CAN A's INT on PA10),
-  RL → **PB8 / D15**, RR → **PB9 / D14**.
+  RL → **PB9 / D14**, RR → **PB8 / D15** (left = D14, right = D15 on both zones).
 
 **Test points and status LEDs, same pins on both STM32s** (morpho headers):
 
@@ -107,7 +107,7 @@ owns and moves the ones it keeps:
 | CAN_TX_B | PC11 | | TEST_BTN | on-board B1 (PC13) |
 
 Zone-specific: N2 SRV PB4, FL PB9, FR PB8, RELAY_TX PB7. N3 PWM_SET PC6,
-PWM_OUT PA0, DIR_A PB3 (IN4), RL PB8, RR PB9.
+PWM_OUT PA0, DIR_A PB3 (IN4), RL PB9 (D14), RR PB8 (D15).
 
 The board's default devicetree enables USART1 on PB6/PB7, I2C1 on PB8/PB9, I2C3
 on PA8/PC9, SPI2 on PB12–15, the ADC on PA0 and a PWM on PA5, all on pins we
