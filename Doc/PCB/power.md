@@ -6,7 +6,7 @@
 | 3.3 Volts | STM32 (36.3 mA max, 31.1 mA typical) x 2, CAN Controller (10 mA max, 10 mA typ) x 6,  CAN Transciever (17 mA max, 10 mA typ) x 6, Yellow LED (10.8 mA max, 0 typ) x 4, Red LED (9.2 mA Max, 0 typ) x 4, self test button (0.33 mA max, 0 typ) x 3 | 317 mA | 182.2 mA | TBD |
 | 5 Volts | L298 Logic (36 mA max, 24 typ), ACS712 (13 mA max, 10 mA typ) x2, Rasberry Pi (3 A max, 1 A typ), RED LED (9.2 mA max, 0 typ) x2| 3.084 A | 1.044 A | - |
 | 7 Volts | Steering Servo (3 A max, 100 mA typ) | 3 A | 0.1 A | - |
-| 12 Volts | Motor (3.2 A max, 0.36 typ) x 2, 3V3 Buck Converter (100 mA max, 55 mA typ), 5V Buck Converter (1.35 A max, 0.457 A typ), 7 V Buck Converter (1.94 A max, 65 mA typ) | 9.79 A | 1.297 A | - |
+| 12 Volts | Motor (3.2 A max, 0.36 typ) x 2, 3V3 Buck Converter (100 mA max, 55 mA typ), 5V Buck Converter (1.35 A max, 0.457 A typ), 7 V Buck Converter (1.94 A max, 65 mA typ) | 9.79 A | 1.297 A | 9.063 |
 
 
 Notes:
@@ -18,6 +18,8 @@ Button current calculated as 3.3 V / 10k ohms = 0.33 mA
 
 For the buck regulators, input current given by I_in = (Vout * Iout) / (efficiency * Vin)
 90% efficiency estimated for 7V regulator, since no chart on the data sheet
+
+Estimating 30 mOhm internal resistance for NiMH batteries, max voltage drop is 9.79 A * 10 batteries * 30 mOhm / battery = 2.937 Volts
 
 # Lab 4 power design todo
 
@@ -34,7 +36,6 @@ For the buck regulators, input current given by I_in = (Vout * Iout) / (efficien
 
 ## Battery
 - [ ] Select a NiMH cell, then check its rated continuous discharge current and internal resistance
-- [ ] Measure pack internal resistance (two-point test) and calculate sag at maximum load
 - [ ] Determine the minimum battery voltage at which every rail regulates (the 7 V rail sets it)
 - [ ] Decide cell count and servo voltage (7 V vs 6-6.5 V) based on the sag result
 - [ ] Pick a holder and check lead length and connector
