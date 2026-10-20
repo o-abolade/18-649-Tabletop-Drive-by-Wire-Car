@@ -199,8 +199,10 @@ static bool find_can_iface(const char *spidev, char *out, size_t outlen)
 		target[n] = '\0';
 		const char *base = strrchr(target, '/');
 
-		if (strcmp(base ? base + 1 : target, spidev) == 0) {
-			snprintf(out, outlen, "%s", e->d_name);
+		size_t len = strlen(e->d_name);
+
+		if (strcmp(base ? base + 1 : target, spidev) == 0 && len < outlen) {
+			memcpy(out, e->d_name, len + 1);
 			found = true;
 		}
 	}
@@ -218,7 +220,7 @@ static int open_can(const char *name)
 	}
 	struct ifreq ifr = { 0 };
 
-	strncpy(ifr.ifr_name, name, IFNAMSIZ - 1);
+	memcpy(ifr.ifr_name, name, strnlen(name, IFNAMSIZ - 1));   /* ifr zeroed: stays terminated */
 	if (ioctl(fd, SIOCGIFINDEX, &ifr) < 0) {
 		fprintf(stderr, "%s: no such interface (run can_up.sh?)\n", name);
 		close(fd);
