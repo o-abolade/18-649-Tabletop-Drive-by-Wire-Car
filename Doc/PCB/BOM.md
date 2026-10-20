@@ -12,4 +12,4 @@
 | CX3225SB16000H0FLJCC| 6 | Oscillators for CAN Controllers | [Datasheet](https://ele.kyocera.com/assets/products/crystal-device/cx3225sb_e.pdf) | Y | - | - |
 | RC0603FR-07120RL | 8 | LED series resistance and CAN Bus Termination | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
 | CGA3E2X7R1E104K080AA | 3 | RC Debounce on self test buttons | [Datasheet](https://product.tdk.com/system/files/dam/doc/product/capacitor/ceramic/mlcc/catalog/mlcc_automotive_general_en.pdf) | Y | - | - |
-| CRCW060310K0FKEA | 3 | Self Test Buttons Pull Up Resistor | [Datasheet](https://www.vishay.com/docs/20035/dcrcwe3.pdf) | Y | - | - |
+| CRCW060310K0FKEA | 9 | 10 Kohm, Self Test Buttons Pull Up Resistor, Buck Converter Enable Voltage Dividers | [Datasheet](https://www.vishay.com/docs/20035/dcrcwe3.pdf) | Y | - | - |
