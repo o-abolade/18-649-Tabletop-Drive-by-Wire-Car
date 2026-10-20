@@ -12,7 +12,8 @@
  *
  * Test points and status LEDs, same pins on both zones (morpho headers):
  *   CAN_RX_A PC8, CAN_RX_B PC9, CAN_TX_A PC10, CAN_TX_B PC11
- *   DEG_A PC2, DEG_B PC3, ERR PC12. TEST_BTN = on-board B1 (PC13, alias sw0)
+ *   DEG_A PC3 (CN7-37), DEG_B PC2 (CN7-35), ERR PC12 (CN7-3).
+ *   TEST_BTN = on-board B1 (PC13)
  */
 
 / {
@@ -51,10 +52,10 @@
 		compatible = "gpio-leds";
 
 		led_deg_a: led_deg_a {
-			gpios = <&gpioc 2 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpioc 3 GPIO_ACTIVE_HIGH>;    /* CN7-37 */
 		};
 		led_deg_b: led_deg_b {
-			gpios = <&gpioc 3 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpioc 2 GPIO_ACTIVE_HIGH>;    /* CN7-35 */
 		};
 		led_err: led_err {
 			gpios = <&gpioc 12 GPIO_ACTIVE_HIGH>;

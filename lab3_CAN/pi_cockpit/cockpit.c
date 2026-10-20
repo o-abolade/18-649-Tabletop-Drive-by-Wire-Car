@@ -77,8 +77,8 @@ static const unsigned int tp_offset[TP_COUNT] = {
 	[TP_CMD_TX] = 27,     /* pin 13 */
 	[TP_CAN_TX_A] = 22,   /* pin 15 */
 	[TP_CAN_TX_B] = 23,   /* pin 16 */
-	[TP_DEG_A] = 5,       /* pin 29, LED */
-	[TP_DEG_B] = 6,       /* pin 31, LED */
+	[TP_DEG_A] = 6,       /* pin 31, LED */
+	[TP_DEG_B] = 5,       /* pin 29, LED */
 };
 
 static const char *const ifname[CANP_NUM_BUSES] = { "can0", "can1" };

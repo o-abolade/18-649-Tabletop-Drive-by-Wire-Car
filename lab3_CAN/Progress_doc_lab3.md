@@ -101,8 +101,8 @@ owns and moves the ones it keeps:
 
 | Signal | Pin | | Signal | Pin |
 |---|---|---|---|---|
-| CAN_RX_A | PC8 | | DEG_A (LED) | PC2 |
-| CAN_RX_B | PC9 | | DEG_B (LED) | PC3 |
+| CAN_RX_A | PC8 | | DEG_A (LED) | PC3 (CN7-37) |
+| CAN_RX_B | PC9 | | DEG_B (LED) | PC2 (CN7-35) |
 | CAN_TX_A | PC10 | | ERR (LED) | PC12 |
 | CAN_TX_B | PC11 | | TEST_BTN | on-board B1 (PC13) |
 
@@ -159,7 +159,7 @@ N1, in C with SocketCAN. It compiles the same `common/can_proto.c` as the STM32s
 | FORCE_RX | prints N2's dummy force counter |
 
 Test points (BCM GPIO): UDP_RX 18 (pin 12), CMD_TX 27 (pin 13), CAN_TX_A 22
-(pin 15), CAN_TX_B 23 (pin 16), DEG_A 5 (pin 29), DEG_B 6 (pin 31). UDP_RX goes
+(pin 15), CAN_TX_B 23 (pin 16), DEG_A 6 (pin 31), DEG_B 5 (pin 29). UDP_RX goes
 high on reception and low after both CTRL copies are written, followed by a
 CMD_TX pulse, so UDP_RX's rising edge to CMD_TX is the Pi stage of the brake chain.
 
