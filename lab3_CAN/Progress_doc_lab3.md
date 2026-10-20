@@ -2,13 +2,18 @@
 
 Released 2026-10-04, **due 2026-10-22 11:59pm**.
 
+> **Where the code is:** the Lab 3 implementation is on branch
+> **`lab3-can-link`** (shared CAN layer, both STM32 zones, Pi cockpit);
+> Part 0/1 bring-up tools are on `lab3-part0-can-bringup`. Neither is merged
+> to `main` yet. `git switch lab3-can-link` to build or flash.
+
 Lab 2's single STM32 is split into three zones on two independent 500 kbit/s
 CAN buses (A and B). Each node has one XIAO CAN module (MCP2515 + SN65HVD230)
 per bus.
 
 ```
 Logitech wheel --USB--> Laptop proxy --UDP:8000 (20ms)--> Raspberry Pi 4  (N1 cockpit)
-                                                              |  can0 = A, can1 = B
+                                                              |  bus A = SPI CE0, bus B = CE1
   CAN A  [120R]---+----------------+----------------+---[120R]
   CAN B  [120R]---+----------------+----------------+---[120R]
                   |                |                |
@@ -95,19 +100,19 @@ owns and moves the ones it keeps:
 - **N3 drivetrain:** right ENB PA7 → **PB13** (still TIM1 CH1N), right IN3
   PB5 → **PA9 / D8**, encoder right B PA5 → **PA1 / A1**, encoder left B
   PB10 → **PB0 / A3** (PB10 shares EXTI10 with CAN A's INT on PA10),
-  RL → **PB8 / D15**, RR → **PB9 / D14**.
+  RL → **PB9 / D14**, RR → **PB8 / D15** (left = D14, right = D15 on both zones).
 
 **Test points and status LEDs, same pins on both STM32s** (morpho headers):
 
 | Signal | Pin | | Signal | Pin |
 |---|---|---|---|---|
-| CAN_RX_A | PC8 | | DEG_A (LED) | PC2 |
-| CAN_RX_B | PC9 | | DEG_B (LED) | PC3 |
+| CAN_RX_A | PC8 | | DEG_A (LED) | PC3 (CN7-37) |
+| CAN_RX_B | PC9 | | DEG_B (LED) | PC2 (CN7-35) |
 | CAN_TX_A | PC10 | | ERR (LED) | PC12 |
 | CAN_TX_B | PC11 | | TEST_BTN | on-board B1 (PC13) |
 
 Zone-specific: N2 SRV PB4, FL PB9, FR PB8, RELAY_TX PB7. N3 PWM_SET PC6,
-PWM_OUT PA0, DIR_A PB3 (IN4), RL PB8, RR PB9.
+PWM_OUT PA0, DIR_A PB3 (IN4), RL PB9 (D14), RR PB8 (D15).
 
 The board's default devicetree enables USART1 on PB6/PB7, I2C1 on PB8/PB9, I2C3
 on PA8/PC9, SPI2 on PB12–15, the ADC on PA0 and a PWM on PA5, all on pins we
@@ -118,14 +123,26 @@ use. The shared overlay disables them (`can_bringup` only worked by luck).
 | Priority | Task | Notes |
 |---|---|---|
 | coop 2 | MCP2515 RX ×2 (driver) | SPI read, dedup, dispatch; outranks all below |
-| 0 | RELAY (N2) | on the relayed brake path |
-| 1 | STEER (N2) / DRIVE (N3) | CTRL → actuator |
-| 2 | BLINK_F / BLINK_R | BLINK → lamps; local hazard while not NORMAL |
-| 3 | TEST_BTN | single press = LOCAL_FAIL now (R2.5: ≤10 ms), double = restore |
-| 4 | PID (N3) | 10 ms, per-wheel trim on top of DRIVE's feed-forward |
-| 5 | HB_MON | 10 ms poll: per-bus HB timeout 60 ms → DEG LED; zone lost on both → ERROR; feeds watchdog |
-| 6 | HB_TX | 20 ms absolute schedule; silent while LOCAL_FAIL |
-| 7 | FORCE_TX (N2) | 50 ms |
+| 0 | CAN_TX ×2 (one per bus) | per-bus queue ordered by CAN ID → the MCP2515's single TX buffer (see below) |
+| 1 | RELAY (N2) | on the relayed brake path |
+| 2 | STEER (N2) / DRIVE (N3) | CTRL → actuator |
+| 3 | BLINK_F / BLINK_R | BLINK → lamps; local hazard while not NORMAL |
+| 4 | TEST_BTN | single press = LOCAL_FAIL now (R2.5: ≤10 ms), double = restore |
+| 5 | PID (N3) | 10 ms, per-wheel trim on top of DRIVE's feed-forward |
+| 6 | HB_MON | 10 ms poll: per-bus HB timeout 60 ms → DEG LED; zone lost on both → ERROR; feeds watchdog |
+| 7 | HB_TX | 20 ms absolute schedule; silent while LOCAL_FAIL |
+| 8 | FORCE_TX (N2) | 50 ms |
+
+**The MCP2515 driver uses one TX buffer, not three.** Zephyr's driver hardcodes
+`MCP2515_TX_CNT 1` (`drivers/can/can_mcp2515.h`), so each controller holds one
+pending frame and can't arbitrate by ID among its own buffers. First hardware
+run: N2 dropped ~10 frames/s per bus (every other FORCE, whenever it coincided
+with HB_TX). Fix: `can_link` queues frames per bus **sorted by CAN ID** and a
+per-bus TX thread feeds the single buffer, so a relayed CTRL overtakes queued
+HB/FORCE. Result: 0 drops. **For Part 3:** a node's own lower-priority frame
+already in the buffer can delay its next frame by up to one frame time
+(270 µs), an extra blocking term on top of bus blocking. The Pi's `mcp251x`
+driver likewise sends one frame at a time from a FIFO qdisc.
 
 **Error state machine** (shared): power up in ERROR; NORMAL once both other
 zones' heartbeats are seen on ≥1 bus and a valid CTRL arrived within 100 ms;
@@ -158,8 +175,15 @@ N1, in C with SocketCAN. It compiles the same `common/can_proto.c` as the STM32s
 | wheel test button | button 6: single press → LOCAL_FAIL + FAULT, double press → restore |
 | FORCE_RX | prints N2's dummy force counter |
 
+**`can0`/`can1` names are not stable.** Linux numbers them in whatever order
+the two MCP2515s finish probing, and they swapped between boots (observed
+2026-10-20: `can0` on `spi0.1`). The cockpit and `can_up.sh` identify each bus
+by SPI chip select instead: **`spi0.0` (CE0) = bus A, `spi0.1` (CE1) = bus B**.
+`can_up.sh` prints the mapping. When using `candump`/`cansend` by hand, check
+which `canN` is which first.
+
 Test points (BCM GPIO): UDP_RX 18 (pin 12), CMD_TX 27 (pin 13), CAN_TX_A 22
-(pin 15), CAN_TX_B 23 (pin 16), DEG_A 5 (pin 29), DEG_B 6 (pin 31). UDP_RX goes
+(pin 15), CAN_TX_B 23 (pin 16), DEG_A 6 (pin 31), DEG_B 5 (pin 29). UDP_RX goes
 high on reception and low after both CTRL copies are written, followed by a
 CMD_TX pulse, so UDP_RX's rising edge to CMD_TX is the Pi stage of the brake chain.
 
@@ -391,8 +415,8 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
 | 0 | Read XIAO crystal frequency | Done: 16 MHz |
 | 0 | CAN bring-up app (`can_bringup/`) on each Nucleo, controller active | Board 1: CAN A + B pass. Board 2: CAN A passes, CAN B reads all zeros (local wiring/module, being fixed) |
 | 0 | Pi can0/can1 ERROR-ACTIVE @ 500k (`pi_cockpit/can_up.sh`) | can0 passes (ERROR-ACTIVE, 500 kbit/s, 8 MHz clock, sample point 0.875). can1 pending: only one module wired so far |
-| 1 | Bus wiring, 60Ω termination check, common ground | Bus A wired: 58 Ω measured (P1 on N1 and N3). Bus B: CAN B modules not wired yet on any node |
-| 1 | candump sees both Nucleos on both buses; jumper-pull test | Bus A: `candump can0` shows `0x720` (N2) and `0x730` (N3) every ~100.2 ms, counters continuous, no error frames; Nucleos hear each other 10/s with 0 TX errors. With the Pi sending `0x710`, all three nodes hear each other on bus A. **N2 bus A jumper pull:** N3 unaffected (ERROR-ACTIVE, 0 errors, still hears N1); N2 isolated (ERROR-PASSIVE via REC=135, tx ok 0, buffers full); re-insert → N2 back to ERROR-ACTIVE, TEC=REC=0, no reset. **Pending: bus B wiring and the same tests on B; scope captures** |
+| 1 | Bus wiring, 60Ω termination check, common ground | **Done.** Bus A 58 Ω (P1 on N1 and N3); bus B wired 2026-10-20, same layout |
+| 1 | candump sees both Nucleos on both buses; jumper-pull test | Bus A: `candump can0` shows `0x720` (N2) and `0x730` (N3) every ~100.2 ms, counters continuous, no error frames; Nucleos hear each other 10/s with 0 TX errors. With the Pi sending `0x710`, all three nodes hear each other on bus A. **N2 bus A jumper pull:** N3 unaffected (ERROR-ACTIVE, 0 errors, still hears N1); N2 isolated (ERROR-PASSIVE via REC=135, tx ok 0, buffers full); re-insert → N2 back to ERROR-ACTIVE, TEC=REC=0, no reset. **Both buses (2026-10-20): done.** All three nodes hear each other on A and B (N2↔N3 10/s, N1 ~9/s from the shell loop), 0 errors. Pulling N2's bus A jumpers: N2's CAN B unaffected; N3 still hears N1 on A and N2 on B; N2's CAN A ERROR-PASSIVE (REC=135). Re-insert: N2 CAN A back to ERROR-ACTIVE, TEC=REC=0, no reset. **Pending: scope captures of CANH/CANL per bus** |
 | 2 | Task communication graph figure | Not started |
 | 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | Not started |
 | 4 | Dual-bus + relay design and re-analysis | Not started |
