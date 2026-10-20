@@ -3,8 +3,12 @@
 
 ### Node 2 RTA
 
-| Task | Priority | R1|
+| Task | Priority Level | R1 |
 | -------- | -------- | -------- |
-| Row 1    | $x^2$     | Data     |
-| Row 2    | Data     | Data     |
-
+| CAN_RX_A, CAN_RX_B   | 1  | -     |
+| BLINK_F    | 2 | -     |
+| STEER      | 3 | -     |
+| TEST_BTN   | Hardware | -     |
+| HB_MON     | 4 | -     |
+| HB_TX      | 4 | -     |
+| FORCE_TX   | 5 | -     |
