@@ -19,7 +19,53 @@ Button current calculated as 3.3 V / 10k ohms = 0.33 mA
 For the buck regulators, input current given by I_in = (Vout * Iout) / (efficiency * Vin)
 90% efficiency estimated for 7V regulator, since no chart on the data sheet
 
-TODO:
-- Determine encoder power draw
-- Factor in enable line power draw for buck converters
-- Select batteries and determine corresponding voltage drop
+# Lab 4 power design todo
+
+## Power budget
+- [ ] Determine encoder power draw (datasheet or measure) and its supply voltage and output levels, then assign a rail
+- [ ] Add the buck enable-divider currents (about 0.4 mA each) and feedback-divider currents to the budget
+- [ ] Add the L298 VS quiescent current (70 mA max) to the 12 V rail
+- [ ] Fix the 12 V average (both motors: about 1.30 A before the L298 quiescent current)
+- [ ] Add a 1 mA shunt-amplifier placeholder and about 2 mA of pull-ups to 3V3
+- [ ] Add 20-30% margin to each rail
+- [ ] Recompute converter input currents at the sagged battery voltage
+- [ ] Fill in the worst-case voltage column for all four rails
+- [ ] Measure stall currents (both motors and the servo) and the Pi's peak draw
+
+## Battery
+- [ ] Select a NiMH cell, then check its rated continuous discharge current and internal resistance
+- [ ] Measure pack internal resistance (two-point test) and calculate sag at maximum load
+- [ ] Determine the minimum battery voltage at which every rail regulates (the 7 V rail sets it)
+- [ ] Decide cell count and servo voltage (7 V vs 6-6.5 V) based on the sag result
+- [ ] Pick a holder and check lead length and connector
+
+## Input protection
+- [ ] Fuse (about 1.5x peak, roughly 15-17 A)
+- [ ] Reverse-polarity circuit (check Vds rating and RDS(on) heat at 10 A)
+- [ ] 470-1000 uF bulk capacitor on the motor rail
+- [ ] Connector choice, and trace width or pours for about 10 A
+
+## Buck converters (TPS564252)
+- [ ] 3V3: inductor, caps, feedback resistors
+- [ ] 5 V: inductor (about 4.7 uH), caps, feedback resistors
+- [ ] 7 V: inductor (about 6.8 uH), 44 uF or more at 16 V or higher, 107 k / 10 k feedback
+- [ ] Enable dividers (about 20 k over 10 k) for the battery-fed bucks
+- [ ] Input capacitors for each buck
+
+## Motor drive and sensing
+- [ ] L298 overload protection and thermal plan (3.2 A stall exceeds the 2 A DC rating)
+- [ ] Servo shunt: pick the amplifier, then size the shunt and gain for about 3 A stall, plus the RC filter and test point
+- [ ] ACS712 output divider to keep the signal at or below 3.3 V
+
+## Brief, review, and deadlines
+- [ ] Chassis measurements, outline, and standoff size
+- [ ] Power tree figure, budget table, and battery paragraph (label every number measured or datasheet)
+- [ ] **Wed Oct 21:** BoM to TA (part number, manufacturer, quantity plus spares, distributor)
+- [ ] Design review with TA (this week)
+- [ ] **Thu Oct 29, 11:59 pm:** final Gradescope submission
+
+## Done
+- [x] Rail assignments and power tree diagram
+- [x] Buck selection (TPS564252 for all three rails)
+- [x] Button and LED circuit decisions
+- [x] First-pass 3V3, 5 V, 7 V, and 12 V budgets
