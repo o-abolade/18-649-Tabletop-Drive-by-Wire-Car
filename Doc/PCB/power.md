@@ -18,3 +18,8 @@ Button current calculated as 3.3 V / 10k ohms = 0.33 mA
 
 For the buck regulators, input current given by I_in = (Vout * Iout) / (efficiency * Vin)
 90% efficiency estimated for 7V regulator, since no chart on the data sheet
+
+TODO:
+- Determine encoder power draw
+- Factor in enable line power draw for buck converters
+- Select batteries and determine corresponding voltage drop
