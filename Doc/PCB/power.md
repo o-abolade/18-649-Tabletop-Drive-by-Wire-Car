@@ -21,60 +21,14 @@ For the buck regulators, input current given by I_in = (Vout * Iout) / (efficien
 
 Estimating 30 mOhm internal resistance for NiMH batteries, max voltage drop is 9.79 A * 10 batteries * 30 mOhm / battery = 2.937 Volts
 
-# Lab 4 power design todo
-
-## Power budget
-- [ ] Determine encoder power draw (datasheet or measure) and its supply voltage and output levels, then assign a rail
-- [ ] Add the buck enable-divider currents (about 0.4 mA each) and feedback-divider currents to the budget
-- [ ] Add the L298 VS quiescent current (70 mA max) to the 12 V rail
-- [ ] Fix the 12 V average (both motors: about 1.30 A before the L298 quiescent current)
-- [ ] Add a 1 mA shunt-amplifier placeholder and about 2 mA of pull-ups to 3V3
-- [ ] Add 20-30% margin to each rail
-- [ ] Recompute converter input currents at the sagged battery voltage
-- [ ] Fill in the worst-case voltage column for all four rails
-- [ ] Measure stall currents (both motors and the servo) and the Pi's peak draw
-
-## Battery
-- [ ] Select a NiMH cell, then check its rated continuous discharge current and internal resistance
-- [ ] Determine the minimum battery voltage at which every rail regulates (the 7 V rail sets it)
-- [ ] Decide cell count and servo voltage (7 V vs 6-6.5 V) based on the sag result
-- [ ] Pick a holder and check lead length and connector
-
-## Input protection
-- [ ] Fuse (about 1.5x peak, roughly 15-17 A)
-- [ ] Reverse-polarity circuit (check Vds rating and RDS(on) heat at 10 A)
-- [ ] 470-1000 uF bulk capacitor on the motor rail
-- [ ] Connector choice, and trace width or pours for about 10 A
-
-## Buck converters (TPS564252)
-- [X] 3V3: inductor, caps, feedback resistors
-- [ ] 5 V: inductor (about 4.7 uH), caps, feedback resistors
-- [ ] 7 V: inductor (about 6.8 uH), 44 uF or more at 16 V or higher, 107 k / 10 k feedback
-- [X] Enable dividers (about 20 k over 10 k) for the battery-fed bucks
-- [X] Input capacitors for each buck
-- [ ] Add test points on PG output
-
-## Motor drive and sensing
-- [ ] L298 overload protection and thermal plan (3.2 A stall exceeds the 2 A DC rating)
-- [ ] Servo shunt: pick the amplifier, then size the shunt and gain for about 3 A stall, plus the RC filter and test point
-- [ ] ACS712 output divider to keep the signal at or below 3.3 V
-
-## Brief, review, and deadlines
-- [ ] Chassis measurements, outline, and standoff size
-- [ ] Power tree figure, budget table, and battery paragraph (label every number measured or datasheet)
-- [ ] **Wed Oct 21:** BoM to TA (part number, manufacturer, quantity plus spares, distributor)
-- [ ] Design review with TA (this week)
-- [ ] **Thu Oct 29, 11:59 pm:** final Gradescope submission
-
-## Done
-- [x] Rail assignments and power tree diagram
-- [x] Buck selection (TPS564252 for all three rails)
-- [x] Button and LED circuit decisions
-- [x] First-pass 3V3, 5 V, 7 V, and 12 V budgets
 
 
-# NOTES
+## NOTES and TODO
 
-## 
 - X5R ceramics like the ones we're using on buck inputs lose capacitance under DC bias, so we need to have more than 2 on the 5V and 7V rails to maintain the same effective capacitance (Claude estimates 40% loss on the 7V line, 25% on the 5V)
 - 7 V rail is now 6.8 Volts
+- Need to take another look at jumpers
+- Add protection circuit
+- Confirm SWD working correctly
+- Determine 12 V rail power source
+- Recompute current draw
