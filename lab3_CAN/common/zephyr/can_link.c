@@ -192,6 +192,7 @@ static void tx_done(const struct device *dev, int error, void *user_data)
  * on that bus (so it isn't simply unplugged), restart the controller. */
 #define TX_STUCK_WAITS   3     /* 3 x 10 ms */
 #define RX_ALIVE_MS      100
+#define RESTART_RETRY_MS 100   /* retry a failed can_start this often */
 
 struct tx_item {
 	uint32_t id;
@@ -262,9 +263,26 @@ static void tx_thread(void *p1, void *p2, void *p3)
 
 	ARG_UNUSED(p2); ARG_UNUSED(p3);
 	int stuck_waits = 0;
+	bool start_pending = false;   /* can_start failed after a restart */
 
 	while (1) {
-		k_sem_take(&q->ready, K_FOREVER);
+		int got = k_sem_take(&q->ready, start_pending ? K_MSEC(RESTART_RETRY_MS) : K_FOREVER);
+
+		/* Seen on hardware: after a restart, can_start failed to put the
+		 * MCP2515 back in normal mode (wire disturbed while probing) and
+		 * the bus stayed STOPPED until reset. Keep retrying instead, so
+		 * the bus comes back on its own (R4.8 f). */
+		if (start_pending) {
+			int ret = can_start(b->dev);
+
+			if (ret == 0 || ret == -EALREADY) {
+				start_pending = false;
+				printk("%s: controller restarted\n", b->name);
+			}
+		}
+		if (got != 0) {
+			continue;
+		}
 
 		struct can_frame f = { .dlc = CANP_DLC };
 		k_spinlock_key_t key = k_spin_lock(&q->lock);
@@ -307,7 +325,13 @@ static void tx_thread(void *p1, void *p2, void *p3)
 		if (stuck_waits >= TX_STUCK_WAITS && rx_alive) {
 			printk("%s: TX buffer stuck while RX alive -> restarting controller\n", b->name);
 			(void)can_stop(b->dev);   /* aborts the frame, frees the buffer */
-			(void)can_start(b->dev);
+			int sret = can_start(b->dev);
+
+			if (sret != 0 && sret != -EALREADY) {
+				printk("%s: can_start failed (%d), retrying every %d ms\n",
+				       b->name, sret, RESTART_RETRY_MS);
+				start_pending = true;
+			}
 			key = k_spin_lock(&lock);
 			stats.tx_recover[bus]++;
 			k_spin_unlock(&lock, key);
