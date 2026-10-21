@@ -11,7 +11,7 @@
 | SWT0210-045026GSA | 3 | Self Test Buttons | [Datasheet](https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/8937/swt0210-spec.pdf) | Y | - | - |
 | CX3225SB16000H0FLJCC| 6 | Oscillators for CAN Controllers | [Datasheet](https://ele.kyocera.com/assets/products/crystal-device/cx3225sb_e.pdf) | Y | - | - |
 | RC0603FR-07120RL | 20 | 120 ohm, LED series resistance (x4 for blinkers, x12 status LEDs), CAN Bus Termination (x4) | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
-| CGA3E2X7R1E104K080AA | 9 | 100 nF, RC debounce on self test buttons (3x), input/output decoupling on buck converters (6x) | [Datasheet](https://product.tdk.com/system/files/dam/doc/product/capacitor/ceramic/mlcc/catalog/mlcc_automotive_general_en.pdf) | Y | - | - |
+| CGA3E2X7R1E104K080AA | 17 | 100 nF, RC debounce on self test buttons (3x), input/output decoupling on buck converters (6x), VDD smoothing for STM32s (x8) | [Datasheet](https://product.tdk.com/system/files/dam/doc/product/capacitor/ceramic/mlcc/catalog/mlcc_automotive_general_en.pdf) | Y | - | - |
 | CRCW060310K0FKEA | 26 | 10 Kohm, Self Test Buttons Pull Up Resistor (3x), Buck Converter Enable Voltage Dividers (3x), Buck Converter PG Output (3x), 3V3 buck converter feedback, 5V feedback circuit (4x), 8V8 feedback circuit (3x), CAN transciever RS pins (6x)  | [Datasheet](https://www.vishay.com/docs/20035/dcrcwe3.pdf) | Y | - | - |
 | RC0603FR-0747KL | 1 | 47 Kohm, 3V3 buck converter feedback  | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
 | IHLP2525CZER3R3M11 | 1 | 3.3 uH inductor on 3v3 buck converter output | [Datasheet](https://www.vishay.com/docs/34190/ihlp-2525cz-11.pdf) | N | N | Not available on parts list, equivalent JLCPCB parts either required bulk purchase or had no CAD model |
@@ -27,3 +27,4 @@
 | GRM21BR71C475KE51L | 1 | See above | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM21BR71C475KE51L/6606095?s=N4IgTCBcDaIOICUCyYCMAhBB2VBhALFgKwDSAokagDIgC6AvkA) | Y | - | - |
 | C0603C220J1GACTU | 12 | Crystal Oscillator Load Capacitance | [Digikey Page](https://www.digikey.com/en/products/detail/kemet/C0603C220J1GACTU/2200183) | Y | - | - |
 | SSK03-MPH-254-B2 | 6 | Connectors for CAN bus jumpers | [Digikey Page](https://www.digikey.com/en/products/detail/same-sky-formerly-cui-devices/SSK03-MPH-254-B2/28772163) | N | N | CAD models weren't available on JLCPCB |
+| 742863160 | 2 | Ferrite beads, AVDD filtering on STM32s | [Digikey Page](https://www.digikey.com/en/products/detail/w%C3%BCrth-elektronik/742863160/2268591?s=N4IgTCBcDaIOwBYwA4BsBmAjKgDCAugL5A) | Y | - | - |
