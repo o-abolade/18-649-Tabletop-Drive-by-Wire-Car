@@ -26,3 +26,4 @@
 | ERJ-3EKF1001V  | 2 | RC filtering on steering ADC input | [Digikey Page](https://www.digikey.com/en/products/detail/panasonic-industry/ERJ-3EKF1001V/196032?s=N4IgTCBcDaIKICUBSBaAzHA0gMQIwAZ9cA1EAXQF8g) | Y | - | - |
 | GRM21BR71C475KE51L | 1 | See above | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM21BR71C475KE51L/6606095?s=N4IgTCBcDaIOICUCyYCMAhBB2VBhALFgKwDSAokagDIgC6AvkA) | Y | - | - |
 | C0603C220J1GACTU | 12 | Crystal Oscillator Load Capacitance | [Digikey Page](https://www.digikey.com/en/products/detail/kemet/C0603C220J1GACTU/2200183) | Y | - | - |
+| SSK03-MPH-254-B2 | 6 | Connectors for CAN bus jumpers | [Digikey Page](https://www.digikey.com/en/products/detail/same-sky-formerly-cui-devices/SSK03-MPH-254-B2/28772163) | N | N | CAD models weren't available on JLCPCB |
