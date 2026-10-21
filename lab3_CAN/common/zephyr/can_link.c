@@ -45,6 +45,8 @@ struct bus {
 	struct spi_dt_spec spi;
 	struct gpio_dt_spec tp_rx;
 	struct gpio_dt_spec tp_tx;
+	struct gpio_dt_spec intr;   /* MCP2515 INT, read by the stuck-INT check */
+	int int_low_polls;
 	bool started;
 };
 
@@ -55,6 +57,7 @@ static struct bus buses[CANP_NUM_BUSES] = {
 		.spi = SPI_DT_SPEC_GET(DT_ALIAS(can_a), PROBE_SPI_OP),
 		.tp_rx = GPIO_DT_SPEC_GET(DT_ALIAS(tp_can_rx_a), gpios),
 		.tp_tx = GPIO_DT_SPEC_GET(DT_ALIAS(tp_can_tx_a), gpios),
+		.intr = GPIO_DT_SPEC_GET(DT_ALIAS(can_a), int_gpios),
 	},
 	[CANP_BUS_B] = {
 		.name = "CAN B",
@@ -62,6 +65,7 @@ static struct bus buses[CANP_NUM_BUSES] = {
 		.spi = SPI_DT_SPEC_GET(DT_ALIAS(can_b), PROBE_SPI_OP),
 		.tp_rx = GPIO_DT_SPEC_GET(DT_ALIAS(tp_can_rx_b), gpios),
 		.tp_tx = GPIO_DT_SPEC_GET(DT_ALIAS(tp_can_tx_b), gpios),
+		.intr = GPIO_DT_SPEC_GET(DT_ALIAS(can_b), int_gpios),
 	},
 };
 
@@ -380,6 +384,49 @@ int64_t can_link_last_hb_ms(enum canp_zone zone, enum canp_bus bus)
 bool can_link_bus_started(enum canp_bus bus)
 {
 	return buses[bus].started;
+}
+
+/*
+ * Stuck-INT recovery. Zephyr's MCP2515 driver wakes only on the falling edge
+ * of INT. Seen on hardware after bus B's CANL was shorted to ground: during
+ * a controller restart INT was already low, no edge ever came, and RX and TX
+ * on that bus stayed dead (chip still reading ACTIVE 0/0) until a reset.
+ * The driver clears INT within ~1 ms, so INT held low for INT_STUCK_POLLS
+ * HB_MON polls means it is not running. Clearing CANINTF over SPI releases
+ * INT; the next frame then gives the driver a fresh edge.
+ */
+#define INT_STUCK_POLLS      5     /* x 10 ms HB_MON period = 50 ms */
+#define MCP2515_OP_WRITE     0x02
+#define MCP2515_REG_CANINTF  0x2C
+
+void can_link_poll(void)
+{
+	for (int bus = 0; bus < CANP_NUM_BUSES; bus++) {
+		struct bus *b = &buses[bus];
+
+		if (!b->started) {
+			continue;
+		}
+		if (gpio_pin_get_dt(&b->intr) <= 0) {
+			b->int_low_polls = 0;
+			continue;
+		}
+		if (++b->int_low_polls < INT_STUCK_POLLS) {
+			continue;
+		}
+		uint8_t tx[3] = { MCP2515_OP_WRITE, MCP2515_REG_CANINTF, 0x00 };
+		const struct spi_buf buf = { .buf = tx, .len = sizeof(tx) };
+		const struct spi_buf_set set = { .buffers = &buf, .count = 1 };
+
+		(void)spi_write_dt(&b->spi, &set);
+		b->int_low_polls = 0;
+
+		k_spinlock_key_t key = k_spin_lock(&lock);
+
+		stats.int_recover[bus]++;
+		k_spin_unlock(&lock, key);
+		printk("%s: INT stuck low -> cleared interrupt flags\n", b->name);
+	}
 }
 
 void can_link_get_stats(struct can_link_stats *out)

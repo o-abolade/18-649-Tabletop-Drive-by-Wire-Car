@@ -61,7 +61,12 @@ struct can_link_stats {
 					     * stayed busy 10 ms (bus not ACKing) */
 	uint32_t tx_done_err[CANP_NUM_BUSES];
 	uint32_t tx_recover[CANP_NUM_BUSES]; /* controller restarts for a stuck TX buffer */
+	uint32_t int_recover[CANP_NUM_BUSES]; /* stuck INT line released */
 };
+
+/* Every HB_MON poll (10 ms): releases an MCP2515 INT line that stayed low,
+ * which would otherwise leave that bus deaf until reset. */
+void can_link_poll(void);
 
 /* Copy of the running counters (since boot). */
 void can_link_get_stats(struct can_link_stats *out);

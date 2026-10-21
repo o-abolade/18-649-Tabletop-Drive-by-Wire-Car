@@ -288,6 +288,7 @@ static void hb_mon_thread(void *a, void *b, void *c)
 			set_state(CANP_ZS_NORMAL, "all zones alive, CTRL fresh");
 		}
 
+		can_link_poll();
 		if (wdt_channel >= 0) {
 			wdt_feed(wdt, wdt_channel);
 		}
@@ -518,10 +519,11 @@ void zone_print_status(void)
 		       hb_seen(z, CANP_BUS_B, now) ? 'B' : '-');
 	}
 	printk(" | CTRL age %lldms maxgap %lldms badcrc %u | rx %u dup %u | txbusy A%u B%u"
-	       " | txrestart A%u B%u\n",
+	       " | txrestart A%u B%u | intfix A%u B%u\n",
 	       ctrl_age, max_gap, bad_crc, st.rx_accepted, st.rx_dropped,
 	       st.tx_busy[CANP_BUS_A], st.tx_busy[CANP_BUS_B],
-	       st.tx_recover[CANP_BUS_A], st.tx_recover[CANP_BUS_B]);
+	       st.tx_recover[CANP_BUS_A], st.tx_recover[CANP_BUS_B],
+	       st.int_recover[CANP_BUS_A], st.int_recover[CANP_BUS_B]);
 	printk("   cmd: steer %d thr %u%% brk %u%% btn 0x%02x\n",
 	       c.steer, c.throttle, c.brake, c.buttons);
 }
