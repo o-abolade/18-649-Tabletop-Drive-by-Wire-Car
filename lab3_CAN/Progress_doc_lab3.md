@@ -571,19 +571,33 @@ console.
 | Task | N2 max µs (jobs) | N3 max µs (jobs) |
 |---|---|---|
 | RX_DISPATCH (incl. 10 µs TP) | 50.9 (95 367) | 50.1 (145 575) |
-| DRV_FRAME | 435.1 (19 288) | 249.6 (80 368) |
-| CAN_TX | 155.8 (99 681) | 144.2 (36 274) |
-| RELAY (incl. 10 µs TP) | 54.5 (61 966) | — |
+| DRV_FRAME (clean run only, see below) | 680.5 (96 007) | 452.9 (164 313) |
+| CAN_TX | 155.8 (99 681) | 162.5 (357 784) |
+| RELAY (incl. 10 µs TP) | 86.8 (468 206) | — |
 | STEER / DRIVE | 37.8 (20 805) | 95.8 (8 056) |
-| BLINK | 25.6 (25) | 30.5 (307) |
-| TEST_BTN (accepted presses) | 65.5 (3) | 111.3 (3) |
-| PID | — | 112.3 (36 520) |
-| HB_MON | 120.1 (42 023) | 192.1 (36 520) |
-| HB_TX | 64.6 (3 252) | 55.6 (8 256) |
+| BLINK | 29.2 (204) | 39.8 (186) |
+| TEST_BTN (accepted presses) | 65.7 (50) | 127.9 (3) |
+| PID | — | 122.9 (33 527) |
+| HB_MON | 120.1 (42 023) | 232.0 (357 785) |
+| HB_TX | 64.6 (3 252) | 65.2 (178 892) |
 | FORCE_TX | 64.7 (8 404) | — |
-| STATE_SPI (sched-locked) | 82.8 (130) | 100.9 (330) |
-| STATUS (main, now lowest prio) | 1224.7 (64) | 1164.5 (164) |
-| MCP2515 thread peak run | 348.9 / 344.2 | 348.6 / 338.1 |
+| STATE_SPI (sched-locked) | 118.5 (7 140) | 120.5 (7 150) |
+| STATUS (main, now lowest prio) | 1332.6 (319) | 1228.7 (334) |
+| MCP2515 thread peak run | 489.5 / 346.1 | 361.4 / 450.0 |
+
+**Runs (2026-10-21):** each value is the max over all runs:
+1. the exercise run;
+2. final firmware, bus B still miswired;
+3. after the bus B fix, through photos 10–17 (jumper pulls);
+4. a clean ~5 min run (bus B fixed, no jumper pulls).
+
+**DRV_FRAME uses only run 4.** With a node unplugged, the driver handles
+error interrupts for seconds between two received frames, and all of it
+lands in one "gap" (run 3 showed 254 ms on N2). The fixed bus B made
+DRV_FRAME *higher* (N2 435 → 680 µs), not lower: more real traffic and
+interrupts. The RTA charges C_ev once per **received** frame (N2 ≤ 12,
+N3 ≤ 20 per 20 ms), because the TX-done work for a zone's own frames is
+already inside DRV_FRAME.
 
 **Firmware changes made from these numbers:**
 - **The status print was the worst offender.** It ran for up to 1.2 ms at
@@ -598,16 +612,17 @@ console.
     during `printk`.
 
 **RTA result (`Doc/lab3_report.md` §3):**
-- **What dominates:** the per-frame driver cost (300 µs N3, 486 µs N2) is
+- **What dominates:** the per-frame driver cost (503 µs N3, 731 µs N2) is
   larger than the 222 µs minimum frame spacing, and two buses feed each
-  zone. A worst-case burst (24 frames per 20 ms, counting relays and FAULTs)
-  therefore holds off every task for 7–12 ms.
-- **Fail by analysis:** brake/throttle 9.9 ms, relayed brake 24.7 ms, blinker
-  sync 17.9 ms and N2 local fail 14.1 ms.
+  zone. A worst-case burst of received frames (12 on N2, 20 on N3)
+  therefore holds off every task for about 9–10 ms.
+- **Fail by analysis:** brake/throttle 12.9 ms, relayed brake 24.8 ms,
+  blinker sync 15.3 ms, local fail 11.4 / 11.3 ms (N2 / N3). N3's PID and
+  HB_MON can also run up to 1.5 ms past their 10 ms period during a burst.
 - **Meet as measured:** brake 940 µs, throttle 626 µs, relayed 1.1 ms, sync
-  768 µs.
-- **Meet by analysis:** steering, blinker start, N3 local fail, both error
-  chains and every message deadline.
+  768 µs, N2 local fail 20 µs.
+- **Meet by analysis:** steering, blinker start, both error chains (worst
+  96.9 ms of 100) and every message deadline.
 - **Remedies (not implemented):** listed at the end of §3.3. They are a
   leaner MCP2515 receive path / SPI DMA, relaying only on demand, and a
   priority qdisc on the Pi.
