@@ -77,3 +77,4 @@ Estimating 30 mOhm internal resistance for NiMH batteries, max voltage drop is 9
 
 ## 
 - X5R ceramics like the ones we're using on buck inputs lose capacitance under DC bias, so we need to have more than 2 on the 5V and 7V rails to maintain the same effective capacitance (Claude estimates 40% loss on the 7V line, 25% on the 5V)
+- 7 V rail is now 6.8 Volts
