@@ -38,3 +38,9 @@ for ifc in can0 can1; do
     echo "== $ifc = $bus ($spi) =="
     ip -details link show "$ifc" | grep -E "state|bitrate|clock"
 done
+
+# Wi-Fi power save delays wheel UDP packets by up to ~100 ms (seen: 97 ms CTRL
+# gaps, enough to trip the STM32s' 100 ms CTRL timeout). Off until next reboot.
+if ip link show wlan0 >/dev/null 2>&1; then
+    sudo iw wlan0 set power_save off && echo "wlan0: $(iw wlan0 get power_save)"
+fi
