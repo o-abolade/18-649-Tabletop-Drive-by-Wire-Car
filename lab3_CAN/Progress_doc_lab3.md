@@ -227,6 +227,8 @@ for the bad-input demo, `s` to toggle the status line, `q` to quit.
 | Bad input (`b`) | ✅ N2 and N3 each sent FAULT reason 2 (CTRL out of range); N1 `ERROR (FAULT)`; all back to NORMAL on the next valid CTRL (~20 ms) |
 | Pi bus A pull | ✅ Pi DEG_A on, its `tx A` fails; re-insert → `tx A` back to normal within 1 s, no reset |
 | Scenario (c): Pi off B, N3 off A | ✅ N3 `HB N1:-B N2:-B`, NORMAL, **`thr 50%` → `DRIVE` via N2's relay**; N2 `N1:A- N3:-B`, relay ~150 frames/s, 0 dropped; DEG_B Pi, DEG_A N3. Re-insert → all `N?:AB`, ACTIVE, no reset |
+| Isolation (d): all 4 of N2's bus wires | ✅ N2 ERROR, both buses PASSIVE/DEG, `N1:-- N3:--`; N3 ERROR (`N2:--`), motors braked, its buses ACTIVE (no DEG); re-insert → all NORMAL, no reset. Recovery time not yet measured with the scope |
+| Whole-bus loss (e): bus A off at every node | ✅ (after the Pi TX watchdog fix below) all DEG_A on, all NORMAL on bus B only (`N?:-B`), CTRL gaps ~36–39 ms; re-insert → all `N?:AB`, ACTIVE |
 
 **Problems found and fixed on the way:**
 - **Zephyr's MCP2515 driver uses one TX buffer** → frames dropped; fixed with the per-bus ID-ordered TX queue (see Threads and priorities).
