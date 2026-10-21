@@ -499,10 +499,13 @@ the single photo's value.
 | 3 | Relayed brake chain, scenario (c): Pi UDP_RX → N3 DIR_A, via N2 RELAY | Pi off bus B, N3 off bus A. CH1 = N3 DIR_A (row 11, trigger rising, Normal + Single, 500 µs/div); CH2 = Pi UDP_RX (row 3). Driving, then brake pressed | one capture: **970 µs** | **1.1 ms** over 10 captures |
 | 4 | Relay stage, scenario (c): Pi UDP_RX → N2 RELAY_TX (CTRL forwarded) | Pi off bus B, N3 off bus A. Trigger = Pi UDP_RX (row 3, rising, Normal + Single, 100 µs/div, trigger point at left); other channel = N2 RELAY_TX (row 12 = PB7, CN7-21). First RELAY_TX pulse ≥ 0.2 ms after UDP_RX (earlier ones are forwarded heartbeats) | one capture: **474 µs** | **607 µs** over 10 captures |
 | 5 | Blinker sync (R2.4): N2 FL vs N3 RL rising edges, left blinker | Both buses connected. CH1 = N2 FL (row 10, trigger rising), CH2 = N3 RL (row 12); Delay CH1 → CH2 rising with statistics, 10 blink edges | one capture: **186 µs** | **768 µs** over 10 edges (limit 1 ms) |
-| 6 | Pi stage, normal load, **without `--rt`** (normal scheduling): Pi UDP_RX → Pi CMD_TX | CH1 = Pi UDP_RX (row 3, trigger rising, Normal), CH2 = Pi CMD_TX (row 4), ~50 µs/div; Delay CH1 → CH2 with statistics, 3000 samples (60 s) | one capture: **37.5 µs** | **442.5 µs** max, mean 52.97 µs, 3000 samples |
-| 7 | Pi stage under `stress --cpu 4 --io 2`, **without `--rt`** | Same as 6, with the stress load running | one capture: **18 µs** | **444.5 µs** max, mean 103.96 µs, 3000 samples |
-| 8 | Pi stage, normal load, **with `sudo ./cockpit --rt`** (CPU 3, SCHED_FIFO 80) | Same probes as 6 | statistics on screen | **126.5 µs** max, mean 34.88 µs, 3000 samples |
-| 9 | Pi stage under `stress --cpu 4 --io 2`, **with `--rt`** | Same as 8, with the stress load running | statistics on screen | **82 µs** max, mean 32.11 µs, 3000 samples |
+| 6 | Pi stage, normal load, **with `sudo ./cockpit --rt`** (CPU 3, SCHED_FIFO 80): Pi UDP_RX → Pi CMD_TX | CH1 = Pi UDP_RX (row 3, trigger rising, Normal), CH2 = Pi CMD_TX (row 4), ~50 µs/div; Delay CH1 → CH2 with statistics, 3000 samples (60 s) | statistics on screen | **126.5 µs** max, mean 34.88 µs, 3000 samples |
+| 7 | Pi stage under `stress --cpu 4 --io 2`, **with `--rt`** | Same as 6, with the stress load running | statistics on screen | **82 µs** max, mean 32.11 µs, 3000 samples |
+| — | *(no photo)* Pi stage, normal load, **without `--rt`** | Same as 6, normal scheduling | — | 442.5 µs max, mean 52.97 µs, 3000 samples |
+| — | *(no photo)* Pi stage under `stress`, **without `--rt`** | Same as 7, normal scheduling | — | 444.5 µs max, mean 103.96 µs, 3000 samples |
+
+Photos 1–5 were taken without `--rt`, so the chain values include the slower
+Pi stage (up to ~443 µs vs 126.5 µs): they are conservative.
 
 ## Part 3 measurement checklist
 
