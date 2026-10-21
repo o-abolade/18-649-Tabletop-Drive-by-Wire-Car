@@ -16,5 +16,6 @@
 | RC0603FR-0747KL | 1 | 47 Kohm, 3V3 buck converter feedback  | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
 | IHLP2525CZER3R3M11 | 1 | 3.3 uH inductor on 3v3 buck converter output | [Datasheet](https://www.vishay.com/docs/34190/ihlp-2525cz-11.pdf) | N | N | Not available on parts list, equivalent JLCPCB parts either required bulk purchase or had no CAD model |
 | IHLP2525CZER4R7MA1 | 1 | 4.7 uH inductor on 5V buck converter output | [Datasheet](https://www.vishay.com/docs/34241/ihlp-2525cz-a1.pdf) | N | N | See above |
+| IHLP2525CZER6R8MA1 | 1 | 6.8 uH inductor on 7V buck converter output | [Digikey Page](https://www.digikey.com/en/products/detail/vishay-dale/IHLP2525CZER6R8MA1/14302998) | N | N | See above |
 | GRM219R61C226ME15L | 8 | Output filtering on buck converters  | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM219R61C226ME15L/4905420?s=N4IgTCBcDaIOICUCyYCMBOBA2VBhMYWSAoqgKwAyIAugL5A) | Y | - | - |
 | CRCW0603210KFKEA | 1 | 210 kOhm, 5V converter feedback Circuit | [Digikey page](https://www.digikey.com/en/products/detail/vishay-dale/CRCW0603210KFKEA/1174930) | Y | - | - |
