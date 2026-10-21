@@ -14,4 +14,4 @@
 | CGA3E2X7R1E104K080AA | 6 | RC Debounce on self test buttons (3x), input decoupling on buck converters (3x) | [Datasheet](https://product.tdk.com/system/files/dam/doc/product/capacitor/ceramic/mlcc/catalog/mlcc_automotive_general_en.pdf) | Y | - | - |
 | CRCW060310K0FKEA | 13 | 10 Kohm, Self Test Buttons Pull Up Resistor (3x), Buck Converter Enable Voltage Dividers (3x), Buck Converter PG Output (3x), 3V3 buck converter feedback  | [Datasheet](https://www.vishay.com/docs/20035/dcrcwe3.pdf) | Y | - | - |
 | RC0603FR-0747KL | 1 | 47 Kohm, 3V3 buck converter feedback  | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
-| SH60383R3YLB | 1 | 3.3 uH inductor on 3v3 buck converter output | [JLCPCB Page](https://jlcpcb.com/parts/componentSearch?searchTxt=ABC%20SH60383R3YLB) | N | Y | Not available on parts list|
+| IHLP2525CZER3R3M11 | 1 | 3.3 uH inductor on 3v3 buck converter output | [Datasheet](https://www.vishay.com/docs/34190/ihlp-2525cz-11.pdf) | N | Y | Not available on parts list, equivalent JLCPCB parts either required bulk purchase or had no CAD model |
