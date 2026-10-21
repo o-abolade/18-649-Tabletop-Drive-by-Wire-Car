@@ -270,7 +270,7 @@ Every run in this lab showed TEC = REC = 0 on both buses, for every node.
 |---|---|---:|---:|---:|---|
 | Brake (R2.2) | R_CTRL 1.75 + N3 DRIVE 8.16 | 9.90 ms | **940 µs** (photo 1, 15 captures, UDP_RX → DIR_A) | 2 ms | **Doesn't meet by analysis; meets as measured** (see below) |
 | Throttle (R2.1) | same as brake | 9.90 ms | **626 µs** (photo 2, 10 captures, UDP_RX → PWM_SET) | 2 ms | **Doesn't meet by analysis; meets as measured** |
-| Brake via relay, scenario (c) | R_CTRL 1.75 + N2 RELAY 13.67 + CTRL' on the other bus (w + C) 1.08 + N3 DRIVE 8.16 | 24.7 ms | **1.1 ms** (photo 3, 10 captures); relay stage 607 µs (photo 4) | 2 ms | **Doesn't meet by analysis; meets as measured** |
+| Brake via relay, scenario (c) | R_CTRL 1.75 + N2 RELAY 13.67 + CTRL' on the other bus (w + C) 1.08 + N3 DRIVE 8.16 | 24.7 ms | **1.1 ms** (photo 3, 10 captures); relay stage 607 µs (photo 4) | 2 ms | **Doesn't meet by analysis; meets as measured.** Chosen remedy (handout 4.3 option): accept documented degraded latency in scenario (c), a double fault (N1 off B and N3 off A) |
 | Steering | R_CTRL 1.75 + N2 STEER 13.98 | 15.7 ms | not scoped | 50 ms | **Meets**, 34 ms slack |
 | Blinker start, front / rear | R_BLINK 4.18 + BLINK_F 14.01 / BLINK_R 8.19 | 18.2 / 12.4 ms | not scoped (functional pass) | 100 ms | **Meets** |
 | Blinker synchronization (R2.4) | Edge offset ≤ max local R (14.01) + skew between the first copies each zone accepts (R_BLINK − C = 3.91). N2 and N3 can accept copies from different buses, and each copy arbitrates on its own bus | 17.9 ms | **768 µs** (photo 5, 10 edges, FL vs RL) | 1 ms | **Doesn't meet by analysis; meets as measured, with only 232 µs margin** |
@@ -297,6 +297,9 @@ Every run in this lab showed TEC = REC = 0 on both buses, for every node.
   DRIVE bound falls to 5.8 ms. That still exceeds 2 ms.
 
 #### Remedies (not implemented)
+
+We kept the Zephyr MCP2515 driver that the handout's design is built on.
+These are the changes that would close the gap, in order of effect:
 
 1. **Cut the driver's per-frame cost.** This is the dominant term: 30 µs
    per 3-byte SPI transaction against 4.6 µs on the wire. Options:
