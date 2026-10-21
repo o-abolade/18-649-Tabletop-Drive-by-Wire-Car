@@ -525,7 +525,7 @@ ERR (PC12, CN7-3) isn't on N3's breadboard either; probe it directly.
 | # | Label (figure caption) | Channels / trigger | How | Limit | Max over repeats |
 |---|---|---|---|---|---|
 | 8 | CAN A physical layer: CANH/CANL, idle and one frame | CH1 = CANH, CH2 = CANL on the bus A rail (probe ground at bus GND), Math CH1−CH2; trigger CH1 rising, ~20 µs/div | Recessive ≈ 2.5/2.5 V (0 V diff), dominant ≈ 3.5/1.5 V (≈ 2 V diff), 2 µs bits | Part 1 | **Taken.** Meas Top/Base: CANH idle 2.18 V, dominant 2.68 V; CANL idle 2.21 V, dominant 0.61 V. Differential ≈ 0 V idle, **2.07 V dominant** (ISO 11898-2: 1.5–3.0 V) ✅. Low idle level and asymmetric swing are typical of a 3.3 V transceiver |
-| 9 | CAN B physical layer | Same on the bus B rail | | Part 1 | — |
+| 9 | CAN B physical layer | Same on the bus B rail | | Part 1 | **Taken.** CANH idle 2.20 V, dominant 2.70 V; CANL idle 2.19 V, dominant 0.73 V. Differential ≈ 0 V idle, **1.97 V dominant** ✅. Found while setting up: bus B's CANL was miswired to ground (CANL read 0 V at every module). CAN kept working on CANH alone with poor margin, which caused bus B's occasional errors. Rewired 2026-10-21 |
 | 10 | (a) DEG_A on: N2 off CAN A | Trigger = N2 DEG_A (row 7) rising, 20 ms/div; CH2 = N2 CAN_RX_A (row 3) | Pull N2's bus A jumpers. Delta = last CAN_RX_A pulse → DEG_A rising. 5 repeats | 60 ms of silence (+ ≤ 10 ms poll) | |
 | 11 | (f) DEG_A off: N2 bus A restored | Trigger = N2 DEG_A falling; CH2 = N2 CAN_RX_A | Re-insert the jumpers. Delta = first CAN_RX_A pulse → DEG_A falling. 5 repeats | ≤ 100 ms | |
 | — | (b) quick check, no photo | — | Pull N3's bus B jumpers: N3 DEG_B on, everyone stays NORMAL, wheel still drives; re-insert → off | functional | |
