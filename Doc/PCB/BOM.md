@@ -17,3 +17,5 @@
 | IHLP2525CZER3R3M11 | 1 | 3.3 uH inductor on 3v3 buck converter output | [Datasheet](https://www.vishay.com/docs/34190/ihlp-2525cz-11.pdf) | N | N | Not available on parts list, equivalent JLCPCB parts either required bulk purchase or had no CAD model |
 | IHLP2525CZER4R7MA1 | 1 | 4.7 uH inductor on 5V buck converter output | [Datasheet](https://www.vishay.com/docs/34241/ihlp-2525cz-a1.pdf) | N | N | See above |
 | GRM31CR61E226KE15L | 8 | Output filtering on buck converters  | [JLCPCB Page](https://jlcpcb.com/partdetail/MurataElectronics-GRM31CR61E226KE15L/C77091) | N | Y | No 22 uF capacitors on parts list|
+| 0603WAF3002T5E | 1 | 5V converter feedback | [JLCPCB Page](https://jlcpcb.com/parts/componentSearch?searchTxt=UNI-ROYAL%200603WAF3002T5E) | N | Y | 30 kOhm recommended by datasheet, nothing on parts list |
+| 0603WAF2203T5E | 1 | 5V Converter feedback | [JLCPCB PAGE](https://jlcpcb.com/parts/componentSearch?searchTxt=UNI-ROYAL%200603WAF2203T5E) | N | Y | See above |
