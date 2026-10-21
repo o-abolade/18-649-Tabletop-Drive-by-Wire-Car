@@ -51,5 +51,8 @@
 #define ZONE_PRIO_HB_MON    6   /* 10 ms poll, 20 ms deadline */
 #define ZONE_PRIO_HB_TX     7   /* 20 ms */
 #define ZONE_PRIO_FORCE_TX  8   /* N2 only: 50 ms */
+/* main() drops to this after init: the 1 s status print took up to 1 ms,
+ * which at the default main priority (0) delayed STEER/DRIVE */
+#define ZONE_PRIO_STATUS    K_LOWEST_APPLICATION_THREAD_PRIO
 
 #endif /* ZONE_CONFIG_H */

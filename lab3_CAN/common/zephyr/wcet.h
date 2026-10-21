@@ -30,6 +30,13 @@ enum wcet_id {
 	WCET_HB_TX,         /* one heartbeat queued on both buses */
 	WCET_RELAY,         /* N2 RELAY: one forwarded frame */
 	WCET_FORCE_TX,      /* N2 FORCE_TX: one force frame */
+	WCET_DRV_FRAME,     /* MCP2515 thread run time from the end of one
+			     * rx_handler to the start of the next on that bus:
+			     * the driver's per-frame SPI/flag work (+ any
+			     * TX-done handling in between), dispatch excluded */
+	WCET_STATUS,        /* main(): 1 s console status block (lowest priority) */
+	WCET_STATE_SPI,     /* can_link_bus_state(): one controller's EFLG + TEC/REC
+			     * SPI reads, run with the scheduler locked */
 	WCET_COUNT,
 };
 

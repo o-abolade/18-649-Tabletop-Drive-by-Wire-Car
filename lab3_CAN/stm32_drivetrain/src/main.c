@@ -202,17 +202,27 @@ int main(void)
 	k_thread_start(drive_tid);
 	k_thread_start(pid_tid);
 
+	/* Status printing is background work: below every real-time task */
+	k_thread_priority_set(k_current_get(), ZONE_PRIO_STATUS);
+
 	for (uint32_t tick = 1;; tick++) {
 		k_msleep(ZONE_STATUS_PERIOD_MS);
+		uint64_t w0 = wcet_begin();
+
 		zone_print_status();
 		if (tick % 5 == 0) {
 			wcet_print();
 		}
 
+		/* Copy under the lock, print outside it: DRIVE must not wait
+		 * behind this (lowest-priority) thread's printk */
 		k_mutex_lock(&motor_lock, K_FOREVER);
-		printk("   drive: %s thr %u%% duty L%u R%u\n",
-		       driving ? "DRIVE" : "BRAKE", target_throttle, duty_left, duty_right);
+		bool drv = driving;
+		unsigned int thr = target_throttle, dl = duty_left, dr = duty_right;
+
 		k_mutex_unlock(&motor_lock);
+		printk("   drive: %s thr %u%% duty L%u R%u\n", drv ? "DRIVE" : "BRAKE", thr, dl, dr);
+		wcet_end(WCET_STATUS, w0);
 	}
 	return 0;
 }

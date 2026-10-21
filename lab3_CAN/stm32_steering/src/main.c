@@ -79,8 +79,13 @@ int main(void)
 	k_thread_start(steer_tid);
 	k_thread_start(force_tid);
 
+	/* Status printing is background work: below every real-time task */
+	k_thread_priority_set(k_current_get(), ZONE_PRIO_STATUS);
+
 	for (uint32_t tick = 1;; tick++) {
 		k_msleep(ZONE_STATUS_PERIOD_MS);
+		uint64_t w0 = wcet_begin();
+
 		zone_print_status();
 		if (tick % 5 == 0) {
 			wcet_print();
@@ -90,6 +95,7 @@ int main(void)
 
 		relay_get_stats(&relayed, &overflow);
 		printk("   relay: %u forwarded, %u dropped (queue full)\n", relayed, overflow);
+		wcet_end(WCET_STATUS, w0);
 	}
 	return 0;
 }

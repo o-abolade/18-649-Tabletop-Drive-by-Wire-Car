@@ -75,6 +75,8 @@ static uint8_t tx_seq[NUM_SLOTS];
 static int64_t last_hb_ms[CANP_NUM_ZONES + 1][CANP_NUM_BUSES];
 static int64_t last_rx_ms[CANP_NUM_BUSES] = { -1, -1 };
 static struct can_link_stats stats;
+/* Driver thread run time at the end of the last rx_handler, per bus (WCET) */
+static uint64_t drv_mark[CANP_NUM_BUSES];
 
 static int slot_of(uint32_t id, const uint8_t *data)
 {
@@ -113,6 +115,10 @@ static void rx_handler(const struct device *dev, struct can_frame *frame, void *
 	uint32_t start = k_cycle_get_32();
 	bool accept = false;
 
+	if (drv_mark[bus] != 0) {
+		wcet_end(WCET_DRV_FRAME, drv_mark[bus]);
+	}
+
 	ARG_UNUSED(dev);
 	gpio_pin_set_dt(tp, 1);
 
@@ -144,6 +150,7 @@ static void rx_handler(const struct device *dev, struct can_frame *frame, void *
 	}
 	tp_end(tp, start);
 	wcet_end(WCET_RX_DISPATCH, w0);   /* includes the >=10 us test-point hold */
+	drv_mark[bus] = wcet_begin();
 }
 
 static void tx_done(const struct device *dev, int error, void *user_data)
@@ -369,7 +376,19 @@ const char *can_link_bus_state(enum canp_bus bus, uint8_t *tec, uint8_t *rec)
 	if (!buses[bus].started) {
 		return "DOWN";
 	}
-	if (can_get_state(buses[bus].dev, &state, &cnt)) {
+	/* Called from the lowest-priority status loop. The SPI bus lock is a
+	 * plain semaphore (no priority inheritance): if this thread were
+	 * preempted while holding it, CAN_TX and the MCP2515 threads would wait
+	 * behind every middle-priority task. Not preemptible here instead, so
+	 * the blocking it causes is just these SPI reads (WCET_STATE_SPI). */
+	uint64_t w0 = wcet_begin();
+
+	k_sched_lock();
+	int ret = can_get_state(buses[bus].dev, &state, &cnt);
+
+	k_sched_unlock();
+	wcet_end(WCET_STATE_SPI, w0);
+	if (ret) {
 		return "?";
 	}
 	*tec = cnt.tx_err_cnt;
@@ -395,9 +414,14 @@ static bool spi_probe(const struct bus *b)
 	const struct spi_buf_set tx_set = { .buffers = &tx_buf, .count = 1 };
 	const struct spi_buf_set rx_set = { .buffers = &rx_buf, .count = 1 };
 
+	uint32_t t0 = k_cycle_get_32();
+
 	if (spi_transceive_dt(&b->spi, &tx_set, &rx_set)) {
 		return false;
 	}
+	/* Part 3: one register read, the driver's smallest SPI transaction */
+	printk("%s: 3-byte SPI read took %u us\n", b->name,
+	       k_cyc_to_us_ceil32(k_cycle_get_32() - t0));
 	if ((rx[2] >> 5) != MCP2515_OPMOD_CONFIG) {
 		printk("%s: MCP2515 not answering on SPI (CANSTAT=0x%02x). "
 		       "Check module D9->D12 (MISO), D10->D11 (MOSI), D8->D13, CS, 3V3\n",

@@ -17,6 +17,9 @@ static const char *const names[WCET_COUNT] = {
 	[WCET_HB_TX] = "HB_TX",
 	[WCET_RELAY] = "RELAY",
 	[WCET_FORCE_TX] = "FORCE_TX",
+	[WCET_DRV_FRAME] = "DRV_FRAME",
+	[WCET_STATUS] = "STATUS",
+	[WCET_STATE_SPI] = "STATE_SPI",
 };
 
 static atomic_t max_cycles[WCET_COUNT];
@@ -81,6 +84,7 @@ void wcet_print(void)
 		print_us((uint32_t)atomic_get(&max_cycles[i]));
 		printk(" (%u)", n);
 	}
-	k_thread_foreach(print_driver_thread, NULL);
+	/* _unlocked: the locked variant keeps interrupts off through printk */
+	k_thread_foreach_unlocked(print_driver_thread, NULL);
 	printk("\n");
 }
