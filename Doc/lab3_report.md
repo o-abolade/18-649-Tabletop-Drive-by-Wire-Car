@@ -275,7 +275,7 @@ Every run in this lab showed TEC = REC = 0 on both buses, for every node.
 | Blinker start, front / rear | R_BLINK 4.18 + BLINK_F 14.01 / BLINK_R 8.19 | 18.2 / 12.4 ms | not scoped (functional pass) | 100 ms | **Meets** |
 | Blinker synchronization (R2.4) | Edge offset ≤ max local R (14.01) + skew between the first copies each zone accepts (R_BLINK − C = 3.91). N2 and N3 can accept copies from different buses, and each copy arbitrates on its own bus | 17.9 ms | **768 µs** (photo 5, 10 edges, FL vs RL) | 1 ms | **Doesn't meet by analysis; meets as measured, with only 232 µs margin** |
 | Local fail (R2.5), N2 / N3 | TEST_BTN R | 14.1 / 8.3 ms | N2: **20 µs** max over 5 presses (photo 12, B1 → ERR); N3 not scoped | 10 ms | **N2 doesn't meet by analysis; meets as measured. N3 meets** |
-| Error propagation, test button (FAULT path) | press → TEST_BTN → HB_MON sends FAULT → bus → other zone's HB_MON. N2 → N3: 14.07 + 14.19 + 2.43 + 8.41; N3 → N2: 8.30 + 8.41 + 2.43 + 14.19 | 39.1 / 33.3 ms | not scoped (functional pass) | 100 ms | **Meets** |
+| Error propagation, test button (FAULT path) | press → TEST_BTN → HB_MON sends FAULT → bus → other zone's HB_MON. N2 → N3: 14.07 + 14.19 + 2.43 + 8.41; N3 → N2: 8.30 + 8.41 + 2.43 + 14.19 | 39.1 / 33.3 ms | N2 → N3: **1.1 ms** max over 5 presses (photo 13, N2 B1 → N3 ERR) | 100 ms | **Meets** |
 | Error propagation, zone dies silently (heartbeat path) | last HB message R + 60 ms timeout + 10 ms poll phase + HB_MON R. N2 dies: 17.6 + 60 + 10 + 8.41; N3 dies: 12.0 + 60 + 10 + 14.19 | 96.0 / 96.2 ms | not scoped (bus pulls: functional pass) | 100 ms | **Meets**, about 4 ms slack |
 
 #### Why the analysis and the measurements disagree
