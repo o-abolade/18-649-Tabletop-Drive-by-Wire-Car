@@ -439,6 +439,46 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
    and CANL sit at about the same voltage, and one frame, where CANH rises
    and CANL falls in the dominant bits.
 
+## Test-point breadboards
+
+The handout wants **one small breadboard per node, one signal per row, in this
+exact order**, labeled on tape beside the board; the TAs clip onto these boards
+and nothing else. Run a jumper from each pin to its row and tie rows 1–2 to that
+node's GND. Where a signal already drives an LED (DEG, ERR, blinkers), add a
+second wire from the same pin to the row.
+
+| Row | N1 (Pi) | N2 steering (front) | N3 drivetrain (rear) |
+|---|---|---|---|
+| 1 | GND | GND | GND |
+| 2 | GND | GND | GND |
+| 3 | UDP_RX: pin 12 (GPIO18) | CAN_RX_A: PC8 (CN10-2) | CAN_RX_A: PC8 (CN10-2) |
+| 4 | CMD_TX: pin 13 (GPIO27) | CAN_RX_B: PC9 (CN10-1) | CAN_RX_B: PC9 (CN10-1) |
+| 5 | CAN_TX_A: pin 15 (GPIO22) | CAN_TX_A: PC10 (CN7-1) | CAN_TX_A: PC10 (CN7-1) |
+| 6 | CAN_TX_B: pin 16 (GPIO23) | CAN_TX_B: PC11 (CN7-2) | CAN_TX_B: PC11 (CN7-2) |
+| 7 | DEG_A (LED): pin 31 (GPIO6) | DEG_A (LED): PC3 (CN7-37) | DEG_A (LED): PC3 (CN7-37) |
+| 8 | DEG_B (LED): pin 29 (GPIO5) | DEG_B (LED): PC2 (CN7-35) | DEG_B (LED): PC2 (CN7-35) |
+| 9 | — | SRV: PB4 (D5) | PWM_SET: PC6 (CN10-4) |
+| 10 | — | FL: PB9 (D14) | PWM_OUT: PA0 (A0) |
+| 11 | — | FR: PB8 (D15) | DIR_A: PB3 (D3), motor IN4 |
+| 12 | — | RELAY_TX: PB7 (CN7-21) | RL: PB9 (D14) |
+| 13 | — | ERR: PC12 (CN7-3) | RR: PB8 (D15) |
+
+Notes:
+- CN7/CN10 are the Nucleo's long morpho headers; double-check pin numbers
+  against the silkscreen, since those rows are easy to be off by one on.
+- **What each point means:** UDP_RX goes high when the Pi receives a wheel
+  packet and low once both CTRL copies are written, followed by a CMD_TX pulse.
+  CAN_TX_x rising = that frame's turn in the per-bus TX queue, falling = handed
+  to the MCP2515. CAN_RX_x = the receive dispatch for a frame from that bus
+  (held ≥10 µs). RELAY_TX pulses when N2 queues a forwarded frame. ERR is high
+  while the zone is not NORMAL.
+- **DIR_A only changes on a transition:** it rises when N3 goes from driving to
+  braking. Hold the throttle first, then press the brake, and trigger on DIR_A
+  rising (Normal + Single). From an already-braked state there is no edge.
+- Timing runs: laptop ↔ Pi on **Ethernet**, cockpit as `sudo ./cockpit --rt`
+  with the status line off (`s`), scope trigger mode **Normal**, and report the
+  **maximum** of repeated captures.
+
 ## Part 3 measurement checklist
 
 `Doc/lab3_report.md` now contains the Section 3.1--3.3 RTA structure using
