@@ -328,6 +328,162 @@ These are the changes that would close the gap, in order of effect:
    behind N1's own HB/BLINK/FAULT. Local blocking would drop from 810 µs
    to 0, and R_CTRL from 1.75 ms to 0.94 ms.
 
+## Section 4: Dual-redundant CAN and the relay case
+
+### 4.1 Hot/parallel transmit
+
+**What the code does:**
+- **Send:** every message is queued on bus A and bus B back to back with one
+  sequence number (`can_link_send`).
+- **Receive:** each zone keeps the first copy and drops the second by
+  `(ID, seq)` in one dispatch path (`can_link.c`, `rx_handler`). FAULT has
+  one dedup slot per sending zone, since three zones share its ID.
+
+**Cost on the nodes:**
+- Every message costs two CAN_TX jobs to send and two driver events to
+  receive. The second receive event is thrown away after dedup, but its SPI
+  read and dispatch still run.
+- Section 3's node tables already charge both copies: a zone receives up to
+  12 (N2) or 20 (N3) frames per 20 ms over both buses, counting duplicates
+  and relayed copies. So the Section 3 tables **are** the 4.1 re-analysis.
+- A single bus would carry half the traffic. The bounds there are lower, but
+  still dominated by the same per-frame driver cost.
+
+**The chains get no worse.** Each zone acts on whichever copy arrives first,
+and the second copy only shows up as one more driver event in the
+interference term. That rests on two assumptions:
+- **Both copies leave together.** The sender queues both copies at the same
+  moment, so neither is held back by its own node. The Pi writes A then B
+  within one `write()` pair (measured inside the 126.5 µs UDP_RX → CMD_TX
+  stage).
+- **Dedup is cheap.** The dedup check is a table lookup under a spinlock.
+  It's inside the measured RX_DISPATCH (≤ 51 µs), so dropping a copy never
+  blocks the first copy's task.
+
+### 4.2 Relay design
+
+| Question | Our decision | Why |
+|---|---|---|
+| Who relays? | **Only N2.** N1 and N3 never relay. | In the handout's scenario (c), N2 is the only node still on both buses. See the fault-pair list below for what this leaves uncovered. |
+| When? | **Always**, with no fault detection. | A relay that waits for the 60 ms degraded detection would leave N3 without CTRL, brake commands included, for 60–70 ms after the fault. Always relaying costs bus time (worst bus 11.3 % → 19.4 %) but never breaks the brake chain. |
+| What? | The **first accepted copy** of every N1 or N3 message (CTRL, BLINK, HB_N1, HB_N3, FAULT from N1/N3), onto the bus it didn't arrive on. | N2's own HB_N2, FAULT and FORCE already go out on both buses, so they never need relaying. |
+| Loops? | A **"relayed" flag** (bit 0x10 of byte 0). N2 never relays a flagged frame, and only N2 relays, so a frame crosses at most one hop. | The sequence number is kept, so receivers drop a relayed copy as a duplicate with the same `(ID, seq)` state they already keep. No extra relay state is needed. The CTRL CRC skips the flag bits, so a relayed CTRL still checks out. |
+| Priority? | **RELAY = 1**: above STEER (2) and every other app task. Below CAN_TX (0) and the MCP2515 driver threads (cooperative). | RELAY is on the relayed brake path, so it outranks every app task. The receive hook only copies the frame into a 16-deep queue and wakes RELAY, so the driver thread never blocks. Relayed frames enter the per-bus TX queue **sorted by ID**, so a relayed CTRL overtakes any HB or FORCE already waiting. |
+| Cost to N2's own deadlines | RELAY: ≤ 6 jobs per 20 ms × 86.8 µs, plus 6 more CAN_TX jobs. | Both are already in N2's Section 3 table. STEER still meets 50 ms; BLINK_F and TEST_BTN miss for the reason given there (the driver's per-frame cost), not because of RELAY. |
+
+### 4.3 Re-analysis for scenario (c): N1 off bus B, N3 off bus A
+
+**Traffic.** Each bus now carries 9 frames per 20 ms, all of them unique.
+There are no duplicate originals, because N1 is absent from B and N3 from A.
+
+- **Bus A:** N1's 4 + N2's 3 + N3's 2 relayed = 9.
+- **Bus B:** N2's 3 + N3's 2 + N1's 4 relayed = 9.
+- **Per receiver:**
+  - N2 receives 6 frames per 20 ms: 4 on A, 2 on B.
+  - N3 receives 7, all on B.
+
+**Measured C values are reused from Section 3; assumption.** N3's bus A
+copies can't be acknowledged in (c), so they time out in CAN_TX: up to 2
+extra CAN_TX jobs per 20 ms, counted. The error interrupts from the unplugged
+module aren't bounded by this frame model. The relayed chain measurement
+(photo 3) covers them in practice.
+
+**Node RTA in scenario (c)** (R in ms, same C, B and priorities as Section 3):
+
+| N2 task | R | D | Meets? | N3 task | R | D | Meets? |
+|---|---:|---:|---|---|---:|---:|---|
+| CAN_RX | 4.51 | 0.444 | No | CAN_RX | 3.64 | 0.444 | No |
+| RELAY | 6.46 | 20 | Yes | DRIVE | 4.62 | see chain | No (chain) |
+| STEER | 6.94 | 48.5 | Yes | BLINK_R | 4.66 | 1 (sync) | No |
+| BLINK_F | 6.96 | 1 (sync) | No | TEST_BTN | 4.79 | 10 | **Yes** |
+| TEST_BTN | 7.03 | 10 | **Yes** | PID | 4.91 | 10 | **Yes** |
+| HB_MON | 7.15 | 10 | **Yes** | HB_MON | 4.91 | 10 | **Yes** |
+| HB_TX | 7.21 | 20 | Yes | HB_TX | 4.98 | 20 | Yes |
+| FORCE_TX | 7.28 | 50 | Yes | | | | |
+
+These are lower than Section 3's worst case, because each zone receives fewer
+frames in (c).
+
+**Message RTA in scenario (c)** (R in ms; B = one frame on the wire + local
+single-buffer blocking, as in 3.2):
+
+| ID | Bus A message | J | R | Bus B message | J | R | D | Meets? |
+|---|---|---:|---:|---|---:|---:|---:|---|
+| 0x010 | CTRL (N1) | 0.13 | 1.48 | CTRL' (relay) | 7.94 | 8.75 | — / chain | chain |
+| 0x020 | FAULT_N1 / N2 / N3' | 0.13 / 7.15 / 13.6 | 2.02 / 8.77 / 15.2 | FAULT_N1' / N2 / N3 | 7.94 / 7.15 / 4.91 | 9.56 / 8.77 / 6.53 | 100 | Yes |
+| 0x100 | HB_N1 | 0.13 | 2.02 | HB_N1' (relay) | 7.94 | 9.83 | 20 | Yes |
+| 0x101 | HB_N2 | 7.21 | 9.37 | HB_N2 | 7.21 | 9.37 | 20 | Yes |
+| 0x102 | HB_N3' (relay) | 13.6 | 16.0 | HB_N3 | 4.98 | 7.14 | 20 | Yes |
+| 0x200 | BLINK | 0.13 | 2.56 | BLINK' (relay) | 7.94 | 10.6 | 100 | Yes |
+| 0x300 | FORCE | 7.28 | 9.71 | FORCE | 7.28 | 9.71 | 50 | Yes |
+
+- **Relay jitter:** relayed copies inherit the first hop as jitter.
+  - A → B: R_CTRL on A + R_RELAY = 1.48 + 6.46 = 7.94 ms.
+  - B → A: R_HB_N3 on B + R_RELAY = 13.6 ms.
+- **Utilization:** 8 frames per 20 ms + FORCE per 50 ms = **11.3 % on each
+  bus**, which meets the 50 % limit.
+
+**End-to-end chains in scenario (c):**
+
+| Chain | Path (bound) | Bound | Measured | Deadline | Verdict |
+|---|---|---:|---:|---:|---|
+| Brake / throttle (relayed) | CTRL on A 1.48 + N2 RELAY 6.46 + CTRL' on B (w + C) 0.81 + N3 DRIVE 4.62 | 13.4 ms | **1.1 ms** (photo 3) | 2 ms | **Doesn't meet by analysis; meets as measured** |
+| Steering | CTRL on A 1.48 + N2 STEER 6.94 | 8.4 ms | — | 50 ms | **Meets** |
+| Blinker start, front / rear | BLINK on A 2.56 + BLINK_F 6.96; rear adds RELAY + BLINK' on B + BLINK_R | 9.5 / 16.4 ms | — | 100 ms | **Meets** |
+| Blinker sync | N3 acts on the relayed copy: RELAY 6.46 + BLINK' on B (w + C) 2.70 + BLINK_R 4.66 | 13.8 ms | not measured in (c) | 1 ms | **Doesn't meet by analysis** |
+| Error, test button on N2 | TEST_BTN 7.03 + HB_MON 7.15 + FAULT_N2 on B 1.62 + N3 HB_MON 4.91 | 20.7 ms | — | 100 ms | **Meets** |
+| Error, N1 dies (N3 hears N1 only through the relay) | HB_N1' 9.83 + 60 + 10 poll + N3 HB_MON 4.91 | 84.7 ms | — | 100 ms | **Meets** |
+
+**Verdict per chain, and what changed:**
+- **Brake / throttle:** fails by analysis at 13.4 ms but measured 1.1 ms.
+  - **Changes made:** always-on relay, RELAY above every app task, and
+    ID-sorted TX queues so the relayed CTRL never waits behind N2's own
+    traffic.
+  - **Remaining gap:** the same per-frame driver cost as in Section 3.
+  - **Choice:** the handout's option of **accepting documented degraded
+    latency in scenario (c)**, which is a double fault.
+  - **Caveat:** photo 3 was taken while bus B's CANL was miswired, so it
+    should be retaken.
+- **Steering and blinker start** meet with wide margin.
+- **Blinker sync** gets a structural problem in (c). N2 acts on the original
+  BLINK on bus A, while N3 can only act on N2's relayed copy, one hop later.
+  So even the typical offset is the relay delay, about 0.5–0.8 ms by our
+  photo 3/4 numbers, and the bound is 13.8 ms.
+  - **Remedy:** N2 delays its own lamp edge by a fixed relay latency while it
+    is relaying for a degraded peer.
+  - **Choice:** accepted as degraded in (c).
+- **Error propagation** meets in both forms. Without the relay, N3 would hear
+  HB_N1 on neither bus, declare N1 failed after 60–70 ms and put the whole
+  system in ERROR. R4.8(c) requires full operation, which is what the relay
+  gives: measured in (c), N3 stays NORMAL with `HB N1:-B`.
+
+**Relayed heartbeat timing.**
+- N1 still sends HB_N1 every 20 ms (R4.5's ±10 % applies at the sender).
+- At N3 the relayed copies arrive with up to 9.6 ms of jitter, so two
+  consecutive copies can be anywhere from 10.4 to 29.6 ms apart. That spacing
+  is outside 18–22 ms, and we report it.
+- It never looks like a missed heartbeat: HB_MON's limit is 60 ms with no
+  heartbeat.
+
+**Which jumper pulls need a relay?**
+
+| Fault | Relay needed? | Our system |
+|---|---|---|
+| Any single node off one bus (a, b) | No. Every pair of nodes still shares the other bus. | Fully operational (tested) |
+| Every node off the same bus (e) | No | Fully operational on the other bus (tested) |
+| Two nodes off the **same** bus | No | Fully operational |
+| **N1 and N3 off opposite buses** (the handout's (c), either orientation) | Yes, through N2 | **Fully operational** via N2's relay (tested) |
+| **N2 and N3 off opposite buses** (Lab 1's R4.8(c) example: steering off A, drivetrain off B) | Yes, through **N1** | **Not supported.** N2 and N3 lose each other's heartbeats on both buses and go to system ERROR |
+| **N1 and N2 off opposite buses** | Yes, through **N3** | **Not supported.** N2 gets no CTRL and goes to ERROR |
+| One node off both buses (d) | No relay can help | That node fail-safe, the others ERROR (tested) |
+
+**Remedy for the two unsupported pairs:** run the same relay rule (first
+copy, flag, never re-relay) on **every** node that is on both buses, i.e. in
+the Pi cockpit and on N3 as well. It stays loop-free for the same reason
+(flagged frames are never forwarded). It costs more bus load, since up to two
+nodes may now relay each frame. It isn't implemented; the checkoff's scenario
+(c) is the N1/N3 pair.
+
 ## Fault-injection test matrix (R4.8 a–f)
 
 Faults were injected by pulling the jumpers between a node's CAN module and
@@ -348,7 +504,7 @@ the LED lights 60–70 ms after the last frame received.
 |---|---|---|---|---|---|---|---|---|
 | a | One node off CAN A (demo: N2) | Marks A degraded after 60 ms of silence, keeps working on B | Keep hearing it on B, no state change | Node: DEG_A on. Others: off | Fully operational, NORMAL; no hazards, no braking | DEG_A on after 60 ms of silence (60–70 ms with the 10 ms poll) | ✅ N2 bus A pull (Part 1): N2's B unaffected, N3 still hears N1 on A and N2 on B. N1 bus A pull: Pi DEG_A on, all NORMAL | **62.8 ms, max 68.6 ms over 5** (photo 10, N2 off A: last CAN_RX_A pulse → DEG_A on) ✅ |
 | b | One node off CAN B (demo: N3) | Marks B degraded after 60 ms, keeps working on A | Keep hearing it on A | Node: DEG_B on. Others: off | Fully operational, NORMAL | Same as (a) | ✅ seen for N1 inside scenario (c). Single-fault check: listed in the remaining captures | Same code path as (a) |
-| c | N1 off CAN B **and** N3 off CAN A | N1 and N3 each degraded on one bus | N2 relays N1 ↔ N3 traffic (RELAY_TX toggling) | N1: DEG_B. N3: DEG_A. N2: none | Fully operational: steers, blinks, brakes through N2's relay | Degraded within 60–70 ms; brake chain 2 ms, or documented degraded latency (§3.3) | ✅ N3 NORMAL, `HB N1:-B N2:-B`, `thr 50%` → DRIVE via the relay; N2 relays about 150 frames/s, 0 dropped | Relayed brake chain **1.1 ms** max (photo 3). Relay stage 607 µs (photo 4) |
+| c | N1 off CAN B **and** N3 off CAN A (the handout's pair; N2/N3 or N1/N2 on opposite buses isn't supported, see 4.3) | N1 and N3 each degraded on one bus | N2 relays N1 ↔ N3 traffic (RELAY_TX toggling) | N1: DEG_B. N3: DEG_A. N2: none | Fully operational: steers, blinks, brakes through N2's relay | Degraded within 60–70 ms; brake chain 2 ms, or documented degraded latency (§3.3) | ✅ N3 NORMAL, `HB N1:-B N2:-B`, `thr 50%` → DRIVE via the relay; N2 relays about 150 frames/s, 0 dropped | Relayed brake chain **1.1 ms** max (photo 3). Relay stage 607 µs (photo 4) |
 | d | One STM32 off both buses (demo: N2, all 4 wires) | Hears no heartbeats on either bus → ERROR within 100 ms. Safe state: N2 steering held (no CTRL reaches it) | Miss 3 heartbeats from N2 on both buses → system ERROR: hazards, N3 braked | N2: DEG_A and DEG_B. Others: no DEG (their buses still work) | System error | Error entry ≤ 100 ms (analysis bound 96 ms, §3.3) | ✅ N2 ERROR, both buses PASSIVE/DEG. N3 ERROR (`N2:--`), motors braked, its buses ACTIVE | N3 enters ERROR **59.4 ms, max 68.4 ms over 3** after N2 loses its last bus (photo 14) ✅. N2 enters its own fail-safe **52.4 ms, max 53.6 ms over 3** (photo 15; under 60 ms because the reference is N2's last received frame, which can follow the last heartbeat) ✅ |
 | e | Whole CAN A lost (every node off A) | Each node marks A degraded | All traffic continues on B | All nodes: DEG_A on | Fully operational on B | Degraded within 60–70 ms, no functional interruption | ✅ all DEG_A on, all NORMAL on B only (`N?:-B`), CTRL gaps 36–39 ms. Needed the Pi TX watchdog fix (`mcp251x` TX queue hang) | — |
 | f | Restore any pulled jumpers | Bus-off controller recovers by itself (MCP2515 automatic; Pi `restart-ms 100`). DEG clears once traffic resumes | Resume using the restored bus; an isolated node's heartbeat brings everyone back to NORMAL | Affected LEDs off | NORMAL again, no reset or power cycle | DEG off ≤ 100 ms after traffic resumes; full recovery ≤ 500 ms | ✅ every case above: all back to `N?:AB`, ACTIVE, NORMAL, with no reset | DEG_A off **9.6 ms, max 14.8 ms over 5** after bus A restored (photo 11: first CAN_RX_A pulse → DEG_A off; design ≤ 30 ms = next heartbeat + 10 ms poll) ✅. Isolation recovery, N2 back to NORMAL **3.6 ms, max 15.6 ms over 3** after its jumpers are restored, no reset (photo 16) ✅. N3 back to NORMAL **16.5 ms max over 3** (photo 17) ✅ |
