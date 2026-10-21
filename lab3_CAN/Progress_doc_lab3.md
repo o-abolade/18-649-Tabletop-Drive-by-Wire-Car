@@ -226,6 +226,7 @@ for the bad-input demo, `s` to toggle the status line, `q` to quit.
 | **Brake chain timing (R2.2, ≤2 ms)** | ✅ **max 940 µs over 15 captures** (first capture 645 µs). Scope: CH1 = N3 DIR_A (trigger, rising, Normal + Single), CH2 = Pi UDP_RX; driving, then brake pressed; Delay from the last UDP_RX rising edge to DIR_A rising. Single bus healthy (both buses connected). Spread = Pi (Linux) jitter. The chain starts at UDP_RX, so laptop ↔ Pi network delay isn't included |
 | **Throttle chain timing (R2.1, ≤2 ms)** | ✅ **max 626 µs over 10 captures** (photo: 614 µs). Scope: CH1 = N3 PWM_SET first pulse (trigger rising), CH2 = Pi UDP_RX; braked, then throttle pressed. PWM_SET is a 10 µs pulse: use 100–200 µs/div or the scope won't sample it |
 | **Relayed brake chain, scenario (c) (R2.2, ≤2 ms)** | ✅ **max 1.1 ms over 10 captures** (photo: 970 µs). Pi off bus B, N3 off bus A, so CTRL reaches N3 only via N2's RELAY. Same probes as the single-bus brake chain. Meets 2 ms even with the extra hop and second bus traversal |
+| **Relay stage, scenario (c)** | Pi UDP_RX → N2 RELAY_TX (CTRL queued for bus B): **max 607 µs over 10 captures** (photo: 474 µs). With entry 3 (1.1 ms total) that leaves roughly 0.5 ms for the bus B hop + N3 receive + DRIVE. Stage maxima come from different captures, so their sum is an upper estimate, not one measured event |
 | Steering | ✅ N2 `cmd steer` tracks the wheel (−604..+35 seen). Servo not connected; SRV = PB4 on the scope |
 | Turn signals | buttons reach N2/N3 (`btn 0x02`); lamp sync to be confirmed on the scope (FL vs RL) |
 | Test button (N2 B1) | ✅ N2 LOCAL_FAIL + FAULT; N3 `NORMAL -> ERROR (FAULT from N2)`, `N2:--`; double press → all NORMAL |
@@ -494,6 +495,7 @@ the single photo's value.
 | 1 | Brake chain (R2.2): Pi UDP_RX → N3 DIR_A | CH1 = N3 DIR_A (row 11, trigger rising, Normal + Single); CH2 = Pi UDP_RX (row 3). Driving, then brake pressed | one capture: **640 µs** | **940 µs** over 15 captures |
 | 2 | Throttle chain (R2.1): Pi UDP_RX → N3 PWM_SET (first pulse) | CH1 = N3 PWM_SET (row 9, trigger rising, Normal + Single, **100–200 µs/div** with the trigger point at the right; the 10 µs pulse is missed at 500 µs/div); CH2 = Pi UDP_RX (row 3). Braked, then throttle pressed | one capture: **614 µs** | **626 µs** over 10 captures |
 | 3 | Relayed brake chain, scenario (c): Pi UDP_RX → N3 DIR_A, via N2 RELAY | Pi off bus B, N3 off bus A. CH1 = N3 DIR_A (row 11, trigger rising, Normal + Single, 500 µs/div); CH2 = Pi UDP_RX (row 3). Driving, then brake pressed | one capture: **970 µs** | **1.1 ms** over 10 captures |
+| 4 | Relay stage, scenario (c): Pi UDP_RX → N2 RELAY_TX (CTRL forwarded) | Pi off bus B, N3 off bus A. Trigger = Pi UDP_RX (row 3, rising, Normal + Single, 100 µs/div, trigger point at left); other channel = N2 RELAY_TX (row 12 = PB7, CN7-21). First RELAY_TX pulse ≥ 0.2 ms after UDP_RX (earlier ones are forwarded heartbeats) | one capture: **474 µs** | **607 µs** over 10 captures |
 
 ## Part 3 measurement checklist
 
