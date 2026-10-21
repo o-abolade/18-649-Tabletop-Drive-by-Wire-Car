@@ -224,6 +224,7 @@ for the bad-input demo, `s` to toggle the status line, `q` to quit.
 | Start proxy | ✅ all three NORMAL; Pi `UDP 50/s`, `tx A/B 100/s` (50 CTRL + 50 HB), 0 failures |
 | Throttle / brake | ✅ N3 `cmd thr 53%` → `DRIVE`; pedal at rest → `BRAKE` |
 | **Brake chain timing (R2.2, ≤2 ms)** | ✅ **max 940 µs over 15 captures** (first capture 645 µs). Scope: CH1 = N3 DIR_A (trigger, rising, Normal + Single), CH2 = Pi UDP_RX; driving, then brake pressed; Delay from the last UDP_RX rising edge to DIR_A rising. Single bus healthy (both buses connected). Spread = Pi (Linux) jitter. The chain starts at UDP_RX, so laptop ↔ Pi network delay isn't included |
+| **Throttle chain timing (R2.1, ≤2 ms)** | ✅ **max 626 µs over 10 captures** (photo: 614 µs). Scope: CH1 = N3 PWM_SET first pulse (trigger rising), CH2 = Pi UDP_RX; braked, then throttle pressed. PWM_SET is a 10 µs pulse: use 100–200 µs/div or the scope won't sample it |
 | Steering | ✅ N2 `cmd steer` tracks the wheel (−604..+35 seen). Servo not connected; SRV = PB4 on the scope |
 | Turn signals | buttons reach N2/N3 (`btn 0x02`); lamp sync to be confirmed on the scope (FL vs RL) |
 | Test button (N2 B1) | ✅ N2 LOCAL_FAIL + FAULT; N3 `NORMAL -> ERROR (FAULT from N2)`, `N2:--`; double press → all NORMAL |
@@ -490,6 +491,7 @@ the single photo's value.
 | # | Label (figure caption) | Channels / trigger | Shown in photo | Max over repeats |
 |---|---|---|---|---|
 | 1 | Brake chain (R2.2): Pi UDP_RX → N3 DIR_A | CH1 = N3 DIR_A (row 11, trigger rising, Normal + Single); CH2 = Pi UDP_RX (row 3). Driving, then brake pressed | one capture: **640 µs** | **940 µs** over 15 captures |
+| 2 | Throttle chain (R2.1): Pi UDP_RX → N3 PWM_SET (first pulse) | CH1 = N3 PWM_SET (row 9, trigger rising, Normal + Single, **100–200 µs/div** with the trigger point at the right; the 10 µs pulse is missed at 500 µs/div); CH2 = Pi UDP_RX (row 3). Braked, then throttle pressed | one capture: **614 µs** | **626 µs** over 10 captures |
 
 ## Part 3 measurement checklist
 
