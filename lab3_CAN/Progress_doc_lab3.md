@@ -439,6 +439,30 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
    and CANL sit at about the same voltage, and one frame, where CANH rises
    and CANL falls in the dominant bits.
 
+## Part 3 measurement checklist
+
+`Doc/lab3_report.md` now contains the Section 3.1--3.3 RTA structure using
+the handout WCET placeholders.  It is not final until the following values
+replace or validate those assumptions.  Record the **maximum** observed value,
+the capture conditions, and the test-point pair used; do not replace a bound
+with an average.
+
+| Measurement | How to capture it | Needed for |
+|---|---|---|
+| Pi `UDP_RX` → `CMD_TX` latency | Scope N1 test points for at least one minute with normal traffic, then again under a Pi stress load. Record maximum and 99th percentile. | `J_PI`; this is the limiting input to the 2 ms brake/throttle chain. The report's current 300 us value is an assumption only. |
+| N2/N3 task WCETs | Toggle a spare GPIO around the non-preempted body of each task, then scope it. Measure CAN RX/dispatch, STEER, DRIVE, BLINK_F/BLINK_R, HB_TX, HB_MON, FORCE_TX, PID, and the test-button ISR. | Replace every placeholder `C` in the Node 2 and Node 3 RTAs. State how preemption was excluded or accounted for. |
+| MCP2515 SPI transaction / lock hold time | Scope a GPIO around one RX or TX SPI transaction while both CAN modules are active. Measure the longest critical section. | Validate the 60 us shared-SPI blocking term `B`; use 120 us instead if the lock spans both-bus transactions. |
+| CAN frame duration and local TX serialization | Scope CANH/CANL (or CAN_TX) for an 8-byte catalog frame and for a lower-priority frame already queued before CTRL. | Validate the 270 us frame/blocking assumption and document any one-buffer MCP2515 TX delay. |
+| Brake/throttle chain | Trigger on N1 `UDP_RX`; probe N1 `CAN_TX_A`, N3 `CAN_RX_A`, and N3 `DIR_A`/`PWM_SET`. Take the maximum of repeated captures. | Compare the measured end-to-end result with the 2 ms analysis bound. |
+| Steering chain | Trigger N1 `UDP_RX`; probe N2 `CAN_RX_A` and `SRV`. | Verify the 50 ms chain and separate Pi, bus, and N2 latency. |
+| Blinker start and synchronization | Trigger on BLINK transmission; scope N2 `FL` and N3 `RL` together for at least ten toggle edges. | Verify ≤100 ms start and report the **maximum** front/rear edge offset against the 1 ms limit. |
+| Error propagation | Press N2 or N3 TEST_BTN; scope its local safe-state output and the other zone's `ERR`/hazard output. | Verify local fail ≤10 ms and remote error/hazard/brake ≤100 ms, including the three-missed-heartbeat delay. |
+
+When these are recorded, update the report tables so every value is labeled
+**measured** (with method) or **assumed** (with reason).  Re-run the CAN
+message and end-to-end calculations if any measured WCET, blocking time, or Pi
+maximum is larger than the current placeholder.
+
 ## Status
 
 | Part | Item | Status |
@@ -449,7 +473,7 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
 | 1 | Bus wiring, 60Ω termination check, common ground | **Done.** Bus A 58 Ω (P1 on N1 and N3); bus B wired 2026-10-20, same layout |
 | 1 | candump sees both Nucleos on both buses; jumper-pull test | Bus A: `candump can0` shows `0x720` (N2) and `0x730` (N3) every ~100.2 ms, counters continuous, no error frames; Nucleos hear each other 10/s with 0 TX errors. With the Pi sending `0x710`, all three nodes hear each other on bus A. **N2 bus A jumper pull:** N3 unaffected (ERROR-ACTIVE, 0 errors, still hears N1); N2 isolated (ERROR-PASSIVE via REC=135, tx ok 0, buffers full); re-insert → N2 back to ERROR-ACTIVE, TEC=REC=0, no reset. **Both buses (2026-10-20): done.** All three nodes hear each other on A and B (N2↔N3 10/s, N1 ~9/s from the shell loop), 0 errors. Pulling N2's bus A jumpers: N2's CAN B unaffected; N3 still hears N1 on A and N2 on B; N2's CAN A ERROR-PASSIVE (REC=135). Re-insert: N2 CAN A back to ERROR-ACTIVE, TEC=REC=0, no reset. **Pending: scope captures of CANH/CANL per bus** |
 | 2 | Task communication graph figure | Not started |
-| 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | Not started |
+| 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | **Analysis draft complete** in `Doc/lab3_report.md` using WCET placeholders. **Measurement pending:** Pi latency, STM32 task WCETs, SPI blocking, frame/TX serialization, and scope verification of brake, steering, blinker sync, and error chains; see Part 3 measurement checklist above. |
 | 4 | Dual-bus + relay design and re-analysis | Not started |
 | 5 | Zephyr implementation (dispatch/dedup, send helper, HB_MON, RELAY, error SM, watchdog) | **Running on hardware** (2026-10-21): functional pass done, see "Full-system results". Pending: isolation (d), whole-bus loss (e), scope timing |
 | 5 | Pi cockpit (CTRL/BLINK/HB_N1 TX, HB/FORCE RX, bad-input injection) | **Running on the Pi**, builds without warnings. Force is not sent back to the proxy (dummy counter would jerk the wheel) |
