@@ -617,8 +617,12 @@ static void tx_watchdog(int64_t now)
 
 static void hb_tx(void)
 {
-	if (state == CANP_ZS_LOCAL_FAIL) {
-		return;   /* go silent so N2/N3 detect the failed cockpit (R2.5) */
+	bool udp_ok = last_udp_ms >= 0 && now_ms() - last_udp_ms <= UDP_TIMEOUT_MS;
+
+	/* Go silent so N2/N3 detect the failed cockpit: test button (R2.5), or
+	 * no wheel UDP for 100 ms (Lab 1: the cockpit then counts as failed) */
+	if (state == CANP_ZS_LOCAL_FAIL || !udp_ok) {
+		return;
 	}
 	uint8_t d[CANP_DLC];
 	uint8_t health = (deg[CANP_BUS_A] ? 0 : CANP_HEALTH_A) | (deg[CANP_BUS_B] ? 0 : CANP_HEALTH_B);

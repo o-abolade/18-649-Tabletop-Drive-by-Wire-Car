@@ -152,7 +152,9 @@ zones' heartbeats are seen on ≥1 bus and a valid CTRL arrived within 100 ms;
 back to ERROR on a zone lost on both buses, a FAULT from another zone (held
 until that zone sends a newer heartbeat), out-of-range CTRL (also sends FAULT)
 or CTRL stale. Test button → LOCAL_FAIL (stops HB, sends FAULT). Not NORMAL =
-ERR LED on, local hazard flashing, N3 braked, N2 steering centred.
+ERR LED on, local hazard flashing, N3 braked. N2 keeps tracking the wheel in
+ERROR (R3) and holds its angle while it is itself LOCAL_FAIL or isolated (R4.7).
+The cockpit stops its heartbeat while LOCAL_FAIL or after 100 ms without wheel UDP.
 
 ### Building the zones
 

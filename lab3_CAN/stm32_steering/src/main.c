@@ -1,6 +1,8 @@
 /*
  * N2 steering zone (front).
- *   STEER     on CTRL -> servo PWM (SRV); centred while not NORMAL
+ *   STEER     on CTRL -> servo PWM (SRV). Keeps tracking in the system error
+ *             state (R3); holds its position while N2 itself is LOCAL_FAIL
+ *             (R4.7 "steering held"). Isolated, no CTRL arrives, so it holds.
  *   FORCE_TX  every 50 ms, dummy counter (handout: force feedback is a dummy)
  *   RELAY     see relay.c
  *   BLINK_F, HB_TX, HB_MON, TEST_BTN, error state: common/zephyr/zone_core.c
@@ -15,9 +17,9 @@
 #include "wcet.h"
 #include "zone_core.h"
 
+/* Safe state = hold the current angle (R4.7), so nothing to do here */
 static void steer_safe(void)
 {
-	(void)set_wheel_angle(0);
 }
 
 static void steer_thread(void *a, void *b, void *c)
@@ -27,11 +29,12 @@ static void steer_thread(void *a, void *b, void *c)
 
 	while (1) {
 		if (zone_wait_ctrl(&cmd, K_MSEC(ZONE_CTRL_TIMEOUT_MS)) != 0) {
-			continue;   /* HB_MON moves us to ERROR and centres via steer_safe */
+			continue;   /* no CTRL: the servo holds where it is */
 		}
 		uint64_t w0 = wcet_begin();
 
-		if (zone_state() == CANP_ZS_NORMAL) {
+		/* R3: track the wheel even in ERROR, unless N2 is the failed zone */
+		if (zone_state() != CANP_ZS_LOCAL_FAIL) {
 			(void)set_wheel_angle(cmd.steer);
 		}
 		wcet_end(WCET_ACT, w0);
