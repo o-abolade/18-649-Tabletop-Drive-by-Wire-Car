@@ -191,7 +191,7 @@ CMD_TX pulse, so UDP_RX's rising edge to CMD_TX is the Pi stage of the brake cha
 cd lab3_CAN/pi_cockpit
 make                     # needs libgpiod v2 (same as Lab 2's pi_bridge)
 ./can_up.sh              # after every reboot
-./cockpit                # or: sudo ./cockpit --rt  (CPU 3, SCHED_FIFO 80; Part 3 latency runs)
+sudo ./cockpit           # sudo: TX watchdog can reset a stuck interface; add --rt for Part 3 latency runs
 ```
 
 While it runs, type `b` + Enter to send **one** out-of-range CTRL (throttle 150)
@@ -235,7 +235,7 @@ for the bad-input demo, `s` to toggle the status line, `q` to quit.
 - **Brief NORMAL → ERROR blips, `CTRL stale, age ~105 ms`:** wheel UDP delayed by Wi-Fi (max gaps 85–139 ms; Pi Wi-Fi power save made it worse, now turned off by `can_up.sh`). **Use an Ethernet cable laptop ↔ Pi for the checkoff.**
 - Pulling a jumper mid-frame causes up to ~140 ms of CTRL disruption on the other nodes while both buses retransmit; steady state afterwards is normal (~40 ms max gap).
 - With no motors/encoders connected, N3's PID trim saturates, so PWM duty sits at 100 % while driving. Expected on a bare board.
-- The Pi's `can1` TX once hung with "No buffer space available" after many no-ACK episodes (re-flashing the Nucleos); `./can_up.sh` cleared it. Not reproduced by jumper pulls.
+- **Pi TX hang (twice):** the `mcp251x` driver's TX queue stopped draining for good ("No buffer space available") while RX on the same interface still worked: `can1` after re-flashing the Nucleos, then `can0` during the whole-bus-A test, which cut the Pi off from every node. `can0` stats: error-passive 18×, bus-off 0×, so it follows repeated no-ACK episodes, not bus-off. **Fix: the cockpit's TX watchdog** resets an interface whose writes have all failed for 200 ms while N2/N3 are still heard on it (at most once per second). **Run the cockpit with `sudo ./cockpit`** so it can do the reset; without root it only prints a warning.
 - Terminal output can stall the cockpit (one ~6 s freeze while copying text); turn the status line off with `s` during timing runs.
 
 ## Building
