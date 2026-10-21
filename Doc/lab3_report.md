@@ -1,138 +1,313 @@
 
-## Section 3 ## 
+## Section 3 ##
 
-### Node 2 RTA 
+Every number below is labeled **measured** (with the method) or **assumed**
+(with the reason). Times are in µs unless marked ms. The calculations were
+run with a small script that iterates the equations below until they
+converge, so the R values are exact for the stated inputs.
 
-| Task | Kind | Priority level | Zephyr prio | C | T (min) | D (local) | B | R | Meets D? |
-| -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
-| TEST_BTN (GPIO ISR with debounce) | ISR | Hardware | n/a | 20 µs | 50 ms | 10 ms | 0 | 20 µs | Yes |
-| CAN_RX_A, CAN_RX_B (INT ISR + driver thread + dispatch) | Thread | 1 | 0 | 80 µs per frame | 20 ms per message | 0.3 ms | 60 µs | 160 µs | Yes (slack 140 µs) |
-| BLINK_F | Thread | 2 | 1 | 20 µs | 20 ms | 0.5 ms | 60 µs | 180 µs | Yes (slack 320 µs) |
-| STEER | Thread | 3 | 2 | 50 µs | 20 ms | 1 ms | 60 µs | 310 µs | Yes (slack 690 µs) |
-| HB_MON | Thread | 4 | 3 | 30 µs | 20 ms | 20 ms | 60 µs | 540 µs | Yes |
-| HB_TX | Thread | 4 | 3 | 120 µs | 20 ms | 20 ms | 60 µs | 540 µs | Yes |
-| FORCE_TX | Thread | 5 | 4 | 120 µs | 50 ms | 50 ms | 0 | 600 µs | Yes |
+### 3.1 Node response-time analysis (N2, N3)
 
-C, T and D are the handout's placeholders. Replace C with measured values.
+#### How C was measured
+
+- **Method (measured): Zephyr thread runtime statistics.** At the start and
+  end of each job, the firmware reads the current thread's accumulated
+  execution cycles (`k_thread_runtime_stats_get`, 84 MHz cycle counter;
+  `common/zephyr/wcet.c`). The difference is the time that thread itself
+  ran, so preemption by other threads is excluded. Any ISR that ran during
+  the job is charged to the thread, so ISR time is included (conservative).
+  Each zone keeps the maximum per task since boot and prints it every 5 s.
+- **Load during the runs:** full system on hardware (Pi cockpit with `--rt`,
+  wheel proxy at 50 packets/s, both buses), while exercising throttle, brake,
+  steering, both blinkers and hazard, the test button (single and double
+  press), bad-input injection and bus-jumper pulls. A second run was taken on
+  the final firmware (below). Each C is the **largest value seen in either
+  run**. The job count is the number of jobs in the run that produced that
+  maximum.
+- **MCP2515 driver work per frame (`DRV_FRAME`).** The Zephyr MCP2515 driver
+  reads the chip from its own cooperative thread (`K_PRIO_COOP(2)`), and our
+  dispatch (`RX_DISPATCH`) runs inside that thread. `DRV_FRAME` is the
+  driver thread's run time from the end of one `RX_DISPATCH` to the start of
+  the next on the same bus. That covers the driver's SPI reads for the next
+  frame, plus any TX-done or error handling in between.
+  - **Per-frame cost:** `C_ev = DRV_FRAME + RX_DISPATCH`.
+  - **Why it is so large (measured):** one 3-byte SPI register read takes
+    **30 µs**, against 4.6 µs of wire time at 5.25 MHz (timed in the init
+    probe, `can_link.c`). A frame needs 3–4 such polled transactions, so
+    per-transaction driver overhead dominates.
+- **Some numbers include fixed extras (conservative):**
+  - `RX_DISPATCH` and `RELAY` include the ≥10 µs test-point pulse.
+  - `HB_MON` and `TEST_BTN` include a `printk` on state changes. With
+    deferred logging, that cost is only formatting into the log buffer.
+- **`TEST_BTN` has only 3 jobs** (presses). That max is a weak sample.
+
+| Task | Zone | C max (measured) | Jobs | Notes |
+|---|---|---:|---:|---|
+| C_ev = DRV_FRAME + RX_DISPATCH | N2 | 435.1 + 50.9 = **486.0** | 19 288 / 95 367 | DRV_FRAME max came from the final run |
+| C_ev = DRV_FRAME + RX_DISPATCH | N3 | 249.6 + 50.1 = **299.7** | 80 368 / 145 575 | |
+| CAN_TX (one frame into the MCP2515) | N2 / N3 | 155.8 / 144.2 | 99 681 / 36 274 | time asleep waiting for the TX buffer not counted |
+| RELAY | N2 | 54.5 | 61 966 | |
+| STEER / DRIVE | N2 / N3 | 37.8 / 95.8 | 20 805 / 8 056 | |
+| BLINK_F / BLINK_R | N2 / N3 | 25.6 / 30.5 | 25 / 307 | |
+| TEST_BTN (thread) | N2 / N3 | 65.5 / 111.3 | 3 / 3 | accepted presses |
+| PID | N3 | 112.3 | 36 520 | |
+| HB_MON | N2 / N3 | 120.1 / 192.1 | 42 023 / 36 520 | |
+| HB_TX | N2 / N3 | 64.6 / 55.6 | 3 252 / 8 256 | |
+| FORCE_TX | N2 | 64.7 | 8 404 | |
+| STATE_SPI (scheduler locked) | N2 / N3 | 82.8 / 100.9 | 130 / 330 | the only non-preemptible section below CAN_TX |
+| MCP2515 thread longest single run | N2 / N3 | 348.9 / 348.6 | — | Zephyr `peak_cycles`; one wake-up may serve several frames |
+
+#### Task set and priorities (from `common/zephyr/zone_config.h`)
+
+Zephyr: a lower number means a higher priority. Cooperative threads outrank
+all preemptive ones and are not preempted by them.
+
+| Prio | Task | Release | T (min) |
+|---|---|---|---|
+| coop 2 | MCP2515 driver thread ×2 (one per bus): SPI read + `RX_DISPATCH` | every frame on its bus (RX, or TX-done of our own frame) | 222 µs per bus |
+| 0 | CAN_TX ×2: per-bus queue sorted by CAN ID → the MCP2515's single TX buffer | each frame this zone sends | 222 µs per bus |
+| 1 | RELAY (N2) | each relayed frame | ≤ 6 per 20 ms |
+| 2 | STEER (N2) / DRIVE (N3) | CTRL | 20 ms |
+| 3 | BLINK_F / BLINK_R | BLINK (hazard: 250 ms) | 20 ms |
+| 4 | TEST_BTN (thread; the ISR only gives a semaphore) | button press | 50 ms (debounce) |
+| 5 | PID (N3) | timer | 10 ms |
+| 6 | HB_MON | timer (and early on FAULT / bad CTRL) | 10 ms |
+| 7 | HB_TX | timer | 20 ms |
+| 8 | FORCE_TX (N2) | timer | 50 ms |
+| lowest | `main` status print | timer | 1 s |
 
 #### Assumptions
 
-- **Bus Interference** In a response window of length R, the number of CAN_RX jobs that can interfere is n(R) = min(cap, ceil(R / 222 µs)), each costing 80 µs.
-  - **222 µs is the minimum spacing between frames on one bus.** It is the shortest DLC 8 frame with no stuffing, (47 + 64) bits x 2 µs, including interframe space. (The stuffed worst case, 270 µs, is the maximum frame time and is not a valid minimum spacing.)
-  - **cap = 4 for tasks released by a received frame** (BLINK_F, STEER). The frame that released the task has already been processed, so only the other four message types can interfere.
-  - **cap = 5 for timer-released tasks** (HB_MON, HB_TX, FORCE_TX). N2 receives CTRL, FAULT, HB_N1, HB_N3 and BLINK, each at most once per 20 ms. Check this against your hardware filters.
-- **CAN_RX own response (per frame) = C + B + ISR.** Frames are at least 222 µs apart and 160 µs < 222 µs, so the thread is idle before the next frame arrives and doesn't queue behind other frames.
-- **Blocking B = 60 µs.** The SPI lock is taken per transaction, one transaction is 60 µs (half of the 120 µs two-bus placeholder), and Zephyr mutex priority inheritance applies. B applies to CAN_RX, BLINK_F, STEER and HB_MON (blocked by HB_TX or FORCE_TX holding the lock) and to HB_TX (blocked by FORCE_TX). FORCE_TX is lowest, so B = 0. If one lock is held across both transactions, B = 120 µs.
-- **TEST_BTN is an ISR (debounce inside it).** It is 20 µs of interference in every thread's sum, not blocking.
-- **Equal-priority tasks (HB_MON and HB_TX)** don't preempt each other, so each includes the other's full C.
-- **Zephyr numbering starts at 0.** Confirm the MCP2515 driver work thread priority (Kconfig) ends up at 0
+1. **CAN frame events (assumed, catalog maxima).** Every frame on a bus
+   costs each zone one driver event: an RX, or a TX-done for its own frame.
+   - **Per bus per 20 ms, original frames:**
+     - N1: CTRL, HB_N1, BLINK, FAULT;
+     - N2: HB_N2, FAULT, FORCE;
+     - N3: HB_N3, FAULT.
+   - **Relayed copies:** N2 relays each N1/N3 message once, onto the bus it
+     didn't arrive on. That is ≤ 6 per 20 ms, and all 6 can land on the same
+     bus.
+   - **Totals:** a zone sees ≤ 24 events per 20 ms over both buses, and
+     ≤ 15 on the busier bus.
+   - **Spacing:** events on one bus are ≥ 222 µs apart. That is the shortest
+     DLC-8 frame: 111 bits × 2 µs, no stuffing, interframe space included.
+   - **Event count in a window w:** `E(w) = min(2·⌈w/222⌉, 24·⌈w/20 ms⌉)`.
+   - **Own frames sent (CAN_TX jobs):** N2 sends 12 per 20 ms (HB, FAULT,
+     FORCE on both buses + 6 relays); N3 sends 4.
+2. **Blocking B (measured):**
+   - **SPI lock.** It is a `k_sem`, with no priority inheritance. The only
+     lower-priority SPI user is the status print. It now reads the
+     controllers with the scheduler locked, so it blocks every thread at
+     most once, for `STATE_SPI`.
+   - **`motor_lock` on N3.** It is a `k_mutex`, with priority inheritance.
+     Its users below DRIVE are TEST_BTN, PID and HB_MON (through the
+     safe-state hook) and `main` (copying 4 values). DRIVE, BLINK_R and
+     TEST_BTN can be blocked once by the longest of those critical sections,
+     bounded here by the whole job C of HB_MON (192.1). PID is blocked by at
+     most HB_MON.
+3. **ISRs (assumed short):** the INT, button and timer ISRs only give a
+   semaphore. ISR time is charged to whatever thread is running, so it is
+   already inside the measured C values. No separate term is added.
+4. **Releases tied to the triggering frame:** for STEER, DRIVE, BLINK and
+   RELAY, R is measured from the **end of the triggering frame on the bus**,
+   so it includes that frame's own driver event. The chains in 3.3 therefore
+   add R directly, with no separate CAN_RX stage.
+5. **Local deadlines** are derived from the requirements: the chain budget
+   left after the upstream stages, or the task's period when it has no
+   chain.
 
-#### Calculations
+#### Equation
 
-R_i = C_i + B_i + ISR (20) + n(R_i) * 80 + sum of the other higher-priority tasks' C. Units are µs.
+`R_i = C_i + B_i + E(R_i)·C_ev + N_tx(R_i)·C_CAN_TX [+ N_relay(R_i)·C_RELAY on N2] + Σ_{hp j} ⌈R_i/T_j⌉·C_j`
 
-- **CAN_RX:** R0 = 80 + 60 = 140. R1 = 140 + 20 (ISR) = 160. R2 = 160. Converged.
-- **BLINK_F (cap 4):** R0 = 20 + 60 = 80. n = 1, so R1 = 80 + 20 + 80 = 180. n = ceil(180/222) = 1, so R2 = 180. Converged.
-- **STEER (cap 4):** R0 = 50 + 60 = 110. n = 1, so R1 = 110 + 20 + 80 + 20 (BLINK_F) = 230. n = ceil(230/222) = 2, so R2 = 110 + 20 + 160 + 20 = 310. n = ceil(310/222) = 2, so R3 = 310. Converged.
-- **HB_MON (cap 5):** other terms = 30 + 60 (B) + 20 (ISR) + 20 (BLINK_F) + 50 (STEER) + 120 (HB_TX) = 300. R0 = 90. n = 1, so R1 = 380. n = 2, so R2 = 460. n = 3, so R3 = 540. n = ceil(540/222) = 3, so R4 = 540. Converged.
-- **HB_TX (cap 5):** other terms = 120 + 60 + 20 + 20 + 50 + 30 (HB_MON) = 300. R0 = 180. n = 1, so R1 = 380. n = 2, so R2 = 460. n = 3, so R3 = 540. Converged at 540.
-- **FORCE_TX (cap 5):** other terms = 120 + 0 + 20 + 20 + 50 + 30 + 120 (HB_TX) = 360. R0 = 120. n = 1, so R1 = 440. n = 2, so R2 = 520. n = 3, so R3 = 600. n = ceil(600/222) = 3, so R4 = 600. Converged.
+The event terms drive the result:
+- A zone's per-frame driver cost (300–486 µs) is larger than the 222 µs
+  minimum spacing between frames on one bus, and two buses feed it.
+- So during a worst-case burst the driver threads alone need more than 100 %
+  of the CPU, and every preemptive task waits until the burst's 24 events
+  are served (24 × 486 = 11.7 ms on N2, 24 × 300 = 7.2 ms on N3).
+- Long-run utilization is still below 1: about 75 % on N2 and 45 % on N3.
 
-### Node 3 RTA 
+#### Node 2 (steering)
 
-| Task | Kind | Priority level | Zephyr prio | C | T (min) | D (local) | B | R | Meets D? |
-| -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
-| TEST_BTN (GPIO ISR with debounce) | ISR | Hardware | n/a | 20 µs | 50 ms | 10 ms | 0 | 20 µs | Yes |
-| CAN_RX_A, CAN_RX_B (INT ISR + driver thread + dispatch) | Thread | 1 | 0 | 80 µs per frame | 20 ms per message | 0.3 ms | 60 µs | 160 µs | Yes (slack 140 µs) |
-| DRIVE | Thread | 2 | 1 | 50 µs | 20 ms | 0.5 ms | 60 µs | 210 µs | Yes (slack 290 µs) |
-| BLINK_R | Thread | 3 | 2 | 20 µs | 20 ms | 0.5 ms | 60 µs | 310 µs | Yes (slack 190 µs) |
-| PID | Thread | 4 | 3 | 200 µs | 10 ms | 10 ms | 60 µs | 590 µs | Yes |
-| HB_MON | Thread | 5 | 4 | 30 µs | 20 ms | 20 ms | 0 | 760 µs | Yes |
-| HB_TX | Thread | 5 | 4 | 120 µs | 20 ms | 20 ms | 0 | 760 µs | Yes |
+| Task | Prio | C (measured) | T | B (measured) | D (local) | R | Meets D? |
+|---|---|---:|---:|---:|---:|---:|---|
+| CAN_RX (one frame) | coop 2 | 486.0 | 222 µs/bus | 82.8 | 444 µs (2 RX buffers) | 11.75 ms | **No.** In a worst-case burst more than 2 frames can wait per controller, so frames can be lost on one bus. The duplicate on the other bus is then the copy that gets through |
+| CAN_TX | 0 | 155.8 | per frame | 82.8 | 20 ms | 12.06 ms | Yes: feeds J in 3.2 |
+| RELAY | 1 | 54.5 | ≤ 6 / 20 ms | 82.8 | 20 ms | 13.67 ms | Yes, but the relayed brake chain fails (3.3) |
+| STEER | 2 | 37.8 | 20 ms | 82.8 | 48.1 ms (50 ms − R_CTRL) | 13.98 ms | Yes, 34 ms slack |
+| BLINK_F | 3 | 25.6 | 20 ms | 82.8 | 1 ms (sync) | 14.01 ms | **No:** waits behind the CAN burst |
+| TEST_BTN | 4 | 65.5 | 50 ms | 82.8 | 10 ms (R2.5) | 14.07 ms | **No:** waits behind the CAN burst |
+| HB_MON | 6 | 120.1 | 10 ms | 82.8 | 10 ms (period) | 14.19 ms | **No:** a poll can slip by one period. The error chain still meets (3.3) |
+| HB_TX | 7 | 64.6 | 20 ms | 82.8 | 20 ms | 14.38 ms | Yes |
+| FORCE_TX | 8 | 64.7 | 50 ms | 82.8 | 50 ms | 14.44 ms | Yes |
 
-Same assumptions apply as for RTA for Node 2
+#### Node 3 (drivetrain)
 
-#### Calculations
+| Task | Prio | C (measured) | T | B (measured) | D (local) | R | Meets D? |
+|---|---|---:|---:|---:|---:|---:|---|
+| CAN_RX (one frame) | coop 2 | 299.7 | 222 µs/bus | 100.9 | 444 µs (2 RX buffers) | 7.29 ms | **No:** same as N2 |
+| CAN_TX | 0 | 144.2 | per frame | 100.9 | 20 ms | 7.58 ms | Yes: feeds J in 3.2 |
+| DRIVE | 2 | 95.8 | 20 ms | 100.9 + 192.1 | 0.25 ms (2 ms − R_CTRL) | 8.16 ms | **No:** the brake/throttle chain fails by analysis (3.3) |
+| BLINK_R | 3 | 30.5 | 20 ms | 100.9 + 192.1 | 1 ms (sync) | 8.19 ms | **No** |
+| TEST_BTN | 4 | 111.3 | 50 ms | 100.9 + 192.1 | 10 ms (R2.5) | 8.30 ms | Yes, 1.7 ms slack |
+| PID | 5 | 112.3 | 10 ms | 100.9 + 192.1 | 10 ms | 8.41 ms | Yes |
+| HB_MON | 6 | 192.1 | 10 ms | 100.9 | 10 ms | 8.41 ms | Yes |
+| HB_TX | 7 | 55.6 | 20 ms | 100.9 | 20 ms | 8.47 ms | Yes |
 
-R_i = C_i + B_i + ISR (20) + n(R_i) * 80 + sum of the other higher-priority tasks' C. Units are µs.
+#### Changes made because of these measurements
 
-- **CAN_RX:** R0 = 80 + 60 = 140. R1 = 140 + 20 (ISR) = 160. R2 = 160. Converged.
-- **DRIVE (cap 4):** R0 = 50 + 60 = 110. n = 1, so R1 = 110 + 20 + 80 = 210. n = ceil(210/222) = 1, so R2 = 210. Converged.
-- **BLINK_R (cap 4):** R0 = 20 + 60 = 80. n = 1, so R1 = 80 + 20 + 80 + 50 (DRIVE) = 230. n = ceil(230/222) = 2, so R2 = 80 + 20 + 160 + 50 = 310. n = ceil(310/222) = 2, so R3 = 310. Converged.
-- **PID (cap 5):** other terms = 200 + 60 (B) + 20 (ISR) + 50 (DRIVE) + 20 (BLINK_R) = 350. R0 = 260. n = ceil(260/222) = 2, so R1 = 510. n = 3, so R2 = 590. n = ceil(590/222) = 3, so R3 = 590. Converged.
-- **HB_MON (cap 5):** other terms = 30 + 0 (B) + 20 + 50 + 20 + 200 (PID) + 120 (HB_TX) = 440. R0 = 30. n = 1, so R1 = 520. n = 3, so R2 = 680. n = 4, so R3 = 760. n = ceil(760/222) = 4, so R4 = 760. Converged.
-- **HB_TX (cap 5):** other terms = 120 + 0 + 20 + 50 + 20 + 200 + 30 (HB_MON) = 440. R0 = 120. n = 1, so R1 = 520. n = 3, so R2 = 680. n = 4, so R3 = 760. Converged at 760.
+The first WCET run showed that the `main` status print took up to **1.2 ms**
+(measured) at Zephyr's default main priority 0. That is above STEER/DRIVE,
+once a second. Fixed on both zones:
+
+1. `main` drops to the lowest priority after init.
+2. Its two controller-state SPI reads run with the scheduler locked. A
+   preempted `main` could otherwise hold the SPI semaphore while
+   middle-priority threads ran, which is unbounded priority inversion,
+   since a `k_sem` has no inheritance.
+3. N3 copies the drive state under `motor_lock` and prints after releasing
+   it.
+4. The WCET print walks threads with `k_thread_foreach_unlocked`, so
+   interrupts are never off during `printk`.
 
 ### 3.2 CAN message response times
 
-This is the single-bus case.  Every catalog message has DLC 8, so the
-worst-case transmission time is 270 us at 500 kbit/s (including worst-case
-bit stuffing).  CAN arbitration is fixed-priority and non-preemptive: a
-smaller identifier has higher priority, and a message can be blocked once by
-one lower-priority frame already on the wire.
+#### Model
 
-The release jitter `J` is the maximum delay from a message's trigger until
-its sender queues it.  The STM32 values below are the response times from
-Section 3.1.  `J_PI = 300 us` is an **assumption for this draft**, not a
-measurement; it must be replaced by the maximum scoped `UDP_RX`-to-`CMD_TX`
-latency before checkoff.  The FAULT row uses the conservative maximum of the
-possible sender jitters, 300 us.
+- **Bus:** 500 kbit/s, every catalog frame DLC 8. Worst-case frame time
+  **C = 270 µs** (assumed: computed, 135 bits with worst-case stuffing).
+- **Worst-case bus:** the table is for the busier bus, the one carrying all
+  6 relayed copies (15 frames per 20 ms). The other bus carries a subset of
+  these frames, so its R values are smaller.
 
-For a message `m`, the queuing delay is:
+#### Equations
 
-`w_m = B_m + sum(ceil((w_m + J_j + 2 us) / T_j) * C_j)` for every
-higher-priority message `j`, and `R_m = J_m + w_m + C_m`.
+`w_m = B_m + Σ_{j ∈ hp(m)} ⌈(w_m + J_j + 2 µs)/T_j⌉ · C_j`
 
-All response windows are below 2.5 ms, so every higher-priority 20 ms or
-50 ms message can arrive at most once in each window.  Thus each table value
-converges after the first iteration.  `B = 270 us` for every row except
-FORCE, which has no lower-priority message and therefore has `B = 0`.
+`R_m = J_m + w_m + C_m`
 
-| ID | Message | T (min) | J | C | B | w | R | D | Meets D? |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 0x010 | CTRL | 20 ms | 300 us assumed (`J_PI`) | 270 us | 270 us | 270 us | 840 us | 2 ms | Yes |
-| 0x020 | FAULT | 20 ms | 300 us assumed (max sender) | 270 us | 270 us | 540 us | 1.11 ms | 100 ms | Yes |
-| 0x100 | HB_N1 | 20 ms | 300 us assumed (`J_PI`) | 270 us | 270 us | 810 us | 1.38 ms | 20 ms | Yes |
-| 0x101 | HB_N2 | 20 ms | 540 us (N2 HB_TX R) | 270 us | 270 us | 1.08 ms | 1.89 ms | 20 ms | Yes |
-| 0x102 | HB_N3 | 20 ms | 760 us (N3 HB_TX R) | 270 us | 270 us | 1.35 ms | 2.38 ms | 20 ms | Yes |
-| 0x200 | BLINK | 20 ms | 300 us assumed (`J_PI`) | 270 us | 270 us | 1.62 ms | 2.19 ms | 100 ms | Yes |
-| 0x300 | FORCE | 50 ms | 600 us (N2 FORCE_TX R) | 270 us | 0 us | 1.62 ms | 2.49 ms | 50 ms | Yes |
+The terms:
+- **hp(m):** frames with a lower ID. It also includes the other streams with
+  the **same** ID (a relayed copy, or another zone's FAULT). Those are
+  counted conservatively as interference.
+- **B_m = bus blocking + local blocking.**
+  - **Bus blocking:** one lower-priority frame already on the wire, 270 µs.
+    It is 0 for FORCE, which has no lower-priority frame.
+  - **Local blocking (STM32):** the MCP2515 uses **one TX buffer**, so one
+    of the sender's own lower-priority frames may already be in it: 270 µs,
+    if the sender has a lower-priority frame. Measured on hardware: with a
+    queue that didn't sort by ID, N2 dropped about 10 frames/s.
+  - **Local blocking (Pi):** `mcp251x` also sends one frame at a time, and
+    its default qdisc is FIFO. So up to all of N1's other frames can be
+    ahead of the message: 270 µs each (assumed: qdisc behavior, not scoped).
+- **J (release jitter):**
+  - **N1 messages:** `J_PI` = **126.5 µs, measured**. That is the maximum
+    Pi `UDP_RX` → `CMD_TX` delay over 3000 samples with `cockpit --rt`
+    (SCHED_FIFO 80, CPU 3; photo 6). The maximum was 82 µs under
+    `stress --cpu 4 --io 2` (photo 7). The same value is assumed for
+    HB_N1, BLINK and FAULT_N1, which come from the same thread.
+  - **Zone messages:** the R of the sending task (3.1). That R includes
+    CAN_TX and the TX-done handling that frees the buffer.
+  - **Relayed copies:** `J_relay = R_CTRL + R_RELAY` = 1.75 + 13.67 =
+    15.4 ms. That is the original on the other bus plus N2's relay stage.
 
-At the specified minimum interarrivals, one bus has six 20 ms frames
-(CTRL, FAULT, three heartbeats, and BLINK) and one 50 ms FORCE frame:
+#### Results
 
-`U = 6 * 270 us / 20 ms + 270 us / 50 ms = 8.64%`.
+| ID | Message (sender) | T | J | B | w | R | D | Meets D? |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| 0x010 | CTRL (N1) | 20 ms | 126.5 µs (measured) | 270 + 3×270 | 1.35 ms | **1.75 ms** | 2 ms | Yes on its own. The full chain fails (3.3) |
+| 0x010 | CTRL' (N2 relay) | 20 ms | 15.4 ms | 270 + 270 | 0.81 ms | 16.5 ms | — | used in the relayed chain (3.3) |
+| 0x020 | FAULT_N1 | 20 ms | 126.5 µs | 270 + 2×270 | 2.43 ms | 2.83 ms | 100 ms | Yes |
+| 0x020 | FAULT_N2 | 20 ms | 14.19 ms (N2 HB_MON) | 270 + 270 | 2.16 ms | 16.6 ms | 100 ms | Yes |
+| 0x020 | FAULT_N3 | 20 ms | 8.41 ms (N3 HB_MON) | 270 + 270 | 2.16 ms | 10.8 ms | 100 ms | Yes |
+| 0x020 | FAULT_N1' / FAULT_N3' (relay) | 20 ms | 15.4 ms | 270 + 270 | 2.16 ms | 17.8 ms | 100 ms | Yes |
+| 0x100 | HB_N1 | 20 ms | 126.5 µs | 270 + 270 | 2.70 ms | 3.10 ms | 20 ms | Yes |
+| 0x100 | HB_N1' (relay) | 20 ms | 15.4 ms | 270 + 270 | 2.70 ms | 18.4 ms | 20 ms | Yes, 1.6 ms slack |
+| 0x101 | HB_N2 | 20 ms | 14.38 ms (N2 HB_TX) | 270 + 270 | 2.97 ms | 17.6 ms | 20 ms | Yes, 2.4 ms slack |
+| 0x102 | HB_N3 | 20 ms | 8.47 ms (N3 HB_TX) | 270 | 3.24 ms | 12.0 ms | 20 ms | Yes |
+| 0x102 | HB_N3' (relay) | 20 ms | 15.4 ms | 270 + 270 | 3.51 ms | 19.2 ms | 20 ms | Yes, 0.8 ms slack |
+| 0x200 | BLINK (N1) | 20 ms | 126.5 µs | 270 | 3.78 ms | 4.18 ms | 100 ms | Yes |
+| 0x200 | BLINK' (relay) | 20 ms | 15.4 ms | 270 + 270 | 4.05 ms | 19.7 ms | 100 ms | Yes |
+| 0x300 | FORCE (N2) | 50 ms | 14.44 ms (N2 FORCE_TX) | 0 | 3.78 ms | 18.5 ms | 50 ms | Yes |
 
-This is below R4.6's 50% per-bus utilization limit.  These results assume
-FAULT and BLINK are rate-limited to their catalog 20 ms minimum, and that the
-MCP2515/driver does not introduce an additional multi-frame local-TX queue.
-The latter must be checked on hardware because the implemented driver exposes
-one transmit buffer at a time.
+#### Bus utilization (R4.6, ≤ 50 % per bus)
+
+- **Busier bus:** 14 frames per 20 ms plus FORCE per 50 ms:
+  `U = 14·270/20 000 + 270/50 000 = 19.4 %`.
+- **Other bus:** `U = 8·270/20 000 + 270/50 000 = 11.3 %`.
+- **Verdict: both meet.**
+
+#### Same-ID frames (assumption)
+
+Several messages share an ID: FAULT from three senders, and every relayed
+copy has the same ID as its original. If two of these started arbitration
+at the same bit, they would collide in the data field. That would cause an
+error frame and a retry.
+
+The analysis assumes they never start together:
+- A relayed copy goes out at least one N2 receive-and-relay delay after the
+  original (474 µs in photo 4).
+- FAULTs are rare events.
+
+Every run in this lab showed TEC = REC = 0 on both buses, for every node.
 
 ### 3.3 End-to-end chains
 
-The following chains use the Section 3.1 node response times and the
-single-bus message responses above.  Values remain an analysis using the
-handout WCET placeholders.  In particular, the 300 us Pi stage is assumed;
-the final report must replace it with the maximum measured Pi latency under
-the stated test load.
+#### How the chains are built
 
-| Chain | Worst-case path and calculation | Bound | Deadline | Verdict |
-| --- | --- | ---: | ---: | --- |
-| Brake / throttle | `UDP_RX -> CTRL_TX` and CTRL bus response: `R_CTRL = 840 us`; N3 `CAN_RX = 160 us`; N3 `DRIVE = 210 us`. `840 + 160 + 210` | 1.21 ms | 2 ms | Meets, with 790 us slack under the assumed Pi value |
-| Steering | `R_CTRL = 840 us`; N2 `CAN_RX = 160 us`; N2 `STEER = 310 us`. `840 + 160 + 310` | 1.31 ms | 50 ms | Meets |
-| Blinker start (front) | `R_BLINK = 2.19 ms`; N2 `CAN_RX = 160 us`; N2 `BLINK_F = 180 us`. `2.19 + 0.160 + 0.180` | 2.53 ms | 100 ms | Meets |
-| Blinker start (rear) | `R_BLINK = 2.19 ms`; N3 `CAN_RX = 160 us`; N3 `BLINK_R = 310 us`. `2.19 + 0.160 + 0.310` | 2.66 ms | 100 ms | Meets |
-| Blinker synchronization | A shared BLINK frame arrives at both STM32s at the same bus instant.  The local receive-to-edge bounds are N2: `160 + 180 = 340 us`; N3: `160 + 310 = 470 us`.  With no lower bound other than zero, the conservative edge offset is `max(340, 470)`. | 470 us | 1 ms | Meets, with 530 us slack |
-| Error propagation | N2 `TEST_BTN` local fail: 20 us; three 20 ms heartbeat periods: 60 ms; worst phase to the next 20 ms `HB_MON` poll: 20 ms; N3 `HB_MON` response: 760 us. `0.020 + 60 + 20 + 0.760` | 80.78 ms | 100 ms | Meets |
+- **Bound:** the sum of the stage bounds above. Node stages are measured
+  from the end of the triggering frame on the bus, so CAN_RX isn't added
+  twice.
+- **Measured:** the maximum over repeated scope captures. Photos 1–5 are
+  from the scope capture log in `lab3_CAN/Progress_doc_lab3.md`. They were
+  taken **without** `--rt` on the Pi (Pi stage up to about 443 µs instead of
+  126.5 µs), so they are conservative.
 
-The brake chain is the limiting normal-operation chain.  Its STM32 and CAN
-portion is 910 us, leaving at most 1.09 ms for the measured Pi
-`UDP_RX`-to-CTRL-queue stage.  If the measured maximum exceeds 1.09 ms, the
-single-bus brake requirement is not met; the remedy is to bound the Pi path
-(for example, pinned `SCHED_FIFO` execution and a measured load test) or
-reduce the receiving-node/CAN path.  The error-chain bound includes the
-worst-case heartbeat-monitor polling phase; it assumes the local fail handler
-suppresses heartbeat transmission immediately.
+#### Results
 
+| Chain | Path and calculation (bound) | Bound | Measured (max) | Deadline | Verdict |
+|---|---|---:|---:|---:|---|
+| Brake (R2.2) | R_CTRL 1.75 + N3 DRIVE 8.16 | 9.90 ms | **940 µs** (photo 1, 15 captures, UDP_RX → DIR_A) | 2 ms | **Doesn't meet by analysis; meets as measured** (see below) |
+| Throttle (R2.1) | same as brake | 9.90 ms | **626 µs** (photo 2, 10 captures, UDP_RX → PWM_SET) | 2 ms | **Doesn't meet by analysis; meets as measured** |
+| Brake via relay, scenario (c) | R_CTRL 1.75 + N2 RELAY 13.67 + CTRL' on the other bus (w + C) 1.08 + N3 DRIVE 8.16 | 24.7 ms | **1.1 ms** (photo 3, 10 captures); relay stage 607 µs (photo 4) | 2 ms | **Doesn't meet by analysis; meets as measured** |
+| Steering | R_CTRL 1.75 + N2 STEER 13.98 | 15.7 ms | not scoped | 50 ms | **Meets**, 34 ms slack |
+| Blinker start, front / rear | R_BLINK 4.18 + BLINK_F 14.01 / BLINK_R 8.19 | 18.2 / 12.4 ms | not scoped (functional pass) | 100 ms | **Meets** |
+| Blinker synchronization (R2.4) | Edge offset ≤ max local R (14.01) + skew between the first copies each zone accepts (R_BLINK − C = 3.91). N2 and N3 can accept copies from different buses, and each copy arbitrates on its own bus | 17.9 ms | **768 µs** (photo 5, 10 edges, FL vs RL) | 1 ms | **Doesn't meet by analysis; meets as measured, with only 232 µs margin** |
+| Local fail (R2.5), N2 / N3 | TEST_BTN R | 14.1 / 8.3 ms | not scoped (functional pass) | 10 ms | **N2 doesn't meet by analysis; N3 meets** |
+| Error propagation, test button (FAULT path) | press → TEST_BTN → HB_MON sends FAULT → bus → other zone's HB_MON. N2 → N3: 14.07 + 14.19 + 2.43 + 8.41; N3 → N2: 8.30 + 8.41 + 2.43 + 14.19 | 39.1 / 33.3 ms | not scoped (functional pass) | 100 ms | **Meets** |
+| Error propagation, zone dies silently (heartbeat path) | last HB message R + 60 ms timeout + 10 ms poll phase + HB_MON R. N2 dies: 17.6 + 60 + 10 + 8.41; N3 dies: 12.0 + 60 + 10 + 14.19 | 96.0 / 96.2 ms | not scoped (bus pulls: functional pass) | 100 ms | **Meets**, about 4 ms slack |
 
+#### Why the analysis and the measurements disagree
+
+- **Cause of the failing bounds:** the MCP2515 driver's per-frame CPU cost
+  (measured 300 µs on N3, 486 µs on N2) is larger than the frame spacing
+  (222 µs), and each zone listens to two buses. A worst-case burst of 24
+  frames therefore holds off every task for 7–12 ms.
+- **What the burst needs:** CTRL has to coincide with all three heartbeats,
+  a BLINK, FAULTs from every zone and all six relayed copies. These are
+  independent 20 ms streams on different clocks, so such an alignment is
+  rare.
+- **Why the captures missed it:** 10–15 captures per chain saw typical
+  phasing, where one or two frames compete.
+- **Why it still counts:** the node clocks drift relative to each other, so
+  every phase alignment does eventually occur. **The measured values show
+  normal behavior; they don't guarantee the deadline.** Without FAULT
+  traffic (normal operation: 16 events per 20 ms instead of 24), the
+  DRIVE bound falls to 5.8 ms. That still exceeds 2 ms.
+
+#### Remedies (not implemented)
+
+1. **Cut the driver's per-frame cost.** This is the dominant term: 30 µs
+   per 3-byte SPI transaction against 4.6 µs on the wire. Options:
+   - a leaner MCP2515 receive path: read `READ RX BUFFER` directly on each
+     RXnIF, without re-reading CANINTF;
+   - SPI DMA;
+   - hardware acceptance filters, so frames a zone doesn't need never wake
+     it. The Zephyr driver filters only in software.
+2. **Relay only after a bus is seen degraded**, instead of always. That
+   cuts 6 of the 24 events per 20 ms, but delays the first relayed frame by
+   the 60 ms detection time.
+3. **Pi: a priority qdisc** with CTRL in the top band, so CTRL never waits
+   behind N1's own HB/BLINK/FAULT. Local blocking would drop from 810 µs
+   to 0, and R_CTRL from 1.75 ms to 0.94 ms.
