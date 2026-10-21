@@ -7,7 +7,7 @@
 | STM32F401RET6TR | 2 | STM 32 Controller | In Docs | Y | - | - |
 | ACS712ELCTR-05B-T | 2 | Motor Current Sense | [Datasheet](https://www.allegromicro.com/~/media/Files/Datasheets/ACS712-Datasheet.ashx) | Y | - | - |
 | 151031YS06000 | 4 | Turn Signal LEDs | [Datasheet](https://www.we-online.com/components/products/datasheet/151031YS06000.pdf) | Y | - | - |
-| 151031SS06000 | 6 | Bus Status LEDs | [Datasheet](https://www.we-online.com/components/products/datasheet/151031SS06000.pdf) | Y | - | - |
+| 151031SS06000 | 12 | Bus Status LEDs (x6), Err LED (x3), status LED (x3) | [Datasheet](https://www.we-online.com/components/products/datasheet/151031SS06000.pdf) | Y | - | - |
 | SWT0210-045026GSA | 3 | Self Test Buttons | [Datasheet](https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/8937/swt0210-spec.pdf) | Y | - | - |
 | CX3225SB16000H0FLJCC| 6 | Oscillators for CAN Controllers | [Datasheet](https://ele.kyocera.com/assets/products/crystal-device/cx3225sb_e.pdf) | Y | - | - |
 | RC0603FR-07120RL | 8 | LED series resistance and CAN Bus Termination | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
