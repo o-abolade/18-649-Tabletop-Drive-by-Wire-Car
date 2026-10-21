@@ -489,7 +489,7 @@ the single photo's value.
 
 | # | Label (figure caption) | Channels / trigger | Shown in photo | Max over repeats |
 |---|---|---|---|---|
-| 1 | Brake chain (R2.2): Pi UDP_RX → N3 DIR_A | CH1 = N3 DIR_A (row 11, trigger rising, Normal + Single); CH2 = Pi UDP_RX (row 3). Driving, then brake pressed | photo of one capture (value on screen) | **940 µs** over 15 captures (first: 645 µs) |
+| 1 | Brake chain (R2.2): Pi UDP_RX → N3 DIR_A | CH1 = N3 DIR_A (row 11, trigger rising, Normal + Single); CH2 = Pi UDP_RX (row 3). Driving, then brake pressed | one capture: **640 µs** | **940 µs** over 15 captures |
 
 ## Part 3 measurement checklist
 
