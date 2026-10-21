@@ -339,7 +339,49 @@ The sequence diagrams, state description, timing analysis, message catalog, team
 
 All inter-zone messages are transmitted simultaneously on CAN A and CAN B. The receiver accepts the first valid copy and discards the later duplicate using the sequence counter.
 
-### Proposed CAN message catalog
+### Lab 3 message catalog (template; supersedes the proposal below)
+
+Lab 3 replaced our proposed catalog with the course template, so that every
+team analyzes the same task set. This is the catalog the code uses
+(`lab3_CAN/common/can_proto.h`). All frames are standard 11-bit IDs with
+DLC 8, sent on both CAN A and CAN B. Lower IDs win arbitration, so the
+safety messages (CTRL with the brake, then FAULT) come before the
+convenience messages (BLINK, FORCE).
+
+| ID | Name | Sender → receivers | Period / trigger | Deadline | Payload, bytes 1–7 (byte 0 = seq + flags) |
+|---|---|---|---|---|---|
+| 0x010 | CTRL | N1 cockpit → N2, N3 | every UDP update (20 ms) | 2 ms (brake, throttle) | b1–2 steer int16 LE −1000…+1000; b3 throttle 0–100 %; b4 brake 0–100 %; b5 buttons (bit0 left, bit1 right, bit2 test); b6 CRC-8 |
+| 0x020 | FAULT | any zone → all | zone fail or out-of-range value; min interval 20 ms | 100 ms | b1 failing zone 1–3; b2 reason (1 test button, 2 CTRL out of range, 3 heartbeat lost) |
+| 0x100 | HB_N1 | N1 → N2, N3 | 20 ms | 20 ms | b1 state (0 ERROR, 1 NORMAL, 2 LOCAL_FAIL); b2 bus health (bit0 A ok, bit1 B ok) |
+| 0x101 | HB_N2 | N2 → N1, N3 | 20 ms | 20 ms | same as HB_N1 |
+| 0x102 | HB_N3 | N3 → N1, N2 | 20 ms | 20 ms | same as HB_N1 |
+| 0x200 | BLINK | N1 → N2, N3 | on change and every 500 ms toggle; min 20 ms | 100 ms to start; N2/N3 edges within 1 ms | b1 state (0 off, 1 left, 2 right, 3 hazard); b2 phase (1 = lamps on) |
+| 0x300 | FORCE | N2 → N1 | 50 ms | 50 ms | b1 force int8 (dummy counter in Lab 3) |
+
+**Byte 0, all frames:**
+- The low nibble is a 4-bit sequence counter, one per ID per sender.
+- The high nibble holds flags. `0x10` marks a copy relayed by N2.
+
+**Handling rules (implemented):**
+- **Dedup:** receivers keep the first copy and drop the duplicate. A frame is
+  accepted if its sequence number is 1–7 ahead of the last one accepted for
+  that ID and sender, or if nothing has arrived for 100 ms.
+- **CTRL CRC:** CTRL carries a CRC-8 (poly 0x07, seed 0xFF, Zephyr
+  `crc8_ccitt`) over bytes 0–5, with the flags masked so a relayed copy
+  still checks.
+- **Out-of-range CTRL** (throttle or brake > 100, |steer| > 1000, unknown
+  button bits) puts the receiving zone in ERROR and makes it send FAULT.
+- **Relay:** N2 forwards the first copy of every N1/N3 frame onto the other
+  bus with the relayed flag set, and never re-forwards a flagged frame.
+
+**Bus utilization (Lab 3 analysis):**
+- One bus with the plain catalog: 6 × 270 µs / 20 ms + 270 µs / 50 ms
+  = **8.6 %**.
+- With N2's relayed copies, the worst bus carries **19.4 %**; in scenario
+  (c), 11.3 % per bus.
+- All are under the 50 % ceiling. See `Doc/lab3_report.md` §3.2 and §4.3.
+
+### Proposed CAN message catalog (Lab 1, superseded)
 
 The identifiers below are proposed standard 11-bit CAN IDs. They use one vehicle-control message so steering, throttle, brake and turn-signal data stay consistent across the Front/Steering Zone and Rear/Drivetrain Zone. Final IDs and signal scales must be copied into the CAN message catalog after the team confirms the hardware and UDP input ranges.
 
@@ -776,6 +818,35 @@ Record team choices here as the design develops. Proposed values are starting po
 </tr>
 </tbody></table>
 
+### Lab 3 values (2026-10-21)
+
+These replace the TBDs above that Lab 3 settled. Source files are in
+`lab3_CAN/`; thresholds for the STM32 zones are all in
+`common/zephyr/zone_config.h`.
+
+| Value | Choice / units | Source |
+|---|---|---|
+| Steering input → CTRL | Wheel raw −32768…+32767 mapped linearly to steer −1000…+1000 (monotonic) | `pi_cockpit/cockpit.c` |
+| Throttle / brake input → CTRL | Pedal raw (rest = +32767) mapped to 0–100 % | `cockpit.c` |
+| Brake activation | Brake ≥ 5 % brakes (dynamic brake, PWM off); brake overrides throttle | `stm32_drivetrain/src/main.c` |
+| Throttle → speed | Feed-forward duty 55 % + 45 % × throttle, plus PID trim ±40 % on a 10 ms period; full throttle = 6500 encoder transitions/s | `stm32_drivetrain/src/main.c` |
+| PID gains | Kp 0.15, Ki 0.04, Kd 0; real elapsed dt | same |
+| Turn threshold (self-cancel) | ±400 steer units: past the threshold in the turn direction, then back inside, cancels | `cockpit.c` |
+| Blinker master and rate | N1 sends BLINK on change and every 500 ms toggle: 1 Hz, 50 % duty. Zones switch lamps only on BLINK | `cockpit.c` |
+| Hazard (not NORMAL) | Local 2 Hz, 50 % duty (250 ms half period) on each zone | `ZONE_HAZARD_HALF_MS` |
+| Test button | B1 on each Nucleo; acts on the first edge; 50 ms debounce; second press within 500 ms restores | `ZONE_BTN_DEBOUNCE_MS`, `ZONE_BTN_DOUBLE_MS` |
+| Force feedback | Dummy int8 counter every 50 ms (Lab 3); not sent on to the proxy | `stm32_steering/src/main.c` |
+| CAN identifiers and payloads | Template catalog, Section 6 | `common/can_proto.h` |
+| Sequence counter | 4 bits, one per ID per sender; accept 1–7 ahead or after 100 ms of silence | `can_proto.c` |
+| CAN bit timing | 500 kbit/s; MCP2515 16 MHz crystal; 16 TQ = sync 1 + prop 6 + PS1 7 + PS2 2; sample point 87.5 %; SJW 1. Same on the Pi (`mcp251x`) | `dual_can.overlay`, `can_up.sh` |
+| Heartbeat | 20 ms, absolute schedule; stops while LOCAL_FAIL (cockpit also after 100 ms without UDP) | `zone_core.c`, `cockpit.c` |
+| Degraded bus / zone lost | No heartbeat from a zone on a bus for 60 ms; HB_MON checks every 10 ms. Lost on one bus → DEG LED; lost on both → system ERROR | `ZONE_HB_TIMEOUT_MS`, `ZONE_HB_MON_PERIOD_MS` |
+| CTRL timeout | No valid CTRL for 100 ms → ERROR | `ZONE_CTRL_TIMEOUT_MS` |
+| FAULT rate limit | ≥ 20 ms between FAULTs from one zone | `ZONE_FAULT_MIN_INTERVAL_MS` |
+| Health indication | DEG_A / DEG_B LED on = that bus degraded; ERR LED on = zone not NORMAL | `dual_can.overlay` |
+| Watchdog | STM32 IWDG, 200 ms, fed by HB_MON every 10 ms | `ZONE_WDT_TIMEOUT_MS` |
+| Steering safe state | Holds its angle while N2 itself is failed; keeps tracking CTRL in system ERROR (R3) | `stm32_steering/src/main.c` |
+
 ### Before values are finalized
 
 - Select the wheel/pedals, servo and linkage, motors and gearing, encoders, motor driver, current/load sensors, power supply, CAN controllers and their clock sources.
@@ -879,3 +950,12 @@ Covers scenarios (a)–(f) of R4.8. "Node X" / "Node Y" refer to any node used t
 <td style="padding:3pt; border:0.5pt solid #aab7c4; vertical-align:top; white-space:normal; overflow-wrap:anywhere; word-break:break-word; hyphens:auto; background:#f3f6f8;"></td>
 </tr>
 </tbody></table>
+
+---
+
+## Revision history
+
+| Date | Change |
+|---|---|
+| 2026-09-17 | Lab 1 submission. |
+| 2026-10-21 | Lab 3: replaced the proposed CAN catalog with the course template (Section 6), recorded the implemented values (Section 7, "Lab 3 values"), and added the Lab 3 design choices. These are: N1 is the blinker master; N2 always relays N1/N3 frames between buses (relayed flag 0x10); a failed N2 holds its steering angle instead of centring; the cockpit goes silent after 100 ms without wheel UDP. Known limitation found in Lab 3: only N2 relays, so R4.8(c) with N2 and N3 (or N1 and N2) on opposite buses leads to system ERROR (`Doc/lab3_report.md` §4.3). |
