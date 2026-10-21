@@ -1,10 +1,108 @@
+<!-- Print layout for Markdown Preview Enhanced / Prince PDF export. -->
+<link rel="stylesheet" href="pdf-export.css" media="print">
 
-## Section 3 ##
+# 18-449/649 Lab 3: Dual-Redundant CAN and Real-Time Analysis
+
+**Misho Alexandrov (mvalexan), Ore Abolade (oabolade), T'sairus Beasley (tbeasley)**
+
+The template task set runs on three zones over two 500 kbit/s CAN buses:
+
+- **N1:** the cockpit, a Raspberry Pi 4.
+- **N2:** steering, an STM32 Nucleo-F401RE running Zephyr.
+- **N3:** drivetrain, another STM32 Nucleo-F401RE running Zephyr.
 
 Every number below is labeled **measured** (with the method) or **assumed**
-(with the reason). Times are in µs unless marked ms. The calculations were
-run with a small script that iterates the equations below until they
-converge, so the R values are exact for the stated inputs.
+(with the reason). Scope captures are in Appendix A, and the measurement log
+is in `lab3_CAN/Progress_doc_lab3.md`.
+
+## 1. Wiring schematic
+
+![Figure 1: Dual-CAN wiring. Both buses with termination and jumpers, every module's SPI/CS/INT pins, and the three test-point boards](assets/lab3_wiring_schematic.png)
+
+**Bus layout**
+- **Order:** each bus is one linear pair, N1 at one end, N2 in the middle, N3
+  at the other end.
+- **Termination:** 120 Ω at each end, from the P1 pad on N1's and N3's
+  modules. Bus A measured 58 Ω CANH–CANL with power off.
+- **Jumpers:** every module reaches its rail through its own CANH and CANL
+  jumper; these are the R4.8 fault-injection points.
+- **Known trade-off:** P1 sits behind the jumper, so pulling an end node's
+  jumper also removes that end's terminator.
+
+**Pins**
+- **STM32:** both modules share SPI1 (SCK PA5, MISO PA6, MOSI PA7). Each has
+  its own CS (A: PB6, B: PC7) and its own INT on an EXTI line (A: PA10,
+  B: PB5).
+- **Pi:** the modules use SPI0 CE0 (bus A) and CE1 (bus B). The cockpit
+  identifies each bus by chip select, because `can0` and `can1` can swap at
+  boot.
+- **Module pinout:** D9 is MISO and D10 is MOSI on these modules; the
+  handout figure has them swapped.
+
+**Part 0 numbers (measured)**
+- **Crystal:** 16 MHz.
+- **SPI clock:** 84 MHz / 16 = 5.25 MHz. The next step, 10.5 MHz, is above
+  the MCP2515's 10 MHz limit.
+- **One received-frame read:** 14 bytes = 21 µs on the wire. Through
+  Zephyr's polled SPI driver, one 3-byte register read takes 30 µs (timed at
+  boot).
+- **Zephyr's INT path:** the ISR only gives a semaphore. The SPI reads and
+  our dispatch run in the driver's cooperative thread, at
+  `K_PRIO_COOP(CONFIG_CAN_MCP2515_INT_THREAD_PRIO = 2)`.
+
+**Part 1 checkpoint**
+- `candump` on the Pi showed both Nucleos on `can0` and `can1`.
+- Pulling one node's bus A jumper left bus B and the other two nodes on bus A
+  running.
+- Bus levels (photos 8–9): about 2.2 V idle on both lines. The dominant
+  differential is 2.07 V (A) and 1.97 V (B), inside ISO 11898-2's 1.5–3.0 V.
+
+## 2. Task communication graph
+
+![Figure 2: Task communication graph, one 20 ms cycle. CAN edges labeled with ID, period and deadline; brake/throttle, steering, blinker and error chains highlighted](assets/lab3_task_graph.drawio.png)
+
+The graph shows every task and message of the template:
+- **Edges:** solid edges are CAN frames, labeled ID | period | deadline.
+  Dashed edges are hand-offs inside one node (semaphores, shared state under
+  a spinlock or mutex).
+- **Chains:** the four chains are colour-coded through the boxes they cross.
+- **Part 4:** Figure 3 extends it with N2's RELAY task and the second bus
+  hop of the relayed brake path.
+- **Priorities:** the implemented thread priorities, including the CAN_TX
+  threads and the MCP2515 driver threads that the template folds into
+  CAN_RX, are in 3.1.
+
+![Figure 3: Extended task graph for scenario (c): RELAY on N2 and the relayed brake path 0x010 on A → RELAY → 0x010 on B → DRIVE](assets/lab3_task_graph_with_relay.drawio.png)
+
+## 3. Single-bus real-time analysis
+
+Times are in µs unless marked ms. A small script iterates the equations
+below until they converge, so the R values are exact for the stated inputs.
+The analysis already includes the second bus and N2's relayed copies (the
+worst case). On a single bus each zone receives fewer frames, so the bounds
+there are lower.
+
+### 3.0 Pi stage (measured)
+
+**Method.** UDP_RX → CMD_TX on the Pi test points, using the scope's Delay
+measurement with statistics. Each run is 60 s, 3000 samples, with the
+cockpit's status line off.
+
+| Cockpit scheduling | Load | Max | Mean | Photo |
+|---|---|---:|---:|---|
+| `sudo ./cockpit --rt` (SCHED_FIFO 80, pinned to CPU 3) | normal | **126.5 µs** | 34.9 µs | 6 |
+| `--rt` | `stress --cpu 4 --io 2` | 82 µs | 32.1 µs | 7 |
+| default (CFS) | normal | 442.5 µs | 53.0 µs | — |
+| default (CFS) | `stress` | 444.5 µs | 104.0 µs | — |
+
+- **Value used: J_PI = 126.5 µs**, the larger of the two `--rt` maxima.
+  SCHED_FIFO on an isolated core cut the worst case about 3.5× and kept the
+  mean flat under load, so the cockpit always runs with `--rt`.
+- **No 99th percentile.** The scope reports max and mean only, so the max is
+  used everywhere.
+- **Not covered:** the laptop → Pi network delay. It comes before UDP_RX, the
+  start of every R2 chain. The demo uses Ethernet; over Wi-Fi we saw gaps of
+  up to 139 ms.
 
 ### 3.1 Node response-time analysis (N2, N3)
 
@@ -328,7 +426,7 @@ These are the changes that would close the gap, in order of effect:
    behind N1's own HB/BLINK/FAULT. Local blocking would drop from 810 µs
    to 0, and R_CTRL from 1.75 ms to 0.94 ms.
 
-## Section 4: Dual-redundant CAN and the relay case
+## 4. Dual-redundant CAN and the relay case
 
 ### 4.1 Hot/parallel transmit
 
@@ -484,7 +582,7 @@ the Pi cockpit and on N3 as well. It stays loop-free for the same reason
 nodes may now relay each frame. It isn't implemented; the checkoff's scenario
 (c) is the N1/N3 pair.
 
-## Fault-injection test matrix (R4.8 a–f)
+## 5. Fault-injection test matrix (R4.8 a–f)
 
 Faults were injected by pulling the jumpers between a node's CAN module and
 the bus rail. Pulling them removes the node from that bus but leaves the
@@ -508,3 +606,56 @@ the LED lights 60–70 ms after the last frame received.
 | d | One STM32 off both buses (demo: N2, all 4 wires) | Hears no heartbeats on either bus → ERROR within 100 ms. Safe state: N2 steering held (no CTRL reaches it) | Miss 3 heartbeats from N2 on both buses → system ERROR: hazards, N3 braked | N2: DEG_A and DEG_B. Others: no DEG (their buses still work) | System error | Error entry ≤ 100 ms (analysis bound 96 ms, §3.3) | ✅ N2 ERROR, both buses PASSIVE/DEG. N3 ERROR (`N2:--`), motors braked, its buses ACTIVE | N3 enters ERROR **59.4 ms, max 68.4 ms over 3** after N2 loses its last bus (photo 14) ✅. N2 enters its own fail-safe **52.4 ms, max 53.6 ms over 3** (photo 15; under 60 ms because the reference is N2's last received frame, which can follow the last heartbeat) ✅ |
 | e | Whole CAN A lost (every node off A) | Each node marks A degraded | All traffic continues on B | All nodes: DEG_A on | Fully operational on B | Degraded within 60–70 ms, no functional interruption | ✅ all DEG_A on, all NORMAL on B only (`N?:-B`), CTRL gaps 36–39 ms. Needed the Pi TX watchdog fix (`mcp251x` TX queue hang) | — |
 | f | Restore any pulled jumpers | Bus-off controller recovers by itself (MCP2515 automatic; Pi `restart-ms 100`). DEG clears once traffic resumes | Resume using the restored bus; an isolated node's heartbeat brings everyone back to NORMAL | Affected LEDs off | NORMAL again, no reset or power cycle | DEG off ≤ 100 ms after traffic resumes; full recovery ≤ 500 ms | ✅ every case above: all back to `N?:AB`, ACTIVE, NORMAL, with no reset | DEG_A off **9.6 ms, max 14.8 ms over 5** after bus A restored (photo 11: first CAN_RX_A pulse → DEG_A off; design ≤ 30 ms = next heartbeat + 10 ms poll) ✅. Isolation recovery, N2 back to NORMAL **3.6 ms, max 15.6 ms over 3** after its jumpers are restored, no reset (photo 16) ✅. N3 back to NORMAL **16.5 ms max over 3** (photo 17) ✅ |
+
+## 6. Team-defined values and Lab 1 revision
+
+`Doc/Requirement_Document.md` has been updated to match Lab 3:
+- **Section 6:** now the template catalog, with our payload layouts, the
+  handling rules (dedup, CRC-8, out-of-range, relay flag) and the updated bus
+  utilization.
+- **Section 7:** has a "Lab 3 values" table with every implemented threshold
+  and mapping and its source file.
+- **Revision history:** a new 2026-10-21 entry records these changes and the
+  relay limitation from 4.3.
+
+## Appendix A: Scope captures
+
+Every value is the **maximum over the repeats** listed. Test-point rows refer
+to Figure 1. Photos 1–5 were taken with the cockpit **without** `--rt`, so
+their Pi stage is the slower one (up to about 443 µs) and the chain values are
+conservative. Photos 3–4 were retaken after the bus B wiring fix, with the
+same maxima.
+
+![Photo 1: Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15](assets/lab3_scope/photo01.jpg)
+
+![Photo 2: Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10](assets/lab3_scope/photo02.jpg)
+
+![Photo 3: Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10](assets/lab3_scope/photo03.jpg)
+
+![Photo 4: Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10](assets/lab3_scope/photo04.jpg)
+
+![Photo 5: Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 edges](assets/lab3_scope/photo05.jpg)
+
+![Photo 6: Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs, mean 34.9 µs, 3000 samples](assets/lab3_scope/photo06.jpg)
+
+![Photo 7: Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples](assets/lab3_scope/photo07.jpg)
+
+![Photo 8: CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V](assets/lab3_scope/photo08.jpg)
+
+![Photo 9: CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V](assets/lab3_scope/photo09.jpg)
+
+![Photo 10: (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5](assets/lab3_scope/photo10.jpg)
+
+![Photo 11: (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5](assets/lab3_scope/photo11.jpg)
+
+![Photo 12: R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5](assets/lab3_scope/photo12.jpg)
+
+![Photo 13: R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5](assets/lab3_scope/photo13.jpg)
+
+![Photo 14: (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3](assets/lab3_scope/photo14.jpg)
+
+![Photo 15: (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3](assets/lab3_scope/photo15.jpg)
+
+![Photo 16: (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3](assets/lab3_scope/photo16.jpg)
+
+![Photo 17: (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3](assets/lab3_scope/photo17.jpg)
