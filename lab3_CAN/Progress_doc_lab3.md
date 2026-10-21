@@ -534,7 +534,7 @@ ERR (PC12, CN7-3) isn't on N3's breadboard either; probe it directly.
 | 14 | (d) isolation, others enter error: N2 off both buses → N3 ERR | CH1 = N2 CAN_RX_B (row 4); CH2 = N3 ERR, trigger rising, 20 ms/div | Pull N2's bus A jumpers first, then bus B. Delta = last N2 CAN_RX_B pulse (isolation complete) → N3 ERR rising. 3 repeats | ≤ 100 ms | **Photo: 59.4 ms; max 68.4 ms over 3** ✅ (X cursors, Peak Detect) |
 | 15 | (d) isolation, isolated node's safe state: → N2 ERR | CH1 = N2 CAN_RX_B; CH2 = N2 ERR (row 13), trigger rising | Same pull. Delta = last CAN_RX_B pulse → N2 ERR rising | ≤ 100 ms | **Photo: 52.4 ms; max 53.6 ms over 3** ✅. Under 60 ms because the timeout runs from the last heartbeat heard, and the last CAN_RX pulse can be a later non-heartbeat frame (e.g. CTRL) |
 | 16 | (f) isolation recovery, N2 | CH1 = N2 CAN_RX_A (row 3); CH2 = N2 ERR, trigger falling, 100 ms/div | Re-insert all of N2's jumpers. Delta = first CAN_RX pulse → N2 ERR falling | ≤ 500 ms, no reset | **Photo: 3.6 ms; max 15.6 ms over 3** ✅, no reset |
-| 17 | (f) isolation recovery, N3 | CH1 = N2 CAN_RX_A; CH2 = N3 ERR, trigger falling | Same. Delta = first N2 CAN_RX pulse → N3 ERR falling | ≤ 500 ms | |
+| 17 | (f) isolation recovery, N3 | CH1 = N2 CAN_RX_A; CH2 = N3 ERR, trigger falling | Same. Delta = first N2 CAN_RX pulse → N3 ERR falling | ≤ 500 ms | **Photo: 16.5 ms; max 16.5 ms over 3** ✅, no reset. Check CH2 in Auto first (flat ≈ 3.3 V while N3 is in ERROR): CN7-1 next to it is the toggling CAN_TX_A |
 
 **No scope needed:**
 - **Heartbeat cadence (20 ms ±10 %)**, on the Pi, for the interface
