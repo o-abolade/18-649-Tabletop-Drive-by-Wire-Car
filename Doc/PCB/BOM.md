@@ -28,3 +28,4 @@
 | C0603C220J1GACTU | 12 | Crystal Oscillator Load Capacitance | [Digikey Page](https://www.digikey.com/en/products/detail/kemet/C0603C220J1GACTU/2200183) | Y | - | - |
 | SSK03-MPH-254-B2 | 6 | Connectors for CAN bus jumpers | [Digikey Page](https://www.digikey.com/en/products/detail/same-sky-formerly-cui-devices/SSK03-MPH-254-B2/28772163) | N | N | CAD models weren't available on JLCPCB |
 | 742863160 | 2 | Ferrite beads, AVDD filtering on STM32s | [Digikey Page](https://www.digikey.com/en/products/detail/w%C3%BCrth-elektronik/742863160/2268591?s=N4IgTCBcDaIOwBYwA4BsBmAjKgDCAugL5A) | Y | - | - |
+| GRM188R71A225KE15D | 2 | VCAP on stm32s | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM188R71A225KE15D/1033256) | N | N | JLCPCB CAD not compatible with Fusion 360 |
