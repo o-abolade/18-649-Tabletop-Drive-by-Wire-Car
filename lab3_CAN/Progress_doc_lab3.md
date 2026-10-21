@@ -480,6 +480,17 @@ Notes:
   with the status line off (`s`), scope trigger mode **Normal**, and report the
   **maximum** of repeated captures.
 
+## Scope capture log
+
+Scope screenshots are phone photos, taken in this order: **photo N on the phone
+= entry N here**. Use the "Label" column as the figure caption in the report.
+For every timing value, report the **maximum** of the repeated captures, not
+the single photo's value.
+
+| # | Label (figure caption) | Channels / trigger | Shown in photo | Max over repeats |
+|---|---|---|---|---|
+| 1 | Brake chain (R2.2): Pi UDP_RX → N3 DIR_A | CH1 = N3 DIR_A (row 11, trigger rising, Normal + Single); CH2 = Pi UDP_RX (row 3). Driving, then brake pressed | photo of one capture (value on screen) | **940 µs** over 15 captures (first: 645 µs) |
+
 ## Part 3 measurement checklist
 
 `Doc/lab3_report.md` now contains the Section 3.1--3.3 RTA structure using
