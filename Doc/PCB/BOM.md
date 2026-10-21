@@ -21,4 +21,5 @@
 | CRCW0603210KFKEA | 2 | 210 kOhm, 5V and 6V8 converter feedback circuit | [Digikey page](https://www.digikey.com/en/products/detail/vishay-dale/CRCW0603210KFKEA/1174930) | Y | - | - |
 | RMCF0603FT91K0 | 1 | 91 kOhm, 6V8 converter feedback circuit | [Digikey page](https://www.digikey.com/en/products/detail/stackpole-electronics-inc/RMCF0603FT91K0/1714297) | Y | - | - |
 | B3B-PH-SM4-TB | 1 | 3 terminal connector for steering servo |  [Digikey page](https://www.digikey.com/en/products/detail/jst-sales-america-inc/B3B-PH-SM4-TB/926642) | N | N | No 3 terminal connector in parts list, wanted to use same product line as 6 terminal connectors that are |
-| INA180A1IDBVT | 1 | Current sense on steering | [Digitkey Page](https://www.digikey.com/en/products/detail/texas-instruments/INA180A1IDBVT/7219063) | N | N | CAD models available for this one |
+| INA180A1IDBVT | 1 | Current sense on steering | [Digikey Page](https://www.digikey.com/en/products/detail/texas-instruments/INA180A1IDBVT/7219063) | N | N | CAD models available for this one |
+| CSNL2512FTL500 | 1 | Shunt Resistor | [Digikey Page](https://www.digikey.com/en/products/detail/stackpole-electronics-inc/CSNL2512FTL500/1788105) | N | N | CAD models available |
