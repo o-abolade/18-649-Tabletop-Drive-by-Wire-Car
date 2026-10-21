@@ -2,10 +2,11 @@
 
 Released 2026-10-04, **due 2026-10-22 11:59pm**.
 
-> **Where the code is:** the Lab 3 implementation is on branch
-> **`lab3-can-link`** (shared CAN layer, both STM32 zones, Pi cockpit);
-> Part 0/1 bring-up tools are on `lab3-part0-can-bringup`. Neither is merged
-> to `main` yet. `git switch lab3-can-link` to build or flash.
+> **Where the code is:** the Lab 3 implementation (shared CAN layer, both
+> STM32 zones, Pi cockpit) is on **`main`** (merged 2026-10-21). The Part 0/1
+> bring-up app `can_bringup/` is a test tool, not part of the final system, so
+> it was left off `main`: it's on branch **`lab3-part0-can-bringup`**
+> (`git switch lab3-part0-can-bringup`) if a module ever needs re-checking.
 
 Lab 2's single STM32 is split into three zones on two independent 500 kbit/s
 CAN buses (A and B). Each node has one XIAO CAN module (MCP2515 + SN65HVD230)
@@ -36,13 +37,14 @@ lab3_CAN/
 │       └── lab3_common.cmake  # shared build setup for both zones
 ├── stm32_steering/    # N2: STEER, FORCE_TX, RELAY (+ zone_core)
 ├── stm32_drivetrain/  # N3: DRIVE, PID (+ zone_core)
-├── pi_cockpit/        # N1: cockpit.c (UDP -> CTRL/BLINK/HB_N1 on can0+can1), can_up.sh
-└── can_bringup/       # Part 0/1 bring-up and diagnostic app
+└── pi_cockpit/        # N1: cockpit.c (UDP -> CTRL/BLINK/HB_N1 on can0+can1), can_up.sh
 ```
 
-On the `lab3-can-link` branch both STM32 zones are trimmed to their own
-actuators and run on the shared CAN layer. Both build without warnings but
-**have not run on hardware yet** (needs bus B wired).
+(`can_bringup/`, the Part 0/1 test app, is on branch `lab3-part0-can-bringup`.)
+
+Both STM32 zones are trimmed to their own actuators and run on the shared CAN
+layer. Both build without warnings and have passed every checkoff scenario on
+hardware (see "Full-system results").
 
 ## Message catalog (handout template)
 
@@ -269,6 +271,9 @@ candump -c -t d any
 ```
 
 ### Part 0 bring-up app (`can_bringup/`)
+
+> This app lives on branch `lab3-part0-can-bringup`, not `main`. Switch to
+> that branch to build or flash it; the commands below assume you have.
 
 Standalone Zephyr app with only the dual-MCP2515 overlay. The same build goes on
 both Nucleos. **Don't connect any bus wire yet.** Each node must come up alone,

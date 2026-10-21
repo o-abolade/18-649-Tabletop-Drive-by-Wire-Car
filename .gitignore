@@ -13,6 +13,7 @@ build_log.txt
 # Plain-gcc compiled outputs (Pi side)
 pi_bridge
 wheel_monitor
+cockpit
 *.exe
 
 # CMake generated files (if any stray outside build/)
