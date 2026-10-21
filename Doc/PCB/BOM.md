@@ -20,3 +20,4 @@
 | GRM219R61C226ME15L | 8 | Output filtering on buck converters  | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM219R61C226ME15L/4905420?s=N4IgTCBcDaIOICUCyYCMBOBA2VBhMYWSAoqgKwAyIAugL5A) | Y | - | - |
 | CRCW0603210KFKEA | 2 | 210 kOhm, 5V and 6V8 converter feedback circuit | [Digikey page](https://www.digikey.com/en/products/detail/vishay-dale/CRCW0603210KFKEA/1174930) | Y | - | - |
 | RMCF0603FT91K0 | 1 | 91 kOhm, 6V8 converter feedback circuit | [Digikey page](https://www.digikey.com/en/products/detail/stackpole-electronics-inc/RMCF0603FT91K0/1714297) | Y | - | - |
+| B3B-PH-SM4-TB | 1 | 3 terminal connector for steering servo |  [Digikey page](https://www.digikey.com/en/products/detail/jst-sales-america-inc/B3B-PH-SM4-TB/926642) | N | N | No 3 terminal connector in parts list, wanted to use same product line as 6 terminal connectors that are |
