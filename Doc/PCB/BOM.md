@@ -10,7 +10,7 @@
 | 151031SS06000 | 12 | Bus Status LEDs (x6), Err LED (x3), status LED (x3) | [Datasheet](https://www.we-online.com/components/products/datasheet/151031SS06000.pdf) | Y | - | - |
 | SWT0210-045026GSA | 3 | Self Test Buttons | [Datasheet](https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/8937/swt0210-spec.pdf) | Y | - | - |
 | CX3225SB16000H0FLJCC| 6 | Oscillators for CAN Controllers | [Datasheet](https://ele.kyocera.com/assets/products/crystal-device/cx3225sb_e.pdf) | Y | - | - |
-| RC0603FR-07120RL | 8 | LED series resistance and CAN Bus Termination | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
+| RC0603FR-07120RL | 20 | 120 ohm, LED series resistance (x4 for blinkers, x12 status LEDs), CAN Bus Termination (x4) | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
 | CGA3E2X7R1E104K080AA | 9 | 100 nF, RC debounce on self test buttons (3x), input/output decoupling on buck converters (6x) | [Datasheet](https://product.tdk.com/system/files/dam/doc/product/capacitor/ceramic/mlcc/catalog/mlcc_automotive_general_en.pdf) | Y | - | - |
 | CRCW060310K0FKEA | 20 | 10 Kohm, Self Test Buttons Pull Up Resistor (3x), Buck Converter Enable Voltage Dividers (3x), Buck Converter PG Output (3x), 3V3 buck converter feedback, 5V feedback circuit (4x), 8V8 feedback circuit (3x)  | [Datasheet](https://www.vishay.com/docs/20035/dcrcwe3.pdf) | Y | - | - |
 | RC0603FR-0747KL | 1 | 47 Kohm, 3V3 buck converter feedback  | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
