@@ -26,6 +26,8 @@ struct relay_item {
 	uint8_t from_bus;
 };
 
+#define RELAY_TP_MIN_US 10
+
 /* Depth covers one 20 ms cycle of N1 + N3 traffic with room to spare */
 K_MSGQ_DEFINE(relay_q, sizeof(struct relay_item), 16, 4);
 
@@ -77,9 +79,20 @@ static void relay_thread(void *a, void *b, void *c)
 		enum canp_bus to = (item.from_bus == CANP_BUS_A) ? CANP_BUS_B : CANP_BUS_A;
 
 		item.data[0] |= CANP_FLAG_RELAYED;
+
+		/* RELAY_TX test point: rising edge = forwarded frame queued. Held
+		 * >= RELAY_TP_MIN_US: queuing alone takes ~1 us, too narrow for
+		 * the scope at the 100 us/div needed to see UDP_RX too. */
+		uint32_t start = k_cycle_get_32();
+
 		gpio_pin_set_dt(&tp_relay_tx, 1);
 		if (can_link_send_on(to, item.id, item.data) == 0) {
 			atomic_inc(&relayed);
+		}
+		uint32_t elapsed_us = k_cyc_to_us_floor32(k_cycle_get_32() - start);
+
+		if (elapsed_us < RELAY_TP_MIN_US) {
+			k_busy_wait(RELAY_TP_MIN_US - elapsed_us);
 		}
 		gpio_pin_set_dt(&tp_relay_tx, 0);
 	}
