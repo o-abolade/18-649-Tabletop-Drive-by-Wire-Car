@@ -127,6 +127,16 @@ static int64_t next_toggle_ms, last_blink_tx_ms = -1000;
 static bool blink_pending;
 
 static uint32_t tx_ok[CANP_NUM_BUSES], tx_fail[CANP_NUM_BUSES];
+
+/* TX watchdog. Twice on hardware the mcp251x driver's TX queue stopped
+ * draining for good ("No buffer space available") while RX on the same
+ * interface kept working; only `ip link set canX down/up` cleared it. */
+#define CAN_BITRATE        500000
+#define TX_STUCK_MS        200     /* no successful write for this long ... */
+#define TX_RESET_HOLDOFF_MS 1000   /* ... and at most one reset per second */
+static int64_t last_tx_ok_ms[CANP_NUM_BUSES];
+static int64_t last_reset_ms[CANP_NUM_BUSES];
+static bool can_reset_ifaces;      /* needs root */
 static uint32_t udp_count, ctrl_count;
 static bool show_status = true;
 
@@ -279,6 +289,7 @@ static bool send_on(enum canp_bus bus, uint32_t id, const uint8_t d[CANP_DLC])
 	tp_set(bus == CANP_BUS_A ? TP_CAN_TX_A : TP_CAN_TX_B, false);
 	if (ok) {
 		tx_ok[bus]++;
+		last_tx_ok_ms[bus] = now_ms();
 	} else {
 		tx_fail[bus]++;
 	}
@@ -569,6 +580,41 @@ static void hb_mon(int64_t now)
 	}
 }
 
+/* A bus whose writes have all failed for TX_STUCK_MS while we still HEAR
+ * other zones on it isn't unplugged (then RX would be dead too): the driver's
+ * TX path is wedged. Reset the interface, like can_up.sh does. */
+static void tx_watchdog(int64_t now)
+{
+	for (int b = 0; b < CANP_NUM_BUSES; b++) {
+		bool rx_alive = hb_seen(CANP_ZONE_N2, b, now) || hb_seen(CANP_ZONE_N3, b, now);
+
+		if (can_fd[b] < 0 || !rx_alive || now - last_tx_ok_ms[b] < TX_STUCK_MS ||
+		    now - last_reset_ms[b] < TX_RESET_HOLDOFF_MS) {
+			continue;
+		}
+		last_reset_ms[b] = now;
+		if (!can_reset_ifaces) {
+			printf("N1: bus %c (%s) TX stuck %lld ms while RX alive: run ./can_up.sh "
+			       "(or start cockpit with sudo for automatic recovery)\n",
+			       'A' + b, bus_ifname[b], (long long)(now - last_tx_ok_ms[b]));
+			continue;
+		}
+		char cmd[160];
+
+		/* bus_ifname came from /sys/class/net and is a plain canN name */
+		snprintf(cmd, sizeof(cmd),
+			 "ip link set %s down && ip link set %s type can bitrate %d restart-ms 100 "
+			 "&& ip link set %s up &",
+			 bus_ifname[b], bus_ifname[b], CAN_BITRATE, bus_ifname[b]);
+		printf("N1: bus %c (%s) TX stuck %lld ms while RX alive -> resetting interface\n",
+		       'A' + b, bus_ifname[b], (long long)(now - last_tx_ok_ms[b]));
+		if (system(cmd) != 0) {
+			printf("N1: reset of %s failed\n", bus_ifname[b]);
+		}
+		last_tx_ok_ms[b] = now;   /* give the reset time to take effect */
+	}
+}
+
 static void hb_tx(void)
 {
 	if (state == CANP_ZS_LOCAL_FAIL) {
@@ -668,6 +714,13 @@ int main(int argc, char **argv)
 		printf("N1: bus %c = %s (%s) %s\n", 'A' + b, bus_ifname[b], bus_spidev[b],
 		       can_fd[b] < 0 ? "DOWN" : "up");
 	}
+	can_reset_ifaces = (geteuid() == 0);
+	printf("N1: TX watchdog %s\n", can_reset_ifaces ? "will reset a stuck interface automatically"
+			       : "can only warn (not root: run with sudo for auto-reset)");
+	for (int b = 0; b < CANP_NUM_BUSES; b++) {
+		last_tx_ok_ms[b] = now_ms();
+		last_reset_ms[b] = -TX_RESET_HOLDOFF_MS;
+	}
 	int udp_fd = open_udp();
 	int tfd = timerfd_create(CLOCK_MONOTONIC, 0);
 	struct itimerspec its = {
@@ -709,6 +762,7 @@ int main(int argc, char **argv)
 
 			(void)!read(tfd, &expirations, sizeof(expirations));
 			hb_mon(now);
+			tx_watchdog(now);
 			if (now >= next_hb) {
 				hb_tx();
 				next_hb += CANP_HB_PERIOD_MS;   /* absolute schedule, no drift */
