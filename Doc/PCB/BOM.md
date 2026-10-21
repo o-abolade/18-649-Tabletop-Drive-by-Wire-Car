@@ -23,3 +23,5 @@
 | B3B-PH-SM4-TB | 1 | 3 terminal connector for steering servo |  [Digikey page](https://www.digikey.com/en/products/detail/jst-sales-america-inc/B3B-PH-SM4-TB/926642) | N | N | No 3 terminal connector in parts list, wanted to use same product line as 6 terminal connectors that are |
 | INA180A1IDBVT | 1 | Current sense on steering | [Digikey Page](https://www.digikey.com/en/products/detail/texas-instruments/INA180A1IDBVT/7219063) | N | N | CAD models available for this one |
 | CSNL2512FTL500 | 1 | Shunt Resistor | [Digikey Page](https://www.digikey.com/en/products/detail/stackpole-electronics-inc/CSNL2512FTL500/1788105) | N | N | JLCPCB's available current sense resistors had far too high a resistance value |
+| ERJ-3EKF1001V  | 2 | RC filtering on steering ADC input | [Digikey Page](https://www.digikey.com/en/products/detail/panasonic-industry/ERJ-3EKF1001V/196032?s=N4IgTCBcDaIKICUBSBaAzHA0gMQIwAZ9cA1EAXQF8g) | Y | - | - |
+| GRM21BR71C475KE51L | 1 | See above | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM21BR71C475KE51L/6606095?s=N4IgTCBcDaIOICUCyYCMAhBB2VBhALFgKwDSAokagDIgC6AvkA) | Y | - | - |
