@@ -12,6 +12,7 @@
 #include "relay.h"
 #include "steering.h"
 #include "zone_config.h"
+#include "wcet.h"
 #include "zone_core.h"
 
 static void steer_safe(void)
@@ -28,9 +29,12 @@ static void steer_thread(void *a, void *b, void *c)
 		if (zone_wait_ctrl(&cmd, K_MSEC(ZONE_CTRL_TIMEOUT_MS)) != 0) {
 			continue;   /* HB_MON moves us to ERROR and centres via steer_safe */
 		}
+		uint64_t w0 = wcet_begin();
+
 		if (zone_state() == CANP_ZS_NORMAL) {
 			(void)set_wheel_angle(cmd.steer);
 		}
+		wcet_end(WCET_ACT, w0);
 	}
 }
 
@@ -43,11 +47,13 @@ static void force_tx_thread(void *a, void *b, void *c)
 	while (1) {
 		next += CANP_FORCE_PERIOD_MS;
 		k_sleep(K_TIMEOUT_ABS_MS(next));
+		uint64_t w0 = wcet_begin();
 
 		uint8_t d[CANP_DLC];
 
 		canp_encode_force(d, 0, counter++);
 		can_link_send(CANP_ID_FORCE, d);
+		wcet_end(WCET_FORCE_TX, w0);
 	}
 }
 
@@ -73,9 +79,12 @@ int main(void)
 	k_thread_start(steer_tid);
 	k_thread_start(force_tid);
 
-	while (1) {
+	for (uint32_t tick = 1;; tick++) {
 		k_msleep(ZONE_STATUS_PERIOD_MS);
 		zone_print_status();
+		if (tick % 5 == 0) {
+			wcet_print();
+		}
 
 		uint32_t relayed, overflow;
 

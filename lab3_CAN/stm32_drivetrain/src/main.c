@@ -20,6 +20,7 @@
 #include "pid_controller.h"
 #include "testpoints.h"
 #include "zone_config.h"
+#include "wcet.h"
 #include "zone_core.h"
 
 #define PID_PERIOD_MS            10
@@ -106,6 +107,7 @@ static void drive_thread(void *a, void *b, void *c)
 		if (zone_wait_ctrl(&cmd, K_MSEC(ZONE_CTRL_TIMEOUT_MS)) != 0) {
 			continue;   /* HB_MON moves us to ERROR and brakes via drive_safe */
 		}
+		uint64_t w0 = wcet_begin();
 
 		k_mutex_lock(&motor_lock, K_FOREVER);
 		if (zone_state() != CANP_ZS_NORMAL ||
@@ -123,6 +125,7 @@ static void drive_thread(void *a, void *b, void *c)
 			apply_duty_locked(clamp_duty(ff + trim_left), clamp_duty(ff + trim_right), start);
 		}
 		k_mutex_unlock(&motor_lock);
+		wcet_end(WCET_ACT, w0);
 	}
 }
 
@@ -134,10 +137,12 @@ static void pid_thread(void *a, void *b, void *c)
 	while (1) {
 		next += PID_PERIOD_MS;
 		k_sleep(K_TIMEOUT_ABS_MS(next));
+		uint64_t w0 = wcet_begin();
 
 		k_mutex_lock(&motor_lock, K_FOREVER);
 		if (!driving) {
 			k_mutex_unlock(&motor_lock);
+			wcet_end(WCET_PID, w0);
 			continue;
 		}
 
@@ -162,6 +167,7 @@ static void pid_thread(void *a, void *b, void *c)
 		prev_pid_ms = now;
 		have_sample = true;
 		k_mutex_unlock(&motor_lock);
+		wcet_end(WCET_PID, w0);
 	}
 }
 
@@ -196,9 +202,12 @@ int main(void)
 	k_thread_start(drive_tid);
 	k_thread_start(pid_tid);
 
-	while (1) {
+	for (uint32_t tick = 1;; tick++) {
 		k_msleep(ZONE_STATUS_PERIOD_MS);
 		zone_print_status();
+		if (tick % 5 == 0) {
+			wcet_print();
+		}
 
 		k_mutex_lock(&motor_lock, K_FOREVER);
 		printk("   drive: %s thr %u%% duty L%u R%u\n",

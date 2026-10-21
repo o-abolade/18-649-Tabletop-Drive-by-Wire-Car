@@ -18,6 +18,7 @@
 
 #include "can_link.h"
 #include "relay.h"
+#include "wcet.h"
 #include "zone_config.h"
 
 struct relay_item {
@@ -75,6 +76,7 @@ static void relay_thread(void *a, void *b, void *c)
 
 	while (1) {
 		k_msgq_get(&relay_q, &item, K_FOREVER);
+		uint64_t w0 = wcet_begin();
 
 		enum canp_bus to = (item.from_bus == CANP_BUS_A) ? CANP_BUS_B : CANP_BUS_A;
 
@@ -95,6 +97,7 @@ static void relay_thread(void *a, void *b, void *c)
 			k_busy_wait(RELAY_TP_MIN_US - elapsed_us);
 		}
 		gpio_pin_set_dt(&tp_relay_tx, 0);
+		wcet_end(WCET_RELAY, w0);   /* includes the >=10 us test-point hold */
 	}
 }
 

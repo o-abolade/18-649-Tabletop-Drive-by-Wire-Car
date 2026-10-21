@@ -9,6 +9,7 @@
 
 #include "can_link.h"
 #include "zone_config.h"
+#include "wcet.h"
 #include "zone_core.h"
 
 #define STACK_SIZE 1024
@@ -203,6 +204,7 @@ static void hb_mon_thread(void *a, void *b, void *c)
 		if (k_uptime_get() > next + ZONE_HB_MON_PERIOD_MS) {
 			next = k_uptime_get();   /* resync after a long stall */
 		}
+		uint64_t w0 = wcet_begin();
 
 		int64_t now = k_uptime_get();
 		bool zone_lost = false;
@@ -289,6 +291,7 @@ static void hb_mon_thread(void *a, void *b, void *c)
 		if (wdt_channel >= 0) {
 			wdt_feed(wdt, wdt_channel);
 		}
+		wcet_end(WCET_HB_MON, w0);
 	}
 }
 
@@ -301,6 +304,7 @@ static void hb_tx_thread(void *a, void *b, void *c)
 	while (1) {
 		next += CANP_HB_PERIOD_MS;
 		k_sleep(K_TIMEOUT_ABS_MS(next));
+		uint64_t w0 = wcet_begin();
 
 		k_spinlock_key_t key = k_spin_lock(&lock);
 		enum canp_zone_state s = state;
@@ -317,6 +321,7 @@ static void hb_tx_thread(void *a, void *b, void *c)
 
 		canp_encode_hb(d, 0, s, health);
 		can_link_send(CANP_ID_HB(cfg->zone), d);
+		wcet_end(WCET_HB_TX, w0);
 	}
 }
 
@@ -334,6 +339,8 @@ static void blink_thread(void *a, void *b, void *c)
 	int64_t next_toggle = 0;
 
 	while (1) {
+		uint64_t w0 = wcet_begin();
+
 		if (zone_state() != CANP_ZS_NORMAL) {
 			/* Own schedule: BLINK frames waking us must not add toggles */
 			if (k_uptime_get() >= next_toggle) {
@@ -341,6 +348,7 @@ static void blink_thread(void *a, void *b, void *c)
 				set_lamps(hazard_on, hazard_on);
 				next_toggle = k_uptime_get() + ZONE_HAZARD_HALF_MS;
 			}
+			wcet_end(WCET_BLINK, w0);
 			(void)k_sem_take(&blink_sem, K_TIMEOUT_ABS_MS(next_toggle));
 			continue;
 		}
@@ -355,6 +363,7 @@ static void blink_thread(void *a, void *b, void *c)
 		set_lamps(on && (s == CANP_BLINK_LEFT || s == CANP_BLINK_HAZARD),
 			  on && (s == CANP_BLINK_RIGHT || s == CANP_BLINK_HAZARD));
 		hazard_on = false;
+		wcet_end(WCET_BLINK, w0);
 		k_sem_take(&blink_sem, K_FOREVER);
 	}
 }
@@ -378,6 +387,7 @@ static void btn_thread(void *a, void *b, void *c)
 		 * no edge arrived for a full debounce period. Otherwise release
 		 * bounce would look like a second press = a false "double press". */
 		int ret = k_sem_take(&btn_sem, held ? K_MSEC(ZONE_BTN_DEBOUNCE_MS) : K_FOREVER);
+		uint64_t w0 = wcet_begin();
 		int64_t now = k_uptime_get();
 		bool pressed = gpio_pin_get_dt(&test_btn) > 0;
 
@@ -409,6 +419,8 @@ static void btn_thread(void *a, void *b, void *c)
 			atomic_set(&fault_pending, CANP_FAULT_TEST_BUTTON);
 			k_sem_give(&hbmon_sem);
 		}
+		/* Accepted presses only (bounce wakes do almost nothing) */
+		wcet_end(WCET_BTN, w0);
 	}
 }
 

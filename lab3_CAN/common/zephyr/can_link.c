@@ -11,6 +11,7 @@
 #include <zephyr/sys/util.h>
 
 #include "can_link.h"
+#include "wcet.h"
 #include "zone_config.h"
 
 /* Test-point pulses are held at least this long so a scope can trigger on
@@ -108,6 +109,7 @@ static void rx_handler(const struct device *dev, struct can_frame *frame, void *
 {
 	enum canp_bus bus = (enum canp_bus)(uintptr_t)user_data;
 	const struct gpio_dt_spec *tp = &buses[bus].tp_rx;
+	uint64_t w0 = wcet_begin();
 	uint32_t start = k_cycle_get_32();
 	bool accept = false;
 
@@ -141,6 +143,7 @@ static void rx_handler(const struct device *dev, struct can_frame *frame, void *
 		user_rx_cb(frame->id, frame->data, bus);
 	}
 	tp_end(tp, start);
+	wcet_end(WCET_RX_DISPATCH, w0);   /* includes the >=10 us test-point hold */
 }
 
 static void tx_done(const struct device *dev, int error, void *user_data)
@@ -273,11 +276,14 @@ static void tx_thread(void *p1, void *p2, void *p3)
 		 * edge = handed to the controller (after waiting for the one
 		 * hardware buffer). */
 		uint32_t start = k_cycle_get_32();
+		/* Execution only: time asleep waiting for the TX buffer isn't counted */
+		uint64_t w0 = wcet_begin();
 
 		gpio_pin_set_dt(&b->tp_tx, 1);
 		int ret = can_send(b->dev, &f, K_MSEC(TX_BUF_WAIT_MS), tx_done, (void *)(uintptr_t)bus);
 
 		tp_end(&b->tp_tx, start);
+		wcet_end(WCET_CAN_TX, w0);
 		if (ret == 0) {
 			stuck_waits = 0;
 			continue;
