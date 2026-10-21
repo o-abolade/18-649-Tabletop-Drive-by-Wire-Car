@@ -12,10 +12,9 @@
 | CX3225SB16000H0FLJCC| 6 | Oscillators for CAN Controllers | [Datasheet](https://ele.kyocera.com/assets/products/crystal-device/cx3225sb_e.pdf) | Y | - | - |
 | RC0603FR-07120RL | 8 | LED series resistance and CAN Bus Termination | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
 | CGA3E2X7R1E104K080AA | 9 | 100 nF, RC Debounce on self test buttons (3x), input/output decoupling on buck converters (6x) | [Datasheet](https://product.tdk.com/system/files/dam/doc/product/capacitor/ceramic/mlcc/catalog/mlcc_automotive_general_en.pdf) | Y | - | - |
-| CRCW060310K0FKEA | 13 | 10 Kohm, Self Test Buttons Pull Up Resistor (3x), Buck Converter Enable Voltage Dividers (3x), Buck Converter PG Output (3x), 3V3 buck converter feedback  | [Datasheet](https://www.vishay.com/docs/20035/dcrcwe3.pdf) | Y | - | - |
+| CRCW060310K0FKEA | 17 | 10 Kohm, Self Test Buttons Pull Up Resistor (3x), Buck Converter Enable Voltage Dividers (3x), Buck Converter PG Output (3x), 3V3 buck converter feedback, 5V feedback circuit (4x)  | [Datasheet](https://www.vishay.com/docs/20035/dcrcwe3.pdf) | Y | - | - |
 | RC0603FR-0747KL | 1 | 47 Kohm, 3V3 buck converter feedback  | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
 | IHLP2525CZER3R3M11 | 1 | 3.3 uH inductor on 3v3 buck converter output | [Datasheet](https://www.vishay.com/docs/34190/ihlp-2525cz-11.pdf) | N | N | Not available on parts list, equivalent JLCPCB parts either required bulk purchase or had no CAD model |
 | IHLP2525CZER4R7MA1 | 1 | 4.7 uH inductor on 5V buck converter output | [Datasheet](https://www.vishay.com/docs/34241/ihlp-2525cz-a1.pdf) | N | N | See above |
 | GRM31CR61E226KE15L | 8 | Output filtering on buck converters  | [JLCPCB Page](https://jlcpcb.com/partdetail/MurataElectronics-GRM31CR61E226KE15L/C77091) | N | Y | No 22 uF capacitors on parts list|
-| 0603WAF3002T5E | 1 | 5V converter feedback | [JLCPCB Page](https://jlcpcb.com/parts/componentSearch?searchTxt=UNI-ROYAL%200603WAF3002T5E) | N | Y | 30 kOhm recommended by datasheet, nothing on parts list |
-| 0603WAF2203T5E | 1 | 5V Converter feedback | [JLCPCB PAGE](https://jlcpcb.com/parts/componentSearch?searchTxt=UNI-ROYAL%200603WAF2203T5E) | N | Y | See above |
+| CRCW0603210KFKEA | 1 | 210 kOhm, 5V converter feedback Circuit | [Digikey page](https://www.digikey.com/en/products/detail/vishay-dale/CRCW0603210KFKEA/1174930) | Y | - | - |
