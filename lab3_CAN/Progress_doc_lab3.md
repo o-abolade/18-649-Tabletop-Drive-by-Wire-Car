@@ -214,6 +214,30 @@ for the bad-input demo, `s` to toggle the status line, `q` to quit.
    double press → all NORMAL.
 7. **Bad input:** `b` in the cockpit → N2 and N3 ERROR and each sends FAULT.
 
+### Full-system results (2026-10-21, functional pass)
+
+| Check | Result |
+|---|---|
+| Cold start, proxy stopped | ✅ all three ERROR; zones hear each other's HB on A and B; Pi DEG LEDs off |
+| Start proxy | ✅ all three NORMAL; Pi `UDP 50/s`, `tx A/B 100/s` (50 CTRL + 50 HB), 0 failures |
+| Throttle / brake | ✅ N3 `cmd thr 53%` → `DRIVE`; pedal at rest → `BRAKE` |
+| Steering | ✅ N2 `cmd steer` tracks the wheel (−604..+35 seen). Servo not connected; SRV = PB4 on the scope |
+| Turn signals | buttons reach N2/N3 (`btn 0x02`); lamp sync to be confirmed on the scope (FL vs RL) |
+| Test button (N2 B1) | ✅ N2 LOCAL_FAIL + FAULT; N3 `NORMAL -> ERROR (FAULT from N2)`, `N2:--`; double press → all NORMAL |
+| Bad input (`b`) | ✅ N2 and N3 each sent FAULT reason 2 (CTRL out of range); N1 `ERROR (FAULT)`; all back to NORMAL on the next valid CTRL (~20 ms) |
+| Pi bus A pull | ✅ Pi DEG_A on, its `tx A` fails; re-insert → `tx A` back to normal within 1 s, no reset |
+| Scenario (c): Pi off B, N3 off A | ✅ N3 `HB N1:-B N2:-B`, NORMAL, **`thr 50%` → `DRIVE` via N2's relay**; N2 `N1:A- N3:-B`, relay ~150 frames/s, 0 dropped; DEG_B Pi, DEG_A N3. Re-insert → all `N?:AB`, ACTIVE, no reset |
+
+**Problems found and fixed on the way:**
+- **Zephyr's MCP2515 driver uses one TX buffer** → frames dropped; fixed with the per-bus ID-ordered TX queue (see Threads and priorities).
+- **Pi `can0`/`can1` swap between boots** → buses now identified by chip select.
+- **Proxy sent at 31/s, not 50/s:** Qt's default timer on Windows rounds 20 ms up to 31.25 ms. Fixed in `proxy_gui.py` with `setTimerType(QtCore.Qt.PreciseTimer)` on both timers and `TX_INTERVAL_MS = 20`.
+- **Brief NORMAL → ERROR blips, `CTRL stale, age ~105 ms`:** wheel UDP delayed by Wi-Fi (max gaps 85–139 ms; Pi Wi-Fi power save made it worse, now turned off by `can_up.sh`). **Use an Ethernet cable laptop ↔ Pi for the checkoff.**
+- Pulling a jumper mid-frame causes up to ~140 ms of CTRL disruption on the other nodes while both buses retransmit; steady state afterwards is normal (~40 ms max gap).
+- With no motors/encoders connected, N3's PID trim saturates, so PWM duty sits at 100 % while driving. Expected on a bare board.
+- The Pi's `can1` TX once hung with "No buffer space available" after many no-ACK episodes (re-flashing the Nucleos); `./can_up.sh` cleared it. Not reproduced by jumper pulls.
+- Terminal output can stall the cockpit (one ~6 s freeze while copying text); turn the status line off with `s` during timing runs.
+
 ## Building
 
 ```bash
@@ -420,8 +444,8 @@ i=0; while true; do c=$(printf '%02X' $((i & 0xFF)))
 | 2 | Task communication graph figure | Not started |
 | 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | Not started |
 | 4 | Dual-bus + relay design and re-analysis | Not started |
-| 5 | Zephyr implementation (dispatch/dedup, send helper, HB_MON, RELAY, error SM, watchdog) | Written on `lab3-can-link`, both zones build clean; not yet run on hardware |
-| 5 | Pi cockpit (CTRL/BLINK/HB_N1 TX, HB/FORCE RX, bad-input injection) | `pi_cockpit/cockpit.c` written; syntax-checked against Linux SocketCAN headers (libgpiod stubbed); not yet compiled or run on the Pi |
+| 5 | Zephyr implementation (dispatch/dedup, send helper, HB_MON, RELAY, error SM, watchdog) | **Running on hardware** (2026-10-21): functional pass done, see "Full-system results". Pending: isolation (d), whole-bus loss (e), scope timing |
+| 5 | Pi cockpit (CTRL/BLINK/HB_N1 TX, HB/FORCE RX, bad-input injection) | **Running on the Pi**, builds without warnings. Force is not sent back to the proxy (dummy counter would jerk the wheel) |
 | 5 | Test-point breakout boards per node | Not started |
 | — | Report, fault-injection matrix, Lab 1 revision-history entry | Not started |
 
