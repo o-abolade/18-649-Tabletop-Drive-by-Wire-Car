@@ -72,6 +72,7 @@ static struct k_spinlock lock;
 static struct canp_dedup dedup[NUM_SLOTS];
 static uint8_t tx_seq[NUM_SLOTS];
 static int64_t last_hb_ms[CANP_NUM_ZONES + 1][CANP_NUM_BUSES];
+static int64_t last_rx_ms[CANP_NUM_BUSES] = { -1, -1 };
 static struct can_link_stats stats;
 
 static int slot_of(uint32_t id, const uint8_t *data)
@@ -117,6 +118,7 @@ static void rx_handler(const struct device *dev, struct can_frame *frame, void *
 	int64_t now = k_uptime_get();
 	k_spinlock_key_t key = k_spin_lock(&lock);
 
+	last_rx_ms[bus] = now;   /* the bus is alive: someone else is talking */
 	if (frame->dlc != CANP_DLC || (frame->flags & CAN_FRAME_IDE) || slot < 0) {
 		stats.rx_bad++;
 	} else {
@@ -170,6 +172,16 @@ static void tx_done(const struct device *dev, int error, void *user_data)
  */
 #define TXQ_DEPTH        8
 #define TX_BUF_WAIT_MS   10    /* give up on one frame if the bus isn't ACKing */
+
+/* Stuck-buffer recovery. Seen on hardware: N3's bus A TX buffer stayed "busy"
+ * forever (every can_send timed out, TEC stayed 0, RX on that bus still
+ * worked) - the driver never got the TX-complete interrupt, and with one
+ * buffer that blocks the bus's TX permanently. `can stop`/`can start`
+ * cleared it (stop reports the pending frame done with -ENETDOWN). If the
+ * buffer stays busy this many waits in a row while we are still RECEIVING
+ * on that bus (so it isn't simply unplugged), restart the controller. */
+#define TX_STUCK_WAITS   3     /* 3 x 10 ms */
+#define RX_ALIVE_MS      100
 
 struct tx_item {
 	uint32_t id;
@@ -239,6 +251,7 @@ static void tx_thread(void *p1, void *p2, void *p3)
 	struct txq *q = &txq[bus];
 
 	ARG_UNUSED(p2); ARG_UNUSED(p3);
+	int stuck_waits = 0;
 
 	while (1) {
 		k_sem_take(&q->ready, K_FOREVER);
@@ -265,10 +278,27 @@ static void tx_thread(void *p1, void *p2, void *p3)
 		int ret = can_send(b->dev, &f, K_MSEC(TX_BUF_WAIT_MS), tx_done, (void *)(uintptr_t)bus);
 
 		tp_end(&b->tp_tx, start);
-		if (ret != 0) {
+		if (ret == 0) {
+			stuck_waits = 0;
+			continue;
+		}
+
+		key = k_spin_lock(&lock);
+		stats.tx_busy[bus]++;
+		bool rx_alive = last_rx_ms[bus] >= 0 &&
+				(k_uptime_get() - last_rx_ms[bus]) <= RX_ALIVE_MS;
+		k_spin_unlock(&lock, key);
+
+		/* -EAGAIN = the single TX buffer is still busy after 10 ms */
+		stuck_waits = (ret == -EAGAIN) ? stuck_waits + 1 : 0;
+		if (stuck_waits >= TX_STUCK_WAITS && rx_alive) {
+			printk("%s: TX buffer stuck while RX alive -> restarting controller\n", b->name);
+			(void)can_stop(b->dev);   /* aborts the frame, frees the buffer */
+			(void)can_start(b->dev);
 			key = k_spin_lock(&lock);
-			stats.tx_busy[bus]++;
+			stats.tx_recover[bus]++;
 			k_spin_unlock(&lock, key);
+			stuck_waits = 0;
 		}
 	}
 }

@@ -60,6 +60,7 @@ struct can_link_stats {
 	uint32_t tx_busy[CANP_NUM_BUSES];   /* dropped: queue full or the TX buffer
 					     * stayed busy 10 ms (bus not ACKing) */
 	uint32_t tx_done_err[CANP_NUM_BUSES];
+	uint32_t tx_recover[CANP_NUM_BUSES]; /* controller restarts for a stuck TX buffer */
 };
 
 /* Copy of the running counters (since boot). */
