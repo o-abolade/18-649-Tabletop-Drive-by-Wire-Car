@@ -47,11 +47,12 @@ Estimating 30 mOhm internal resistance for NiMH batteries, max voltage drop is 9
 - [ ] Connector choice, and trace width or pours for about 10 A
 
 ## Buck converters (TPS564252)
-- [ ] 3V3: inductor, caps, feedback resistors
+- [X] 3V3: inductor, caps, feedback resistors
 - [ ] 5 V: inductor (about 4.7 uH), caps, feedback resistors
 - [ ] 7 V: inductor (about 6.8 uH), 44 uF or more at 16 V or higher, 107 k / 10 k feedback
-- [ ] Enable dividers (about 20 k over 10 k) for the battery-fed bucks
-- [ ] Input capacitors for each buck
+- [X] Enable dividers (about 20 k over 10 k) for the battery-fed bucks
+- [X] Input capacitors for each buck
+- [ ] Add test points on PG output
 
 ## Motor drive and sensing
 - [ ] L298 overload protection and thermal plan (3.2 A stall exceeds the 2 A DC rating)
@@ -70,3 +71,9 @@ Estimating 30 mOhm internal resistance for NiMH batteries, max voltage drop is 9
 - [x] Buck selection (TPS564252 for all three rails)
 - [x] Button and LED circuit decisions
 - [x] First-pass 3V3, 5 V, 7 V, and 12 V budgets
+
+
+# NOTES
+
+## 
+- X5R ceramics like the ones we're using on buck inputs lose capacitance under DC bias, so we need to have more than 2 on the 5V and 7V rails to maintain the same effective capacitance (Claude estimates 40% loss on the 7V line, 25% on the 5V)
