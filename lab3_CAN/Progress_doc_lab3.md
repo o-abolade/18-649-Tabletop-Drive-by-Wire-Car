@@ -223,6 +223,7 @@ for the bad-input demo, `s` to toggle the status line, `q` to quit.
 | Cold start, proxy stopped | ✅ all three ERROR; zones hear each other's HB on A and B; Pi DEG LEDs off |
 | Start proxy | ✅ all three NORMAL; Pi `UDP 50/s`, `tx A/B 100/s` (50 CTRL + 50 HB), 0 failures |
 | Throttle / brake | ✅ N3 `cmd thr 53%` → `DRIVE`; pedal at rest → `BRAKE` |
+| **Brake chain timing (R2.2, ≤2 ms)** | ✅ **max 940 µs over 15 captures** (first capture 645 µs). Scope: CH1 = N3 DIR_A (trigger, rising, Normal + Single), CH2 = Pi UDP_RX; driving, then brake pressed; Delay from the last UDP_RX rising edge to DIR_A rising. Single bus healthy (both buses connected). Spread = Pi (Linux) jitter. Laptop ↔ Pi link: Wi-Fi |
 | Steering | ✅ N2 `cmd steer` tracks the wheel (−604..+35 seen). Servo not connected; SRV = PB4 on the scope |
 | Turn signals | buttons reach N2/N3 (`btn 0x02`); lamp sync to be confirmed on the scope (FL vs RL) |
 | Test button (N2 B1) | ✅ N2 LOCAL_FAIL + FAULT; N3 `NORMAL -> ERROR (FAULT from N2)`, `N2:--`; double press → all NORMAL |
