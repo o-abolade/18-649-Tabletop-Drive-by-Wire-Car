@@ -25,3 +25,4 @@
 | CSNL2512FTL500 | 1 | Shunt Resistor | [Digikey Page](https://www.digikey.com/en/products/detail/stackpole-electronics-inc/CSNL2512FTL500/1788105) | N | N | JLCPCB's available current sense resistors had far too high a resistance value |
 | ERJ-3EKF1001V  | 2 | RC filtering on steering ADC input | [Digikey Page](https://www.digikey.com/en/products/detail/panasonic-industry/ERJ-3EKF1001V/196032?s=N4IgTCBcDaIKICUBSBaAzHA0gMQIwAZ9cA1EAXQF8g) | Y | - | - |
 | GRM21BR71C475KE51L | 1 | See above | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM21BR71C475KE51L/6606095?s=N4IgTCBcDaIOICUCyYCMAhBB2VBhALFgKwDSAokagDIgC6AvkA) | Y | - | - |
+| C0603C220J1GACTU | 12 | Crystal Oscillator Load Capacitance | [Digikey Page](https://www.digikey.com/en/products/detail/kemet/C0603C220J1GACTU/2200183) | Y | - | - |
