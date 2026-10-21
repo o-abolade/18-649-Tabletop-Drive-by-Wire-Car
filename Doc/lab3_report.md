@@ -442,8 +442,8 @@ single-buffer blocking, as in 3.2):
   - **Remaining gap:** the same per-frame driver cost as in Section 3.
   - **Choice:** the handout's option of **accepting documented degraded
     latency in scenario (c)**, which is a double fault.
-  - **Caveat:** photo 3 was taken while bus B's CANL was miswired, so it
-    should be retaken.
+  - **Rechecked:** photos 3 and 4 were retaken after bus B's CANL wiring was
+    fixed, and gave the same maxima.
 - **Steering and blinker start** meet with wide margin.
 - **Blinker sync** gets a structural problem in (c). N2 acts on the original
   BLINK on bus A, while N3 can only act on N2's relayed copy, one hop later.

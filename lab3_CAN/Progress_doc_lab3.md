@@ -507,7 +507,7 @@ the single photo's value.
 | — | *(no photo)* Pi stage, normal load, **without `--rt`** | Same as 6, normal scheduling | — | 442.5 µs max, mean 52.97 µs, 3000 samples |
 | — | *(no photo)* Pi stage under `stress`, **without `--rt`** | Same as 7, normal scheduling | — | 444.5 µs max, mean 103.96 µs, 3000 samples |
 
-Photos 1–5 were taken without `--rt`, so the chain values include the slower
+Photos 3 and 4 were retaken on 2026-10-21 after bus B's CANL wiring fix: same maxima (1.1 ms, 607 µs). Photos 1–5 were taken without `--rt`, so the chain values include the slower
 Pi stage (up to ~443 µs vs 126.5 µs): they are conservative.
 
 ### Remaining captures (planned, photos 8–17)
