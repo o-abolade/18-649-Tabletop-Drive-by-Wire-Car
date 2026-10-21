@@ -508,6 +508,45 @@ the single photo's value.
 Photos 1–5 were taken without `--rt`, so the chain values include the slower
 Pi stage (up to ~443 µs vs 126.5 µs): they are conservative.
 
+### Remaining captures (planned, photos 8–17)
+
+These fill the timing column of the report's fault-injection matrix, plus the
+Part 1 and R2.5 checks. Setup:
+- Proxy and `sudo ./cockpit --rt` running, everything NORMAL.
+- Scope trigger **Normal + Single**, unless the row says otherwise.
+- A "jumper pull" means **both** wires (CANH and CANL) for that bus.
+
+The test button is the Nucleo's blue B1 (PC13, CN7-23; active low, so it
+falls on press). It isn't on a breadboard row, so probe CN7-23 directly. N3's
+ERR (PC12, CN7-3) isn't on N3's breadboard either; probe it directly.
+
+| # | Label (figure caption) | Channels / trigger | How | Limit | Max over repeats |
+|---|---|---|---|---|---|
+| 8 | CAN A physical layer: CANH/CANL, idle and one frame | CH1 = CANH, CH2 = CANL on the bus A rail (probe ground at bus GND), Math CH1−CH2; trigger CH1 rising, ~20 µs/div | Recessive ≈ 2.5/2.5 V (0 V diff), dominant ≈ 3.5/1.5 V (≈ 2 V diff), 2 µs bits | Part 1 | — |
+| 9 | CAN B physical layer | Same on the bus B rail | | Part 1 | — |
+| 10 | (a) DEG_A on: N2 off CAN A | Trigger = N2 DEG_A (row 7) rising, 20 ms/div; CH2 = N2 CAN_RX_A (row 3) | Pull N2's bus A jumpers. Delta = last CAN_RX_A pulse → DEG_A rising. 5 repeats | 60 ms of silence (+ ≤ 10 ms poll) | |
+| 11 | (f) DEG_A off: N2 bus A restored | Trigger = N2 DEG_A falling; CH2 = N2 CAN_RX_A | Re-insert the jumpers. Delta = first CAN_RX_A pulse → DEG_A falling. 5 repeats | ≤ 100 ms | |
+| — | (b) quick check, no photo | — | Pull N3's bus B jumpers: N3 DEG_B on, everyone stays NORMAL, wheel still drives; re-insert → off | functional | |
+| 12 | R2.5 local fail: N2 B1 → N2 ERR | CH1 = N2 B1 (CN7-23), trigger falling, 2 ms/div; CH2 = N2 ERR (row 13) | Single press, then double press to restore. 5 repeats | ≤ 10 ms | |
+| 13 | R2.5 system error: N2 B1 → N3 ERR | CH1 = N2 B1, trigger falling, 10 ms/div; CH2 = N3 ERR (PC12, CN7-3) | Single press (FAULT path). 5 repeats | ≤ 100 ms | |
+| 14 | (d) isolation, others enter error: N2 off both buses → N3 ERR | CH1 = N2 CAN_RX_B (row 4); CH2 = N3 ERR, trigger rising, 20 ms/div | Pull N2's bus A jumpers first, then bus B. Delta = last N2 CAN_RX_B pulse (isolation complete) → N3 ERR rising. 3 repeats | ≤ 100 ms | |
+| 15 | (d) isolation, isolated node's safe state: → N2 ERR | CH1 = N2 CAN_RX_B; CH2 = N2 ERR (row 13), trigger rising | Same pull. Delta = last CAN_RX_B pulse → N2 ERR rising | ≤ 100 ms | |
+| 16 | (f) isolation recovery, N2 | CH1 = N2 CAN_RX_A (row 3); CH2 = N2 ERR, trigger falling, 100 ms/div | Re-insert all of N2's jumpers. Delta = first CAN_RX pulse → N2 ERR falling | ≤ 500 ms, no reset | |
+| 17 | (f) isolation recovery, N3 | CH1 = N2 CAN_RX_A; CH2 = N3 ERR, trigger falling | Same. Delta = first N2 CAN_RX pulse → N3 ERR falling | ≤ 500 ms | |
+
+**No scope needed:**
+- **Heartbeat cadence (20 ms ±10 %)**, on the Pi, for the interface
+  `can_up.sh` reports as bus A. This prints min/max spacing per heartbeat ID
+  over 20 s, skipping N2's relayed copies (flag nibble ≠ 0):
+  ```
+  timeout 20 candump -ta can0,100:7FF,101:7FF,102:7FF | awk '{t=substr($1,2,length($1)-2); id=$3; if (substr($5,1,1)!="0") next; if (id in last){d=(t-last[id])*1000; if(!(id in mn)||d<mn[id])mn[id]=d; if(d>mx[id])mx[id]=d; n[id]++} last[id]=t} END{for(i in n) printf "%s n=%d min %.2f ms max %.2f ms
+", i, n[i], mn[i], mx[i]}'
+  ```
+- **Blinker rate:** the scope's Freq and +Duty measurements on N2 FL (row 10)
+  with the left blinker on (expect 1 Hz ±10 %, 50 % duty) and on hazard in
+  ERROR (expect 2 Hz). A screenshot is optional.
+
+
 ## WCET measurements (2026-10-21)
 
 **Method:** `common/zephyr/wcet.{h,c}`. Each job reads the current thread's

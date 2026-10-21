@@ -314,3 +314,28 @@ These are the changes that would close the gap, in order of effect:
 3. **Pi: a priority qdisc** with CTRL in the top band, so CTRL never waits
    behind N1's own HB/BLINK/FAULT. Local blocking would drop from 810 µs
    to 0, and R_CTRL from 1.75 ms to 0.94 ms.
+
+## Fault-injection test matrix (R4.8 a–f)
+
+Faults were injected by pulling the jumpers between a node's CAN module and
+the bus rail. Pulling them removes the node from that bus but leaves the
+terminators in place.
+
+- **Functional results** come from the full-system test on 2026-10-21. They
+  were read from the zone consoles and the Pi status line, plus the LEDs.
+- **Timing results** come from scope captures. Each is the maximum of the
+  repeats, using the test points on the per-node breadboards. Photo numbers
+  continue the scope capture log in `lab3_CAN/Progress_doc_lab3.md`.
+
+Detection timing follows from the design. A bus is marked degraded once no
+other node has been heard on it for 60 ms. HB_MON checks that every 10 ms, so
+the LED lights 60–70 ms after the last frame received.
+
+| | Fault injected | Expected: affected node | Expected: other zones | Per-bus LEDs | System state | Required timing | Measured: function | Measured: timing |
+|---|---|---|---|---|---|---|---|---|
+| a | One node off CAN A (demo: N2) | Marks A degraded after 60 ms of silence, keeps working on B | Keep hearing it on B, no state change | Node: DEG_A on. Others: off | Fully operational, NORMAL; no hazards, no braking | DEG_A on after 60 ms of silence (60–70 ms with the 10 ms poll) | ✅ N2 bus A pull (Part 1): N2's B unaffected, N3 still hears N1 on A and N2 on B. N1 bus A pull: Pi DEG_A on, all NORMAL | Photo 10: last CAN_RX_A → DEG_A on |
+| b | One node off CAN B (demo: N3) | Marks B degraded after 60 ms, keeps working on A | Keep hearing it on A | Node: DEG_B on. Others: off | Fully operational, NORMAL | Same as (a) | ✅ seen for N1 inside scenario (c). Single-fault check: listed in the remaining captures | Same code path as (a) |
+| c | N1 off CAN B **and** N3 off CAN A | N1 and N3 each degraded on one bus | N2 relays N1 ↔ N3 traffic (RELAY_TX toggling) | N1: DEG_B. N3: DEG_A. N2: none | Fully operational: steers, blinks, brakes through N2's relay | Degraded within 60–70 ms; brake chain 2 ms, or documented degraded latency (§3.3) | ✅ N3 NORMAL, `HB N1:-B N2:-B`, `thr 50%` → DRIVE via the relay; N2 relays about 150 frames/s, 0 dropped | Relayed brake chain **1.1 ms** max (photo 3). Relay stage 607 µs (photo 4) |
+| d | One STM32 off both buses (demo: N2, all 4 wires) | Hears no heartbeats on either bus → ERROR within 100 ms. Safe state: N2 steering centred | Miss 3 heartbeats from N2 on both buses → system ERROR: hazards, N3 braked | N2: DEG_A and DEG_B. Others: no DEG (their buses still work) | System error | Error entry ≤ 100 ms (analysis bound 96 ms, §3.3) | ✅ N2 ERROR, both buses PASSIVE/DEG. N3 ERROR (`N2:--`), motors braked, its buses ACTIVE | Photos 14–15 |
+| e | Whole CAN A lost (every node off A) | Each node marks A degraded | All traffic continues on B | All nodes: DEG_A on | Fully operational on B | Degraded within 60–70 ms, no functional interruption | ✅ all DEG_A on, all NORMAL on B only (`N?:-B`), CTRL gaps 36–39 ms. Needed the Pi TX watchdog fix (`mcp251x` TX queue hang) | — |
+| f | Restore any pulled jumpers | Bus-off controller recovers by itself (MCP2515 automatic; Pi `restart-ms 100`). DEG clears once traffic resumes | Resume using the restored bus; an isolated node's heartbeat brings everyone back to NORMAL | Affected LEDs off | NORMAL again, no reset or power cycle | DEG off ≤ 100 ms after traffic resumes; full recovery ≤ 500 ms | ✅ every case above: all back to `N?:AB`, ACTIVE, NORMAL, with no reset | Photos 11 (DEG off) and 16–17 (isolation recovery) |
