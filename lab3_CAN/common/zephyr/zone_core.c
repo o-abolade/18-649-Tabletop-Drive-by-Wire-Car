@@ -33,6 +33,7 @@ static bool local_fail;
 static struct canp_ctrl last_ctrl;
 static int64_t ctrl_ok_ms = -1;      /* last valid CTRL */
 static int64_t ctrl_bad_ms = -1;     /* last out-of-range CTRL */
+static int64_t ctrl_max_gap_ms;      /* longest gap between valid CTRLs, per status line */
 static int64_t fault_rx_ms[CANP_NUM_ZONES + 1] = { -1, -1, -1, -1 };
 static enum canp_blink_state blink_state;
 static bool blink_lamps_on;
@@ -80,7 +81,7 @@ int zone_wait_ctrl(struct canp_ctrl *out, k_timeout_t timeout)
 	return 0;
 }
 
-static void set_state(enum canp_zone_state next)
+static void set_state(enum canp_zone_state next, const char *why)
 {
 	k_spinlock_key_t key = k_spin_lock(&lock);
 	enum canp_zone_state prev = state;
@@ -100,7 +101,8 @@ static void set_state(enum canp_zone_state next)
 		cfg->enter_safe();
 	}
 	k_sem_give(&blink_sem);   /* switch lamps between BLINK and local hazard */
-	printk("ZONE N%d: %s -> %s\n", cfg->zone, zone_state_name(prev), zone_state_name(next));
+	printk("ZONE N%d: %s -> %s (%s)\n", cfg->zone, zone_state_name(prev),
+	       zone_state_name(next), why);
 }
 
 /* ---- RX dispatch: MCP2515 cooperative thread, already deduplicated ---- */
@@ -115,6 +117,9 @@ static void on_frame(uint32_t id, const uint8_t data[CANP_DLC], enum canp_bus bu
 		k_spinlock_key_t key = k_spin_lock(&lock);
 
 		if (r == CANP_CTRL_OK) {
+			if (ctrl_ok_ms >= 0 && now - ctrl_ok_ms > ctrl_max_gap_ms) {
+				ctrl_max_gap_ms = now - ctrl_ok_ms;
+			}
 			last_ctrl = c;
 			ctrl_ok_ms = now;
 		} else if (r == CANP_CTRL_OUT_OF_RANGE) {
@@ -203,6 +208,7 @@ static void hb_mon_thread(void *a, void *b, void *c)
 		bool zone_lost = false;
 		bool fault_block = false;
 		bool bus_seen[CANP_NUM_BUSES] = { false, false };
+		int lost_zone = 0, fault_zone = 0;
 
 		for (int z = 1; z <= CANP_NUM_ZONES; z++) {
 			if (z == cfg->zone) {
@@ -216,7 +222,10 @@ static void hb_mon_thread(void *a, void *b, void *c)
 					alive = true;
 				}
 			}
-			zone_lost |= !alive;
+			if (!alive) {
+				zone_lost = true;
+				lost_zone = z;
+			}
 
 			/* A FAULT from zone z holds us in ERROR until z sends a newer heartbeat */
 			k_spinlock_key_t key = k_spin_lock(&lock);
@@ -226,13 +235,19 @@ static void hb_mon_thread(void *a, void *b, void *c)
 			if (f >= 0) {
 				int64_t hb = MAX(can_link_last_hb_ms(z, CANP_BUS_A),
 						 can_link_last_hb_ms(z, CANP_BUS_B));
-				fault_block |= hb <= f;
+
+				if (hb <= f) {
+					fault_block = true;
+					fault_zone = z;
+				}
 			}
 		}
 
 		k_spinlock_key_t key = k_spin_lock(&lock);
 		bool ctrl_ok = ctrl_ok_ms >= 0 && (now - ctrl_ok_ms) <= ZONE_CTRL_TIMEOUT_MS &&
 			       ctrl_ok_ms > ctrl_bad_ms;
+		int64_t ctrl_age = ctrl_ok_ms < 0 ? -1 : now - ctrl_ok_ms;
+		bool ctrl_range = ctrl_bad_ms >= 0 && ctrl_bad_ms >= ctrl_ok_ms;
 		bool lfail = local_fail;
 
 		for (int bus = 0; bus < CANP_NUM_BUSES; bus++) {
@@ -250,12 +265,25 @@ static void hb_mon_thread(void *a, void *b, void *c)
 			send_fault(reason);
 		}
 
+		char why[48];
+
 		if (lfail) {
-			set_state(CANP_ZS_LOCAL_FAIL);
-		} else if (zone_lost || fault_block || !ctrl_ok) {
-			set_state(CANP_ZS_ERROR);
+			set_state(CANP_ZS_LOCAL_FAIL, "test button");
+		} else if (zone_lost) {
+			snprintk(why, sizeof(why), "N%d heartbeat lost on both buses", lost_zone);
+			set_state(CANP_ZS_ERROR, why);
+		} else if (fault_block) {
+			snprintk(why, sizeof(why), "FAULT from N%d", fault_zone);
+			set_state(CANP_ZS_ERROR, why);
+		} else if (!ctrl_ok) {
+			if (ctrl_range) {
+				snprintk(why, sizeof(why), "out-of-range CTRL");
+			} else {
+				snprintk(why, sizeof(why), "CTRL stale, age %lld ms", ctrl_age);
+			}
+			set_state(CANP_ZS_ERROR, why);
 		} else {
-			set_state(CANP_ZS_NORMAL);
+			set_state(CANP_ZS_NORMAL, "all zones alive, CTRL fresh");
 		}
 
 		if (wdt_channel >= 0) {
@@ -377,7 +405,7 @@ static void btn_thread(void *a, void *b, void *c)
 			k_sem_give(&hbmon_sem);   /* re-evaluate state now */
 		} else {
 			/* R2.5: act locally right here, not on the next HB_MON poll */
-			set_state(CANP_ZS_LOCAL_FAIL);
+			set_state(CANP_ZS_LOCAL_FAIL, "test button");
 			atomic_set(&fault_pending, CANP_FAULT_TEST_BUTTON);
 			k_sem_give(&hbmon_sem);
 		}
@@ -459,7 +487,10 @@ void zone_print_status(void)
 	bool da = deg[CANP_BUS_A], db = deg[CANP_BUS_B];
 	int64_t ctrl_age = ctrl_ok_ms < 0 ? -1 : now - ctrl_ok_ms;
 	uint32_t bad_crc = ctrl_bad_crc;
+	struct canp_ctrl c = last_ctrl;
+	int64_t max_gap = ctrl_max_gap_ms;
 
+	ctrl_max_gap_ms = 0;
 	k_spin_unlock(&lock, key);
 
 	printk("N%d %-10s | A %s%s T%u R%u | B %s%s T%u R%u | HB",
@@ -474,7 +505,9 @@ void zone_print_status(void)
 		       hb_seen(z, CANP_BUS_A, now) ? 'A' : '-',
 		       hb_seen(z, CANP_BUS_B, now) ? 'B' : '-');
 	}
-	printk(" | CTRL age %lldms badcrc %u | rx %u dup %u | txbusy A%u B%u\n",
-	       ctrl_age, bad_crc, st.rx_accepted, st.rx_dropped,
+	printk(" | CTRL age %lldms maxgap %lldms badcrc %u | rx %u dup %u | txbusy A%u B%u\n",
+	       ctrl_age, max_gap, bad_crc, st.rx_accepted, st.rx_dropped,
 	       st.tx_busy[CANP_BUS_A], st.tx_busy[CANP_BUS_B]);
+	printk("   cmd: steer %d thr %u%% brk %u%% btn 0x%02x\n",
+	       c.steer, c.throttle, c.brake, c.buttons);
 }

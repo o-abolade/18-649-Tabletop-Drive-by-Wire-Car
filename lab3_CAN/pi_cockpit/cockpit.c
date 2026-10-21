@@ -112,6 +112,8 @@ static bool deg[CANP_NUM_BUSES];
 static int64_t last_udp_ms = -1;
 
 /* latest wheel values */
+static long raw_steer, raw_throttle, raw_brake;   /* before scaling, for calibration */
+static int64_t udp_max_gap_ms;
 static int16_t cur_steer;
 static uint8_t cur_throttle, cur_brake, cur_buttons;
 static bool inject_bad;
@@ -427,10 +429,16 @@ static void handle_udp(int fd)
 	}
 	uint8_t edges = buttons & ~cur_buttons;   /* pressed this update */
 
+	raw_steer = js->lX;
+	raw_throttle = js->lY;
+	raw_brake = js->lRz;
 	cur_steer = scale_steering(js->lX);
 	cur_throttle = scale_pedal(js->lY);
 	cur_brake = scale_pedal(js->lRz);
 	cur_buttons = buttons;
+	if (last_udp_ms >= 0 && now - last_udp_ms > udp_max_gap_ms) {
+		udp_max_gap_ms = now - last_udp_ms;
+	}
 	last_udp_ms = now;
 	udp_count++;
 
@@ -587,6 +595,10 @@ static void print_status(int64_t now)
 	       udp_count, last_udp_ms < 0 ? -1LL : (long long)(now - last_udp_ms),
 	       sent_blink, blink_phase, last_force, force_rx_count,
 	       tx_ok[0], tx_fail[0], tx_ok[1], tx_fail[1]);
+	printf("   wheel raw X %ld Y %ld Rz %ld -> steer %d thr %u%% brk %u%% btn 0x%02x | UDP max gap %lldms\n",
+	       raw_steer, raw_throttle, raw_brake, cur_steer, cur_throttle, cur_brake,
+	       cur_buttons, (long long)udp_max_gap_ms);
+	udp_max_gap_ms = 0;
 	udp_count = force_rx_count = 0;
 	memset(tx_ok, 0, sizeof(tx_ok));
 	memset(tx_fail, 0, sizeof(tx_fail));
