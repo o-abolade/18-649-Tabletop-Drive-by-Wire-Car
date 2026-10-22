@@ -1,5 +1,5 @@
 <!-- Print layout for Markdown Preview Enhanced / Prince PDF export. -->
-<link rel="stylesheet" href="pdf-export.css" media="print">
+<link rel="stylesheet" href="../pdf-export.css" media="print">
 
 # 18-449/649 Lab 3: Dual-Redundant CAN and Real-Time Analysis
 
@@ -13,7 +13,7 @@ captures are in Appendix A. The full log is in
 
 ## 1. Wiring schematic
 
-![Figure 1: Dual-CAN wiring. Both buses with termination and jumpers, every module's SPI/CS/INT pins, and the three test-point boards](assets/lab3_wiring_schematic.drawio.png)
+![Figure 1: Dual-CAN wiring. Both buses with termination and jumpers, every module's SPI/CS/INT pins, and the three test-point boards](../assets/lab3_wiring_schematic.drawio.png)
 
 **Bus layout**
 - **Order:** both buses are linear, N1 – N2 – N3.
@@ -47,7 +47,7 @@ captures are in Appendix A. The full log is in
 
 ## 2. Task communication graph
 
-![Figure 2: Task communication graph, one 20 ms cycle. CAN edges labeled ID, period and deadline; brake/throttle (blue), steering (green), blinker (orange) and error (red) chains highlighted](assets/lab3_task_graph.drawio.png)
+![Figure 2: Task communication graph, one 20 ms cycle. CAN edges labeled ID, period and deadline; brake/throttle (blue), steering (green), blinker (orange) and error (red) chains highlighted](../assets/lab3_task_graph.drawio.png)
 
 - **Edges:** solid edges are CAN frames; dashed edges are hand-offs inside
   one node (semaphores, or state under a spinlock or mutex).
@@ -56,7 +56,7 @@ captures are in Appendix A. The full log is in
   into CAN_RX.
 - **Part 4:** Figure 3 adds N2's RELAY task and the second bus hop.
 
-![Figure 3: Extended task graph for scenario (c): RELAY on N2; relayed brake path 0x010 on A → RELAY → 0x010 on B → DRIVE](assets/lab3_task_graph_with_relay.drawio.png)
+![Figure 3: Extended task graph for scenario (c): RELAY on N2; relayed brake path 0x010 on A → RELAY → 0x010 on B → DRIVE](../assets/lab3_task_graph_with_relay.drawio.png)
 
 ## 3. Real-time analysis
 
@@ -369,7 +369,7 @@ line and the LEDs; timing results are scope maxima.
 
 ## 6. Team-defined values and Lab 1 revision
 
-`Doc/Requirement_Document.md` has been updated for Lab 3:
+`Doc/lab1/Requirement_Document.md` has been updated for Lab 3:
 - **Section 6:** the template catalog, with our payloads, handling rules and
   utilization.
 - **Section 7:** a "Lab 3 values" table with every threshold and mapping
@@ -384,52 +384,52 @@ their Pi stage is the slower one (up to about 443 µs) and the chain values are
 conservative.
 
 ### Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15 counts
-![Photo 1: Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15](assets/lab3_scope/photo01.jpeg)
+![Photo 1: Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15](../assets/lab3_scope/photo01.jpeg)
 
 ### Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10 counts
-![Photo 2: Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10](assets/lab3_scope/photo02.jpeg)
+![Photo 2: Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10](../assets/lab3_scope/photo02.jpeg)
 
 ### Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10 counts
-![Photo 3: Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10](assets/lab3_scope/photo03.jpeg)
+![Photo 3: Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10](../assets/lab3_scope/photo03.jpeg)
 
 ### Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10 counts
-![Photo 4: Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10](assets/lab3_scope/photo04.jpeg)
+![Photo 4: Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10](../assets/lab3_scope/photo04.jpeg)
 
 ### Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 counts
-![Photo 5: Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 edges](assets/lab3_scope/photo05.jpeg)
+![Photo 5: Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 edges](../assets/lab3_scope/photo05.jpeg)
 
 ### Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs, mean 34.9 µs, 3000 samples
-![Photo 6: Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs, mean 34.9 µs, 3000 samples](assets/lab3_scope/photo06.jpeg)
+![Photo 6: Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs, mean 34.9 µs, 3000 samples](../assets/lab3_scope/photo06.jpeg)
 
 ### Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples
-![Photo 7: Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples](assets/lab3_scope/photo07.jpeg)
+![Photo 7: Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples](../assets/lab3_scope/photo07.jpeg)
 
 ### CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V
-![Photo 8: CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V](assets/lab3_scope/photo08.jpeg)
+![Photo 8: CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V](../assets/lab3_scope/photo08.jpeg)
 
 ### CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V
-![Photo 9: CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V](assets/lab3_scope/photo09.jpeg)
+![Photo 9: CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V](../assets/lab3_scope/photo09.jpeg)
 
 ### (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5 counts
-![Photo 10: (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5](assets/lab3_scope/photo10.jpeg)
+![Photo 10: (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5](../assets/lab3_scope/photo10.jpeg)
 
 ### (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5 counts
-![Photo 11: (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5](assets/lab3_scope/photo11.jpeg)
+![Photo 11: (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5](../assets/lab3_scope/photo11.jpeg)
 
 ### R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5 counts
-![Photo 12: R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5](assets/lab3_scope/photo12.jpeg)
+![Photo 12: R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5](../assets/lab3_scope/photo12.jpeg)
 
 ### R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5 counts
-![Photo 13: R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5](assets/lab3_scope/photo13.jpeg)
+![Photo 13: R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5](../assets/lab3_scope/photo13.jpeg)
 
 ### (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3 counts
-![Photo 14: (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3](assets/lab3_scope/photo14.jpeg)
+![Photo 14: (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3](../assets/lab3_scope/photo14.jpeg)
 
 ### (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3 counts
-![Photo 15: (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3](assets/lab3_scope/photo15.jpeg)
+![Photo 15: (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3](../assets/lab3_scope/photo15.jpeg)
 
 ### (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3 counts
-![Photo 16: (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3](assets/lab3_scope/photo16.jpeg)
+![Photo 16: (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3](../assets/lab3_scope/photo16.jpeg)
 
 ### (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3 counts
-![Photo 17: (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3](assets/lab3_scope/photo17.jpeg)
+![Photo 17: (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3](../assets/lab3_scope/photo17.jpeg)

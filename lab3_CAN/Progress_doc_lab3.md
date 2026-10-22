@@ -611,7 +611,7 @@ already inside DRV_FRAME.
   - `wcet_print` uses `k_thread_foreach_unlocked`, so interrupts aren't off
     during `printk`.
 
-**RTA result (`Doc/lab3_report.md` §3):**
+**RTA result (`Doc/lab3/lab3_report.md` §3):**
 - **What dominates:** the per-frame driver cost (503 µs N3, 731 µs N2) is
   larger than the 222 µs minimum frame spacing, and two buses feed each
   zone. A worst-case burst of received frames (12 on N2, 20 on N3)
@@ -629,7 +629,7 @@ already inside DRV_FRAME.
 
 ## Part 3 measurement checklist
 
-`Doc/lab3_report.md` now contains the Section 3.1--3.3 RTA structure using
+`Doc/lab3/lab3_report.md` now contains the Section 3.1--3.3 RTA structure using
 the handout WCET placeholders.  It is not final until the following values
 replace or validate those assumptions.  Record the **maximum** observed value,
 the capture conditions, and the test-point pair used; do not replace a bound
@@ -661,7 +661,7 @@ maximum is larger than the current placeholder.
 | 1 | Bus wiring, 60Ω termination check, common ground | **Done.** Bus A 58 Ω (P1 on N1 and N3); bus B wired 2026-10-20, same layout |
 | 1 | candump sees both Nucleos on both buses; jumper-pull test | Bus A: `candump can0` shows `0x720` (N2) and `0x730` (N3) every ~100.2 ms, counters continuous, no error frames; Nucleos hear each other 10/s with 0 TX errors. With the Pi sending `0x710`, all three nodes hear each other on bus A. **N2 bus A jumper pull:** N3 unaffected (ERROR-ACTIVE, 0 errors, still hears N1); N2 isolated (ERROR-PASSIVE via REC=135, tx ok 0, buffers full); re-insert → N2 back to ERROR-ACTIVE, TEC=REC=0, no reset. **Both buses (2026-10-20): done.** All three nodes hear each other on A and B (N2↔N3 10/s, N1 ~9/s from the shell loop), 0 errors. Pulling N2's bus A jumpers: N2's CAN B unaffected; N3 still hears N1 on A and N2 on B; N2's CAN A ERROR-PASSIVE (REC=135). Re-insert: N2 CAN A back to ERROR-ACTIVE, TEC=REC=0, no reset. **Pending: scope captures of CANH/CANL per bus** |
 | 2 | Task communication graph figure | Not started |
-| 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | **Done** (2026-10-21) in `Doc/lab3_report.md` §3 with measured WCETs (see "WCET measurements"), J_PI = 126.5 µs measured, and measured chain maxima. Brake/throttle, relayed brake, blinker sync and N2 local fail fail by analysis but pass as measured; see the report for the reasons and remedies |
+| 3 | Node RTA (N2, N3), message RTA per bus, end-to-end chains, Pi latency | **Done** (2026-10-21) in `Doc/lab3/lab3_report.md` §3 with measured WCETs (see "WCET measurements"), J_PI = 126.5 µs measured, and measured chain maxima. Brake/throttle, relayed brake, blinker sync and N2 local fail fail by analysis but pass as measured; see the report for the reasons and remedies |
 | 4 | Dual-bus + relay design and re-analysis | Not started |
 | 5 | Zephyr implementation (dispatch/dedup, send helper, HB_MON, RELAY, error SM, watchdog) | **Running on hardware** (2026-10-21): functional pass done, see "Full-system results". Pending: isolation (d), whole-bus loss (e), scope timing |
 | 5 | Pi cockpit (CTRL/BLINK/HB_N1 TX, HB/FORCE RX, bad-input injection) | **Running on the Pi**, builds without warnings. Force is not sent back to the proxy (dummy counter would jerk the wheel) |

@@ -1,5 +1,5 @@
 <!-- Print layout for Markdown Preview Enhanced / Prince PDF export. -->
-<link rel="stylesheet" href="pdf-export.css" media="print">
+<link rel="stylesheet" href="../pdf-export.css" media="print">
 
 # 18-649 Lab 1: Requirements Document
 
@@ -32,7 +32,7 @@ The system has three zones — Cockpit (Raspberry Pi), Front/Steering, and Rear/
 ---
 
 ## 2. System state chart
-![System state chart](assets/649_state_diagram.drawio.png)
+![System state chart](../assets/649_state_diagram.drawio.png)
 
 
 ### Heartbeat behavior by state
@@ -53,22 +53,22 @@ Every state except NORMAL drives the zone to its documented safe output: motor P
 ## 3. Sequence diagrams for each use-case (S1–S6)
 
 **Use Case 1: Throttle** 
-![S1 throttle-control sequence diagram](assets/s1_throttle_seq.png)
+![S1 throttle-control sequence diagram](../assets/s1_throttle_seq.png)
 
 **Use Case 2: Brake** 
-![S2 brake-control sequence diagram](assets/s2_brake_seq.png)
+![S2 brake-control sequence diagram](../assets/s2_brake_seq.png)
 
 **Use Case 3: Steering** 
-![S3 steering sequence diagram](assets/s3_steering_seq.png)
+![S3 steering sequence diagram](../assets/s3_steering_seq.png)
 
 **Use Case 4: Blinkers** 
-![S4 blinker sequence diagram](assets/s4_blinkers_seq.png)
+![S4 blinker sequence diagram](../assets/s4_blinkers_seq.png)
 
 **Use Case 5: Self Test** 
-![S5 self-test sequence diagram](assets/s5_self_test_seq.png)
+![S5 self-test sequence diagram](../assets/s5_self_test_seq.png)
 
 **Use Case 6: CAN Bus Fault** 
-<img src="assets/s6_can_bus_fault_seq.png" alt="S6 CAN-bus fault-tolerance sequence diagram" style="display:block; width:auto; max-width:100%; height:6in; max-height:6in; margin:0 auto; object-fit:contain;">
+<img src="../assets/s6_can_bus_fault_seq.png" alt="S6 CAN-bus fault-tolerance sequence diagram" style="display:block; width:auto; max-width:100%; height:6in; max-height:6in; margin:0 auto; object-fit:contain;">
 
 ## 4. Traceability for each use-case (S1–S6)
 
@@ -379,7 +379,7 @@ convenience messages (BLINK, FORCE).
   = **8.6 %**.
 - With N2's relayed copies, the worst bus carries **19.4 %**; in scenario
   (c), 11.3 % per bus.
-- All are under the 50 % ceiling. See `Doc/lab3_report.md` §3.2 and §4.3.
+- All are under the 50 % ceiling. See `Doc/lab3/lab3_report.md` §3.2 and §4.3.
 
 ### Proposed CAN message catalog (Lab 1, superseded)
 
@@ -858,7 +858,7 @@ These replace the TBDs above that Lab 3 settled. Source files are in
 ---
 
 ## 8. Dual-CAN redundancy design
-![Dual-CAN bus topology](assets/dual_can_bus_topology_clean.png)
+![Dual-CAN bus topology](../assets/dual_can_bus_topology_clean.png)
 
 
 ---
@@ -958,4 +958,4 @@ Covers scenarios (a)–(f) of R4.8. "Node X" / "Node Y" refer to any node used t
 | Date | Change |
 |---|---|
 | 2026-09-17 | Lab 1 submission. |
-| 2026-10-21 | Lab 3: replaced the proposed CAN catalog with the course template (Section 6), recorded the implemented values (Section 7, "Lab 3 values"), and added the Lab 3 design choices. These are: N1 is the blinker master; N2 always relays N1/N3 frames between buses (relayed flag 0x10); a failed N2 holds its steering angle instead of centring; the cockpit goes silent after 100 ms without wheel UDP. Known limitation found in Lab 3: only N2 relays, so R4.8(c) with N2 and N3 (or N1 and N2) on opposite buses leads to system ERROR (`Doc/lab3_report.md` §4.3). |
+| 2026-10-21 | Lab 3: replaced the proposed CAN catalog with the course template (Section 6), recorded the implemented values (Section 7, "Lab 3 values"), and added the Lab 3 design choices. These are: N1 is the blinker master; N2 always relays N1/N3 frames between buses (relayed flag 0x10); a failed N2 holds its steering angle instead of centring; the cockpit goes silent after 100 ms without wheel UDP. Known limitation found in Lab 3: only N2 relays, so R4.8(c) with N2 and N3 (or N1 and N2) on opposite buses leads to system ERROR (`Doc/lab3/lab3_report.md` §4.3). |

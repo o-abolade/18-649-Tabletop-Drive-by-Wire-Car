@@ -1,5 +1,5 @@
 <!-- Print layout for Markdown Preview Enhanced / Prince PDF export. -->
-<link rel="stylesheet" href="pdf-export.css" media="print">
+<link rel="stylesheet" href="../pdf-export.css" media="print">
 
 # 18-649 Lab 2: Report Document
 
@@ -11,10 +11,10 @@
 ---
 
 ## System Diagram
-![Top Level Block Diagram](assets/Lab2_Block_Diagram.png)
+![Top Level Block Diagram](../assets/Lab2_Block_Diagram.png)
 
 ## Circuit Diagram
-![Circuit Diagram](assets/18649_Lab2_Circuit_Schematic.png)
+![Circuit Diagram](../assets/18649_Lab2_Circuit_Schematic.png)
 
 ## Team-Defined Values
 

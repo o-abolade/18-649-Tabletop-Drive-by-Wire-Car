@@ -1,5 +1,5 @@
 <!-- Print layout for Markdown Preview Enhanced / Prince PDF export. -->
-<link rel="stylesheet" href="pdf-export.css" media="print">
+<link rel="stylesheet" href="../pdf-export.css" media="print">
 
 # 18-649 Lab 1: Testing Document
 
