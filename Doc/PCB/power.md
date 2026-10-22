@@ -19,7 +19,10 @@ Button current calculated as 3.3 V / 10k ohms = 0.33 mA
 For the buck regulators, input current given by I_in = (Vout * Iout) / (efficiency * Vin)
 90% efficiency estimated for 6V8 regulator at 3A, 88% at typical current, based on data other diagrams since no chart for 6V8 on the data sheet
 
-
+- For power can add diodes (on every rail?)
+- Find Fuse for overcurrent protection
+- Check if you need flyback for inductive loads on the buck converters
+- Add bulk capacitances (every line?)
 
 
 ## NOTES
