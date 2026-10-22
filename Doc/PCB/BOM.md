@@ -30,3 +30,4 @@
 | 2.54 mm pin headers | 33 | Steering input (x3), Steering SWD pins (x6), Steering STM uart (x3), CAN jumpers (x12), Drivetrain SWD pins (x6), drivetrain STM uart (x3) | N/A | Y | - | - |
 | B6B-PH-SM4-TB | 2 | Motor connection (x2) | Y | - | - |
 | B3B-PH-SM4-TB | 1 | Steering Servo connection | N | N | Same product line as B6B conn |
+| GCM1885C2A102FA16D | 2 | Motor current sense filter | Y | - | - |
