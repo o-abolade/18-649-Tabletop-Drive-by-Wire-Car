@@ -70,6 +70,7 @@ static struct bus buses[CANP_NUM_BUSES] = {
 };
 
 static can_link_rx_cb_t user_rx_cb;
+static can_link_sent_cb_t sent_cb;   /* RELAY's RELAY_TX test point */
 
 /* Guards dedup, last_hb_ms, tx_seq and stats. Touched from both MCP2515 RX
  * threads and from app threads; never held across an SPI transaction. */
@@ -315,6 +316,9 @@ static void tx_thread(void *p1, void *p2, void *p3)
 		wcet_end(WCET_CAN_TX, w0);
 		if (ret == 0) {
 			stuck_waits = 0;
+			if (sent_cb) {
+				sent_cb(bus, f.id, f.data);
+			}
 			continue;
 		}
 
@@ -534,6 +538,11 @@ static bool bus_init(struct bus *b, enum canp_bus idx)
 		return false;
 	}
 	return true;
+}
+
+void can_link_set_sent_hook(can_link_sent_cb_t cb)
+{
+	sent_cb = cb;
 }
 
 int can_link_init(can_link_rx_cb_t rx_cb)

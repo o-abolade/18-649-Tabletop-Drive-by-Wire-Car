@@ -12,7 +12,7 @@ target_include_directories(steering PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(steering PUBLIC zephyr_interface)
 add_dependencies(steering zephyr_generated_headers)
 
-# --- main app: STEER, FORCE_TX, RELAY ---
-target_sources(app PRIVATE src/main.c src/relay.c)
+# --- main app: STEER, FORCE_TX (RELAY is in common/zephyr/relay.c) ---
+target_sources(app PRIVATE src/main.c)
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(app PRIVATE steering)

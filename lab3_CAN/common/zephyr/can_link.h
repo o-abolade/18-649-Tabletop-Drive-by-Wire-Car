@@ -28,6 +28,16 @@
 typedef void (*can_link_rx_cb_t)(uint32_t id, const uint8_t data[CANP_DLC],
 				 enum canp_bus bus);
 
+/*
+ * Called in the bus's CAN_TX thread right after can_send() has handed a frame
+ * to the MCP2515 (the TX-done callback means it doesn't wait for the bus).
+ * Must be short and must not block. Used by RELAY for its RELAY_TX test point.
+ */
+typedef void (*can_link_sent_cb_t)(enum canp_bus bus, uint32_t id,
+				   const uint8_t data[CANP_DLC]);
+
+void can_link_set_sent_hook(can_link_sent_cb_t cb);
+
 /* Start both buses. Returns the number of buses that came up (0..2); a bus
  * whose MCP2515 doesn't answer the SPI probe is left down and reported. */
 int can_link_init(can_link_rx_cb_t rx_cb);
