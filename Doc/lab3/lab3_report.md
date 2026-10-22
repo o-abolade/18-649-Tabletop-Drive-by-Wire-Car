@@ -86,14 +86,14 @@ Following the TA clarification:
 ### 3.1 Measurements
 
 Measured on the scope, maximum over at least a minute of traffic, with the node's other tasks idle.
-The test points are C GPIO writes, a few µs each. Screenshots are in Appendix A.
+The test points are C GPIO writes, a few µs each. Screenshots are in Appendix A.1.
 
 | # | Number | Start probe → stop probe | Max (µs) | Screenshot |
 |---|---|---|---:|---|
-| 1 | Pi stage | N1 UDP_RX (after the socket read) → CMD_TX (after the CAN writes) | 126.5 | Photo 6 |
-| 2 | CAN_RX C, N3 | N3 CAN A INT (PA10 / D2) falling → CAN_RX_A | TBD | Photo 18 |
-| 3 | DRIVE C, N3 | N3 CAN_RX_A → DIR_A on a brake frame | TBD | Photo 19 |
-| 4 | SPI frame load (B) | MCP2515 CS (PB6 / D10) low → high, longest window | TBD | Photo 20 |
+| 1 | Pi stage | N1 UDP_RX (after the socket read) → CMD_TX (after the CAN writes) | 126.5 | M1 |
+| 2 | CAN_RX C, N3 | N3 CAN A INT (PA10 / D2) falling → CAN_RX_A | TBD | M2 |
+| 3 | DRIVE C, N3 | N3 CAN_RX_A → DIR_A on a brake frame | TBD | M3 |
+| 4 | SPI frame load (B) | MCP2515 CS (PB6 / D10) low → high, longest window | TBD | M4 |
 
 ### 3.2 Node RTA: N3 (drivetrain)
 
@@ -184,8 +184,8 @@ Checkoff cases: N1 off B + N3 off A and N1 off A + N3 off B (N2 relays); N1 off 
 
 | # | Number | Start probe → stop probe | Max (µs) | Screenshot |
 |---|---|---|---:|---|
-| 5 | CAN_RX C, N2 | N2 CAN A INT (PA10 / D2) falling → CAN_RX_A | TBD | Photo 21 |
-| 6 | RELAY C, N2 | N2 CAN_RX_A → RELAY_TX, pulsed right after the relayed frame's `can_send()` on bus B returns; N1 off B, N3 off A | TBD | Photo 22 |
+| 5 | CAN_RX C, N2 | N2 CAN A INT (PA10 / D2) falling → CAN_RX_A | TBD | M5 |
+| 6 | RELAY C, N2 | N2 CAN_RX_A → RELAY_TX, pulsed right after the relayed frame's `can_send()` on bus B returns; N1 off B, N3 off A | TBD | M6 |
 
 ### 4.4 Re-analysis: N2 with RELAY
 
@@ -268,76 +268,84 @@ line and the LEDs; timing results are scope maxima.
 
 ## Appendix A: Scope captures
 
-Every value is the **maximum over the repeats** listed. Test-point rows refer
-to Figure 1. Photos 1–5 were taken with the cockpit **without** `--rt`, so
-their Pi stage is the slower one (up to about 443 µs) and the chain values are
-conservative.
+Every value is the **maximum over the repeats** listed. Test-point rows refer to Figure 1.
 
-### Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15 counts
-![Photo 1: Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15](../assets/lab3_scope/photo01.jpeg)
+### A.1 Required measurements (TA clarification, M1–M6)
 
-### Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10 counts
-![Photo 2: Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10](../assets/lab3_scope/photo02.jpeg)
+The six measurements the RTA in Sections 3–4 uses. Each screenshot shows both probes and the max.
 
-### Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10 counts
-![Photo 3: Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10](../assets/lab3_scope/photo03.jpeg)
+#### M1 — Measurement #1: Pi stage, UDP_RX → CMD_TX (cockpit `--rt`, normal load). Max 126.5 µs, mean 34.9 µs, 3000 samples
+![M1: Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs](../assets/lab3_scope/required/m1.jpeg)
 
-### Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10 counts
-![Photo 4: Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10](../assets/lab3_scope/photo04.jpeg)
+#### M2 — Measurement #2: CAN_RX C, N3 (CAN A INT falling → CAN_RX_A). Max TBD
+![M2: Measurement #2, CAN_RX C, N3](../assets/lab3_scope/required/m2.jpeg)
 
-### Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 counts
-![Photo 5: Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 edges](../assets/lab3_scope/photo05.jpeg)
+#### M3 — Measurement #3: DRIVE C, N3 (CAN_RX_A → DIR_A on a brake frame). Max TBD
+![M3: Measurement #3, DRIVE C, N3](../assets/lab3_scope/required/m3.jpeg)
 
-### Measurement #1: Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs, mean 34.9 µs, 3000 samples
-![Photo 6: Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs, mean 34.9 µs, 3000 samples](../assets/lab3_scope/photo06.jpeg)
+#### M4 — Measurement #4: SPI frame load (B) (CS low → high, longest window). Max TBD
+![M4: Measurement #4, SPI frame load (B)](../assets/lab3_scope/required/m4.jpeg)
 
-### Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples
-![Photo 7: Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples](../assets/lab3_scope/photo07.jpeg)
+#### M5 — Measurement #5: CAN_RX C, N2 (CAN A INT falling → CAN_RX_A). Max TBD
+![M5: Measurement #5, CAN_RX C, N2](../assets/lab3_scope/required/m5.jpeg)
 
-### CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V
-![Photo 8: CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V](../assets/lab3_scope/photo08.jpeg)
+#### M6 — Measurement #6: RELAY C, N2 (CAN_RX_A → RELAY_TX, N1 off B and N3 off A). Max TBD
+![M6: Measurement #6, RELAY C, N2](../assets/lab3_scope/required/m6.jpeg)
 
-### CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V
-![Photo 9: CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V](../assets/lab3_scope/photo09.jpeg)
+### A.2 Additional captures (not required)
 
-### (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5 counts
-![Photo 10: (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5](../assets/lab3_scope/photo10.jpeg)
+End-to-end chains and fault-injection timings taken before the clarification. They back the
+fault matrix (Section 5) and Appendix B. Photos 1–5 were taken with the cockpit **without**
+`--rt`, so their Pi stage is the slower one (up to about 443 µs) and the chain values are
+conservative. Photo 6 became M1 above.
 
-### (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5 counts
-![Photo 11: (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5](../assets/lab3_scope/photo11.jpeg)
+#### Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15 counts
+![Photo 1: Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15](../assets/lab3_scope/additional/photo01.jpeg)
 
-### R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5 counts
-![Photo 12: R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5](../assets/lab3_scope/photo12.jpeg)
+#### Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10 counts
+![Photo 2: Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10](../assets/lab3_scope/additional/photo02.jpeg)
 
-### R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5 counts
-![Photo 13: R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5](../assets/lab3_scope/photo13.jpeg)
+#### Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10 counts
+![Photo 3: Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10](../assets/lab3_scope/additional/photo03.jpeg)
 
-### (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3 counts
-![Photo 14: (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3](../assets/lab3_scope/photo14.jpeg)
+#### Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10 counts
+![Photo 4: Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10](../assets/lab3_scope/additional/photo04.jpeg)
 
-### (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3 counts
-![Photo 15: (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3](../assets/lab3_scope/photo15.jpeg)
+#### Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 counts
+![Photo 5: Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 edges](../assets/lab3_scope/additional/photo05.jpeg)
 
-### (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3 counts
-![Photo 16: (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3](../assets/lab3_scope/photo16.jpeg)
+#### Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples
+![Photo 7: Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples](../assets/lab3_scope/additional/photo07.jpeg)
 
-### (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3 counts
-![Photo 17: (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3](../assets/lab3_scope/photo17.jpeg)
+#### CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V
+![Photo 8: CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V](../assets/lab3_scope/additional/photo08.jpeg)
 
-### Measurement #2: CAN_RX C, N3 (CAN A INT falling → CAN_RX_A). Max TBD
-![Photo 18: Measurement #2, CAN_RX C on N3](../assets/lab3_scope/photo18.jpeg)
+#### CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V
+![Photo 9: CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V](../assets/lab3_scope/additional/photo09.jpeg)
 
-### Measurement #3: DRIVE C, N3 (CAN_RX_A → DIR_A on a brake frame). Max TBD
-![Photo 19: Measurement #3, DRIVE C on N3](../assets/lab3_scope/photo19.jpeg)
+#### (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5 counts
+![Photo 10: (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5](../assets/lab3_scope/additional/photo10.jpeg)
 
-### Measurement #4: SPI frame load (CS low → high, longest window). Max TBD
-![Photo 20: Measurement #4, SPI frame load](../assets/lab3_scope/photo20.jpeg)
+#### (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5 counts
+![Photo 11: (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5](../assets/lab3_scope/additional/photo11.jpeg)
 
-### Measurement #5: CAN_RX C, N2 (CAN A INT falling → CAN_RX_A). Max TBD
-![Photo 21: Measurement #5, CAN_RX C on N2](../assets/lab3_scope/photo21.jpeg)
+#### R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5 counts
+![Photo 12: R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5](../assets/lab3_scope/additional/photo12.jpeg)
 
-### Measurement #6: RELAY C, N2 (CAN_RX_A → RELAY_TX, N1 off B and N3 off A). Max TBD
-![Photo 22: Measurement #6, RELAY C on N2](../assets/lab3_scope/photo22.jpeg)
+#### R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5 counts
+![Photo 13: R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5](../assets/lab3_scope/additional/photo13.jpeg)
+
+#### (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3 counts
+![Photo 14: (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3](../assets/lab3_scope/additional/photo14.jpeg)
+
+#### (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3 counts
+![Photo 15: (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3](../assets/lab3_scope/additional/photo15.jpeg)
+
+#### (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3 counts
+![Photo 16: (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3](../assets/lab3_scope/additional/photo16.jpeg)
+
+#### (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3 counts
+![Photo 17: (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3](../assets/lab3_scope/additional/photo17.jpeg)
 
 ## Appendix B: Analysis with measured WCETs (both buses, relay load)
 
@@ -363,7 +371,7 @@ samples.
 
 | Cockpit scheduling | Load | Max | Mean |
 |---|---|---:|---:|
-| `--rt` (SCHED_FIFO 80, pinned to CPU 3) | normal (photo 6) | **126.5 µs** | 34.9 µs |
+| `--rt` (SCHED_FIFO 80, pinned to CPU 3) | normal (M1) | **126.5 µs** | 34.9 µs |
 | `--rt` | `stress --cpu 4 --io 2` (photo 7) | 82 µs | 32.1 µs |
 | default | normal / stress | 442.5 / 444.5 µs | 53.0 / 104.0 µs |
 

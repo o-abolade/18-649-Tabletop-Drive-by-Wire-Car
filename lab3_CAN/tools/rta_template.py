@@ -21,14 +21,14 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8")
 
 M = {  # measured maxima, us
-    1: 126.5,   # Pi stage: UDP_RX -> CMD_TX (photo 6)
+    1: 126.5,   # Pi stage: UDP_RX -> CMD_TX (M1, formerly photo 6)
     2: None,    # CAN_RX C, N3: INT of CAN A falling -> CAN_RX_A
     3: None,    # DRIVE C, N3: CAN_RX_A -> DIR_A on a brake frame
     4: None,    # SPI frame load: longest CS-low window
     5: None,    # CAN_RX C, N2: INT of CAN A falling -> CAN_RX_A
     6: None,    # RELAY C, N2: CAN_RX_A -> RELAY_TX (after the send on bus B returns)
 }
-PHOTO = {1: 6, 2: 18, 3: 19, 4: 20, 5: 21, 6: 22}   # Appendix A photo numbers
+# Screenshots: Doc/assets/lab3_scope/required/m<N>.jpeg, Appendix A.1 "M<N>"
 
 FRAME = 270.0
 SERVO_PERIOD = 20000.0
@@ -170,7 +170,7 @@ def build():
     w("")
     w("### 3.1 Measurements\n")
     w("Measured on the scope, maximum over at least a minute of traffic, with the node's other tasks idle.")
-    w("The test points are C GPIO writes, a few µs each. Screenshots are in Appendix A.\n")
+    w("The test points are C GPIO writes, a few µs each. Screenshots are in Appendix A.1.\n")
     w("| # | Number | Start probe → stop probe | Max (µs) | Screenshot |")
     w("|---|---|---|---:|---|")
     desc = {1: ("Pi stage", "N1 UDP_RX (after the socket read) → CMD_TX (after the CAN writes)"),
@@ -179,7 +179,7 @@ def build():
             4: ("SPI frame load (B)", "MCP2515 CS (PB6 / D10) low → high, longest window")}
     for n in (1, 2, 3, 4):
         name, how = desc[n]
-        w(f"| {n} | {name} | {how} | {fmt(M[n])} | Photo {PHOTO[n]} |")
+        w(f"| {n} | {name} | {how} | {fmt(M[n])} | M{n} |")
     w("")
     w("### 3.2 Node RTA: N3 (drivetrain)\n")
     w(t3 + "\n")
@@ -270,8 +270,8 @@ def build():
     w("### 4.3 Measurements\n")
     w("| # | Number | Start probe → stop probe | Max (µs) | Screenshot |")
     w("|---|---|---|---:|---|")
-    w(f"| 5 | CAN_RX C, N2 | N2 CAN A INT (PA10 / D2) falling → CAN_RX_A | {fmt(M[5])} | Photo {PHOTO[5]} |")
-    w(f"| 6 | RELAY C, N2 | N2 CAN_RX_A → RELAY_TX, pulsed right after the relayed frame's `can_send()` on bus B returns; N1 off B, N3 off A | {fmt(M[6])} | Photo {PHOTO[6]} |\n")
+    w(f"| 5 | CAN_RX C, N2 | N2 CAN A INT (PA10 / D2) falling → CAN_RX_A | {fmt(M[5])} | M5 |")
+    w(f"| 6 | RELAY C, N2 | N2 CAN_RX_A → RELAY_TX, pulsed right after the relayed frame's `can_send()` on bus B returns; N1 off B, N3 off A | {fmt(M[6])} | M6 |\n")
     w("### 4.4 Re-analysis: N2 with RELAY\n")
     w(t2r + "\n")
     w("### 4.5 Bus utilization with our relay design\n")
@@ -327,7 +327,7 @@ def main():
             sys.exit("RTA markers not found in the report")
         # Appendix A captions for measurements #2-#6
         for k in (2, 3, 4, 5, 6):
-            new = re.sub(rf"(### Measurement #{k}: [^\n]*?\)\. Max )[^\n]*",
+            new = re.sub(rf"(#### M{k} — Measurement #{k}: [^\n]*?\)\. Max )[^\n]*",
                          lambda m, k=k: m.group(1) + (f"{fmt(M[k])} µs" if M[k] is not None else "TBD"), new)
         REPORT.write_text(new, encoding="utf-8")
         print(f"updated {REPORT}")
