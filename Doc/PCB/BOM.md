@@ -27,4 +27,4 @@
 | C0603C220J1GACTU | 12 | Crystal Oscillator Load Capacitance | [Digikey Page](https://www.digikey.com/en/products/detail/kemet/C0603C220J1GACTU/2200183) | Y | - | - |
 | 742863160 | 2 | Ferrite beads, AVDD filtering on STM32s | [Digikey Page](https://www.digikey.com/en/products/detail/w%C3%BCrth-elektronik/742863160/2268591?s=N4IgTCBcDaIOwBYwA4BsBmAjKgDCAugL5A) | Y | - | - |
 | GRM188R71A225KE15D | 2 | VCAP on stm32s | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM188R71A225KE15D/1033256) | N | N | JLCPCB CAD not compatible with Fusion 360 |
-| 2.54 mm pin headers | 24 | Steering input (x3), Steering SWD pins (x6), Steering STM uart (x3), CAN jumpers (x12) | Y | - | - |
+| 2.54 mm pin headers | 33 | Steering input (x3), Steering SWD pins (x6), Steering STM uart (x3), CAN jumpers (x12), Drivetrain SWD pins (x6), drivetrain STM uart (x3) | Y | - | - |
