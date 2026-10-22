@@ -19,10 +19,12 @@ Button current calculated as 3.3 V / 10k ohms = 0.33 mA
 For the buck regulators, input current given by I_in = (Vout * Iout) / (efficiency * Vin)
 90% efficiency estimated for 6V8 regulator at 3A, 88% at typical current, based on data other diagrams since no chart for 6V8 on the data sheet
 
-- For power can add diodes (on every rail?)
-- Find Fuse for overcurrent protection
-- Check if you need flyback for inductive loads on the buck converters
-- Add bulk capacitances (every line?)
+## Plan for power protection:
+Once we select a 12V source, we need the following added to schematic
+- Bulk capacitance (from parts list) near the 12V source
+- Fuse protection near source
+- P-channel MOSFET switching regulator near the power source since the Schottky is only rated 5A, could potentially find an alternative rated for higher current
+- Schottky diodes on L298 output switches to protect against voltage spikes on power down
 
 
 ## NOTES
