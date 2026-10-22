@@ -31,3 +31,4 @@
 | B6B-PH-SM4-TB | 2 | Motor connection (x2) | Y | - | - |
 | B3B-PH-SM4-TB | 1 | Steering Servo connection | N | N | Same product line as B6B conn |
 | GCM1885C2A102FA16D | 2 | Motor current sense filter | Y | - | - |
+| SK520B | 4 | Switching inductive load protection on L298 output (x4) | Y | - | - |
