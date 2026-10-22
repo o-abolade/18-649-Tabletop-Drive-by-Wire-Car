@@ -13,7 +13,7 @@ captures are in Appendix A. The full log is in
 
 ## 1. Wiring schematic
 
-![Figure 1: Dual-CAN wiring. Both buses with termination and jumpers, every module's SPI/CS/INT pins, and the three test-point boards](assets/lab3_wiring_schematic.png)
+![Figure 1: Dual-CAN wiring. Both buses with termination and jumpers, every module's SPI/CS/INT pins, and the three test-point boards](assets/lab3_wiring_schematic.drawio.png)
 
 **Bus layout**
 - **Order:** both buses are linear, N1 – N2 – N3.
