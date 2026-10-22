@@ -33,3 +33,4 @@ Estimating 30 mOhm internal resistance for NiMH batteries, max voltage drop is 9
 - Determine 12 V rail power source
 - Recompute current draw
 - Somebody needs to take a look at what I did for power sourcing on the STM32s (all the VDD, AVDD, VCAP, etc.) and what I did for Boot0 (pull down resistor)
+- I added buttons so that we can reset the STM32s ourself, not in spec, I just thought it'd be useful
