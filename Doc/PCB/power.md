@@ -35,5 +35,6 @@ For the buck regulators, input current given by I_in = (Vout * Iout) / (efficien
 - [ ] Double check SWD
 - [ ] Determine 12 V rail power source
 - [ ] Somebody needs to take a look at what I did for power sourcing on the STM32s (all the VDD, AVDD, VCAP, etc.) and what I did for Boot0 (pull down resistor)
-- [ ] Add test point
+- [ ] Add test points
+- [ ] Get mechanical measurements of board, add to schematic
 
