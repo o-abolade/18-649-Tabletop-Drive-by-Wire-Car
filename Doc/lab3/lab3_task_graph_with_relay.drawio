@@ -149,8 +149,8 @@
             <mxPoint x="200" y="890" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="c83" parent="L_base" style="text;html=1;align=left;fontSize=11;fontColor=#555555;" value="Legend: solid = CAN frame (ID | period | deadline); dashed = in-node handoff; dots on a box = chains through it (blue brake, green steering, orange blinker, red error). Dashed gray RELAY box is reserved for Part 4." vertex="1">
-          <mxGeometry height="20" width="1300" x="44" y="1700" as="geometry" />
+        <mxCell id="c83" parent="L_base" style="text;html=1;align=left;whiteSpace=wrap;fontSize=11;fontColor=#555555;" value="Legend: solid = CAN frame (ID | period | deadline); dashed = in-node handoff; dots on a box = chains through it (blue brake, green steering, orange blinker, red error). Drawn for R4.8 scenario (c): N1 off bus B, N3 off bus A. Relay boxes = N2's RELAY task (priority 1): it forwards the first copy of every N1/N3 frame onto the other bus with the relayed flag (0x10). Blue path = relayed brake chain: 0x010 on A → RELAY (N2) → 0x010 on B → CAN_RX_B → DRIVE (N3)." vertex="1">
+          <mxGeometry height="34" width="1300" x="44" y="1490" as="geometry" />
         </mxCell>
         <mxCell id="1zOBd-d3vzISXv95QfQT-0" edge="1" parent="L_base" source="c54" style="endArrow=none;strokeColor=#000000;html=1;strokeWidth=3;" target="c55" value="">
           <mxGeometry relative="1" as="geometry">
@@ -298,11 +298,10 @@
             <mxPoint x="605" y="620" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="c70" edge="1" parent="L_blink" style="endArrow=block;html=1;strokeColor=#e8830c;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=10;fontColor=#e8830c;" value="0x200 BLINK | min 20 ms / 500 ms | D 100 ms">
+        <mxCell id="c70" edge="1" parent="L_blink" style="endArrow=block;html=1;strokeColor=#e8830c;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=10;fontColor=#e8830c;" value="0x200 BLINK on A | min 20 ms / 500 ms | D 100 ms" target="blink_relay">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="230" y="536" as="sourcePoint" />
-            <mxPoint x="1145" y="620" as="targetPoint" />
-          </mxGeometry>
+            </mxGeometry>
         </mxCell>
         <mxCell id="L_err" parent="0" value="Chain: error propagation" />
         <mxCell id="c66" edge="1" parent="L_err" style="endArrow=block;html=1;strokeColor=#d1242f;strokeWidth=2;dashed=1;labelBackgroundColor=#ffffff;fontSize=10;fontColor=#d1242f;" value="">
@@ -347,7 +346,7 @@
         <mxCell id="c82" parent="L_err" style="text;html=1;align=center;fontStyle=2;fontSize=10;fontColor=#d1242f;" value="3 missed on both buses -&gt; hazards + brake (R2.5, 100 ms)" vertex="1">
           <mxGeometry height="18" width="300" x="950" y="1460" as="geometry" />
         </mxCell>
-      </root>
+      <mxCell id="blink_relay" parent="L_blink" style="rounded=1;html=1;fillColor=#ffffff;strokeColor=#e8830c;strokeWidth=3;fontSize=12;" value="&lt;b&gt;Relay&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;0x200 A → B&lt;/font&gt;" vertex="1"><mxGeometry x="550" y="548" width="200" height="42" as="geometry" /></mxCell><mxCell id="blink_relayed" parent="L_blink" edge="1" source="blink_relay" target="c49" style="endArrow=block;html=1;strokeColor=#e8830c;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=10;fontColor=#e8830c;;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=1;exitY=0.5;" value="0x200 BLINK on B (relayed)"><mxGeometry relative="1" as="geometry" /></mxCell></root>
     </mxGraphModel>
   </diagram>
 </mxfile>
