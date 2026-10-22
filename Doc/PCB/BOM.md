@@ -20,13 +20,11 @@
 | GRM219R61C226ME15L | 8 | Output filtering on buck converters  | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM219R61C226ME15L/4905420?s=N4IgTCBcDaIOICUCyYCMBOBA2VBhMYWSAoqgKwAyIAugL5A) | Y | - | - |
 | CRCW0603210KFKEA | 2 | 210 kOhm, 5V and 6V8 converter feedback circuit | [Digikey page](https://www.digikey.com/en/products/detail/vishay-dale/CRCW0603210KFKEA/1174930) | Y | - | - |
 | RMCF0603FT91K0 | 1 | 91 kOhm, 6V8 converter feedback circuit | [Digikey page](https://www.digikey.com/en/products/detail/stackpole-electronics-inc/RMCF0603FT91K0/1714297) | Y | - | - |
-| B3B-PH-SM4-TB | 1 | 3 terminal connector for steering servo |  [Digikey page](https://www.digikey.com/en/products/detail/jst-sales-america-inc/B3B-PH-SM4-TB/926642) | N | N | No 3 terminal connector in parts list, wanted to use same product line as 6 terminal connectors that are |
 | INA180A1IDBVT | 1 | Current sense on steering | [Digikey Page](https://www.digikey.com/en/products/detail/texas-instruments/INA180A1IDBVT/7219063) | N | N | CAD models available for this one |
 | CSNL2512FTL500 | 1 | Shunt Resistor | [Digikey Page](https://www.digikey.com/en/products/detail/stackpole-electronics-inc/CSNL2512FTL500/1788105) | N | N | JLCPCB's available current sense resistors had far too high a resistance value |
 | ERJ-3EKF1001V  | 2 | RC filtering on steering ADC input | [Digikey Page](https://www.digikey.com/en/products/detail/panasonic-industry/ERJ-3EKF1001V/196032?s=N4IgTCBcDaIKICUBSBaAzHA0gMQIwAZ9cA1EAXQF8g) | Y | - | - |
 | GRM21BR71C475KE51L | 1 | See above | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM21BR71C475KE51L/6606095?s=N4IgTCBcDaIOICUCyYCMAhBB2VBhALFgKwDSAokagDIgC6AvkA) | Y | - | - |
 | C0603C220J1GACTU | 12 | Crystal Oscillator Load Capacitance | [Digikey Page](https://www.digikey.com/en/products/detail/kemet/C0603C220J1GACTU/2200183) | Y | - | - |
-| SSK03-MPH-254-B2 | 6 | Connectors for CAN bus jumpers | [Digikey Page](https://www.digikey.com/en/products/detail/same-sky-formerly-cui-devices/SSK03-MPH-254-B2/28772163) | N | N | CAD models weren't available on JLCPCB |
 | 742863160 | 2 | Ferrite beads, AVDD filtering on STM32s | [Digikey Page](https://www.digikey.com/en/products/detail/w%C3%BCrth-elektronik/742863160/2268591?s=N4IgTCBcDaIOwBYwA4BsBmAjKgDCAugL5A) | Y | - | - |
 | GRM188R71A225KE15D | 2 | VCAP on stm32s | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM188R71A225KE15D/1033256) | N | N | JLCPCB CAD not compatible with Fusion 360 |
-| B6B-PH-SM4-TB | 4 | Motor connection and STM32 SWD | [Digikey Page](https://www.digikey.com/en/products/detail/jst-sales-america-inc/B6B-PH-SM4-TB/926645?s=N4IgTCBcDaIEIDY4FoAKAJZBlAsgFmQBU4AKAGQDEBKErAOSpAF0BfIA) | Y | - | - |
+| 2.54 mm pin headers | 24 | Steering input (x3), Steering SWD pins (x6), Steering STM uart (x3), CAN jumpers (x12) | Y | - | - |
