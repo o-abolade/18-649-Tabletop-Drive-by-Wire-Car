@@ -1,6 +1,7 @@
 | Item  | Amount | Purpose | Datasheet | Common Part ? | JLCPBP Part ? | Reasoning, if not |
 | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
 | TPS564252DRLR | 3 | Buck Converter for 6V8, 5 V, and 3.3 V rails | [Datasheet](https://www.ti.com/lit/ds/symlink/tps564252.pdf?ts=1695219253429&ref_url=https%253A%252F%252Fwww.ti.com%252Fsitesearch%252Fen-us%252Fdocs%252Funiversalsearch.tsp%253FlangPref%253Den-US%2526searchTerm%253DTPS564252DRLR%2526nr%253D8) | Y | - | - |
+| Tenergy 11616 | 1 | Selected off-board battery: 10S1P Sub-C NiMH pack, 12 V nominal, 4.2 Ah / 50.4 Wh, 30 A maximum continuous discharge; Standard Tamiya connector | [Manufacturer product specification](https://power.tenergy.com/at-tenergy-12v-4200mah-nimh-rechargeable-battery-pack-10s1p-50-4wh-30a-rate-tamiya-sbs-config/) | N/A | N/A | Off-board battery; 113 x 91 x 23 mm, 1.55 lb. Board input must mate with its Tamiya connector or use a documented harness. |
 | MCP2515T-I/ST | 6 | CAN Controller | [Datasheet](https://ww1.microchip.com/downloads/en/DeviceDoc/MCP2515-Stand-Alone-CAN-Controller-with-SPI-20001801J.pdf) | Y | - | - |
 | SN65HVD230MDREP | 6 | CAN Transceiver | [Datasheet](https://www.ti.com/general/docs/suppproductinfo.tsp?distId=10&gotoUrl=https%3A%2F%2Fwww.ti.com%2Flit%2Fgpn%2Fsn65hvd230m-ep) | Y | - | - |
 | L298P | 1 | Full Bridge Driver | [Datasheet](https://www.st.com/content/ccc/resource/technical/document/datasheet/82/cc/3f/39/0a/29/4d/f0/CD00000240.pdf/files/CD00000240.pdf/jcr:content/translations/en.CD00000240.pdf) | Y | - | - |

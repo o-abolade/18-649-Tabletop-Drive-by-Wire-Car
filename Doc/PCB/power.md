@@ -10,6 +10,15 @@
 
 
 Notes:
+**Selected battery source:** Tenergy **11616**, a 10S1P Sub-C NiMH battery
+pack: 12 V nominal, 4.2 Ah (50.4 Wh), 30 A maximum continuous discharge,
+113 x 91 x 23 mm, 1.55 lb, with a Standard Tamiya connector.  The 30 A
+rating provides margin over the calculated 9.79 A peak system load.  It is an
+off-board part, but is included in the project BOM.  The board-side power
+input connector must mate with its Standard Tamiya connector (or use a
+documented Tamiya-to-board harness); do not select an XT60 footprint unless
+the battery harness is changed accordingly.
+
 Yellow LED current calculated as (3.3 V - 2 V) / 120 ohms = 10.8 mA
 
 Red LED current for STM32s calculated as (3.3 V - 2.2 V ) / 120 ohms = 9.2 mA
@@ -19,15 +28,28 @@ Button current calculated as 3.3 V / 10k ohms = 0.33 mA
 For the buck regulators, input current given by I_in = (Vout * Iout) / (efficiency * Vin)
 90% efficiency estimated for 6V8 regulator at 3A, 88% at typical current, based on data other diagrams since no chart for 6V8 on the data sheet
 
-Looking it up, NiMH batteries can have up to 50 mOhms of internal resistance, using this as our number, the worst case voltage is $12- 9.79 * 10 * .050 = 7.105 V$. 
+For the initial sag calculation, NiMH cells are conservatively modeled as
+50 mOhms per cell.  For ten series cells, the worst case voltage is
+$12 - 9.79 * 10 * .050 = 7.105 V$.  Measure the selected pack's voltage at
+load before treating this as a final value.
 According to the datasheet, the buck regulator has a maximum duty cycle of 97%, meaning that the minimum input voltage needed for the lines to regulate are $V_{in} = 6.8/0.97 = 7.01 V$ for the 6.8 volt line, $V_{in} = 5 / 0.97 = 5.15 V$ for the 5 volt line, and $V_{in} = 3.3 / 0.97 = 3.40 V$ for the 3.3 volt line. Thus, at the sagged voltage, all lines should still regulate.
 
 
 ## Plan for power protection:
-Once we select a 12V source, we need the following added to schematic
+The selected 12 V source is the Tenergy 11616 NiMH pack.  Add the following
+in this order at the battery input:
+- Board-side mating connector / documented Tamiya harness, then a fuse close
+  to the input connector, then high-side reverse-polarity protection, then
+  the protected `+12V` rail
 - Bulk capacitance (from parts list) near the 12V source
-- Fuse protection near source
-- P-channel MOSFET switching regulator near the power source since the Schottky is only rated 5A, could potentially find an alternative rated for higher current
+- Fuse protection near source, sized after confirming the connector and wire
+  ratings; it must tolerate the 9.79 A peak without becoming the normal
+  current limit
+- P-channel MOSFET reverse-polarity protection near the power source.  The
+  5 A SK520B Schottkys must **not** be used in series with the battery input;
+  they are flyback diodes on the L298 outputs.  Select a MOSFET rated for at
+  least 30--40 V with low guaranteed RDS(on) and a realistic PCB thermal
+  current rating above 10 A; add a gate-source clamp.
 - Schottky diodes on L298 output switches to protect against voltage spikes on power down
 
 
@@ -35,7 +57,7 @@ Once we select a 12V source, we need the following added to schematic
 
 - X5R ceramics like the ones we're using on buck inputs lose capacitance under DC bias, so we need to have more than 2 on the 5V and 7V rails to maintain the same effective capacitance (Claude estimates 40% loss on the 7V line, 25% on the 5V)
 - 7 V rail is now 6.8 Volts
-  
+
 ## TODO
 - [ ] Figure out how to change silkscreen labels on connectors so that it's easy to write things on the board
 - [ ] Need to take another look at jumpers
