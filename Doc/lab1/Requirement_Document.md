@@ -360,7 +360,7 @@ convenience messages (BLINK, FORCE).
 
 **Byte 0, all frames:**
 - The low nibble is a 4-bit sequence counter, one per ID per sender.
-- The high nibble holds flags. `0x10` marks a copy relayed by N2.
+- The high nibble holds flags (currently all 0; `0x10` is reserved).
 
 **Handling rules (implemented):**
 - **Dedup:** receivers keep the first copy and drop the duplicate. A frame is
@@ -371,8 +371,9 @@ convenience messages (BLINK, FORCE).
   still checks.
 - **Out-of-range CTRL** (throttle or brake > 100, |steer| > 1000, unknown
   button bits) puts the receiving zone in ERROR and makes it send FAULT.
-- **Relay:** N2 forwards the first copy of every N1/N3 frame onto the other
-  bus with the relayed flag set, and never re-forwards a flagged frame.
+- **Relay:** N2 and N3 each forward the first copy of every frame they didn't
+  send onto the other bus, unchanged. Dedup means each zone forwards a frame
+  at most once, so there are no loops.
 
 **Bus utilization (Lab 3 analysis):**
 - One bus with the plain catalog: 6 × 270 µs / 20 ms + 270 µs / 50 ms
@@ -958,4 +959,5 @@ Covers scenarios (a)–(f) of R4.8. "Node X" / "Node Y" refer to any node used t
 | Date | Change |
 |---|---|
 | 2026-09-17 | Lab 1 submission. |
-| 2026-10-21 | Lab 3: replaced the proposed CAN catalog with the course template (Section 6), recorded the implemented values (Section 7, "Lab 3 values"), and added the Lab 3 design choices. These are: N1 is the blinker master; N2 always relays N1/N3 frames between buses (relayed flag 0x10); a failed N2 holds its steering angle instead of centring; the cockpit goes silent after 100 ms without wheel UDP. Known limitation found in Lab 3: only N2 relays, so R4.8(c) with N2 and N3 (or N1 and N2) on opposite buses leads to system ERROR (`Doc/lab3/lab3_report.md` §4.3). |
+| 2026-10-21 | Lab 3: replaced the proposed CAN catalog with the course template (Section 6), recorded the implemented values (Section 7, "Lab 3 values"), and added the Lab 3 design choices. These are: N1 is the blinker master; N2 always relays N1/N3 frames between buses; a failed N2 holds its steering angle instead of centring; the cockpit goes silent after 100 ms without wheel UDP. |
+| 2026-10-23 | Lab 3 TA clarification: N3 relays too, so N1/N2 on opposite buses stays operational (all four checkoff relay cases pass on hardware). Relayed frames are now forwarded unchanged, without the 0x10 flag: the flag made a relayed copy collide with the sender's own copy of the same ID. N2 and N3 split across the buses is not tested (it would need the Pi to relay). |
