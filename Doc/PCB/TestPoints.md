@@ -63,8 +63,3 @@ Signal names are placeholders (the Lab 3 test-point table is not in the Lab 4 do
 - G$40: OVERLOAD (overload GPIO)
 - G$41: V_SHUNT_RAW (unfiltered servo shunt ADC input)
 
-## Notes
-- If the shunt circuit uses a differential ADC input, use two test points (e.g. V_SHUNT_P and V_SHUNT_N) instead of one.
-- The Lab 3 table asks for two ground pins per group, so add extra grounds near each cluster of test points.
-- DEG_A and DEG_B LEDs (R4.7) are not required test points in Section 1.4, but can be added if there is room.
-- TA-checked test points must be 2.54 mm headers or Keystone 5015 hooks, and labeled in silkscreen.
