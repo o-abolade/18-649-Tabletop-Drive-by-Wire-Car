@@ -4,7 +4,7 @@
  *             state (R3); holds its position while N2 itself is LOCAL_FAIL
  *             (R4.7 "steering held"). Isolated, no CTRL arrives, so it holds.
  *   FORCE_TX  every 50 ms, dummy counter (handout: force feedback is a dummy)
- *   RELAY     see relay.c
+ *   RELAY     common/zephyr/relay.c
  *   BLINK_F, HB_TX, HB_MON, TEST_BTN, error state: common/zephyr/zone_core.c
  */
 #include <zephyr/kernel.h>
@@ -78,6 +78,7 @@ int main(void)
 	if (servo_init() != 0) {
 		printk("N2: servo PWM not ready\n");
 	}
+	relay_init(CANP_ZONE_N2);
 	zone_core_init(&n2_cfg);
 	k_thread_start(steer_tid);
 	k_thread_start(force_tid);

@@ -43,7 +43,7 @@
 #define ZONE_PRIO_CAN_TX    0   /* per-bus TX queue -> the MCP2515's single TX
 				 * buffer (can_link.c); sleeps while the
 				 * buffer is busy, so it doesn't hog the CPU */
-#define ZONE_PRIO_RELAY     1   /* N2 only: on the relayed brake path */
+#define ZONE_PRIO_RELAY     1   /* N2 and N3: on the relayed brake path */
 #define ZONE_PRIO_ACT       2   /* DRIVE (N3) / STEER (N2): CTRL -> actuator */
 #define ZONE_PRIO_BLINK     3   /* BLINK_F / BLINK_R: 0.5 ms from reception */
 #define ZONE_PRIO_BTN       4   /* TEST_BTN: local fail within 10 ms */

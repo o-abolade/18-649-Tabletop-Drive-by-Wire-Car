@@ -5,6 +5,7 @@
  *          for the PID period.
  *   PID    10 ms timer: per-wheel speed correction added on top of the
  *          feed-forward duty, with real elapsed dt (Lab 2 lesson).
+ *   RELAY  common/zephyr/relay.c (checkoff: N1 off A + N2 off B, and the reverse)
  *   BLINK_R, HB_TX, HB_MON, TEST_BTN, error state: common/zephyr/zone_core.c
  *
  * Every motor command goes through motor_lock: DRIVE, PID and the safe-state
@@ -18,6 +19,7 @@
 #include "encoder.h"
 #include "motor_control.h"
 #include "pid_controller.h"
+#include "relay.h"
 #include "testpoints.h"
 #include "zone_config.h"
 #include "wcet.h"
@@ -179,7 +181,7 @@ K_THREAD_DEFINE(pid_tid, 1024, pid_thread, NULL, NULL, NULL,
 static const struct zone_config n3_cfg = {
 	.zone = CANP_ZONE_N3,
 	.enter_safe = drive_safe,
-	.rx_hook = NULL,   /* N3 doesn't relay */
+	.rx_hook = relay_rx_hook,
 };
 
 int main(void)
@@ -198,6 +200,7 @@ int main(void)
 		printk("N3: encoders not ready\n");
 	}
 
+	relay_init(CANP_ZONE_N3);
 	zone_core_init(&n3_cfg);   /* calls drive_safe: start braked */
 	k_thread_start(drive_tid);
 	k_thread_start(pid_tid);
@@ -222,6 +225,11 @@ int main(void)
 
 		k_mutex_unlock(&motor_lock);
 		printk("   drive: %s thr %u%% duty L%u R%u\n", drv ? "DRIVE" : "BRAKE", thr, dl, dr);
+
+		uint32_t relayed, overflow;
+
+		relay_get_stats(&relayed, &overflow);
+		printk("   relay: %u forwarded, %u dropped (queue full)\n", relayed, overflow);
 		wcet_end(WCET_STATUS, w0);
 	}
 	return 0;
