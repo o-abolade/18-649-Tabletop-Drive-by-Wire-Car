@@ -318,6 +318,46 @@ def build():
     return "\n".join(out)
 
 
+def link_screenshots(s):
+    """Anchor every Appendix A screenshot and link each mention to it.
+
+    Anchors: <a id="mN"> before each M1-M6 heading, <a id="photo-N"> before
+    each additional capture (found from its photoNN.jpeg image line).
+    Links: "M3" -> [M3](#m3), "photo 13" -> [photo 13](#photo-13),
+    "photos 16–17" -> photos [16](#photo-16)–[17](#photo-17).
+    Headings, image lines and existing links are left alone, so running it
+    again changes nothing.
+    """
+    lines = s.split("\n")
+    out = []
+    for i, line in enumerate(lines):
+        nxt = lines[i + 1] if i + 1 < len(lines) else ""
+        prev = out[-1] if out else ""
+        if line.startswith("#### "):
+            m = re.match(r"#### M([1-6]) — ", line)
+            p = re.search(r"/photo(\d+)\.jpeg\)", nxt)
+            # M1 is the old photo 6, so "photo 6" links land on it too
+            anchor = ('<a id="m1"></a><a id="photo-6"></a>' if m and m.group(1) == "1" else
+                      f'<a id="m{m.group(1)}"></a>' if m else
+                      f'<a id="photo-{int(p.group(1))}"></a>' if p else None)
+            if anchor and prev != anchor:
+                out.append(anchor)
+            out.append(line)
+            continue
+        if line.startswith(("#", "![", "<a id=")):
+            out.append(line)
+            continue
+        line = re.sub(r"(?<![\[\w#-])M([1-6])\b(?!\]|\s—|:)",
+                      lambda m: f"[M{m.group(1)}](#m{m.group(1)})", line)
+        line = re.sub(r"(?<![\[\w])([Pp]hotos) (\d+)–(\d+)\b(?!\]\()",
+                      lambda m: f"{m.group(1)} [{m.group(2)}](#photo-{m.group(2)})–[{m.group(3)}](#photo-{m.group(3)})",
+                      line)
+        line = re.sub(r"(?<![\[\w])([Pp]hoto) (\d+)\b(?![–\d]|\]\()",
+                      lambda m: f"[{m.group(1)} {m.group(2)}](#photo-{m.group(2)})", line)
+        out.append(line)
+    return "\n".join(out)
+
+
 def main():
     md = build()
     if "--write" in sys.argv:
@@ -330,6 +370,7 @@ def main():
         for k in (2, 3, 4, 5, 6):
             new = re.sub(rf"(#### M{k} — Measurement #{k}: [^\n]*?\)\. Max )[^\n]*",
                          lambda m, k=k: m.group(1) + (f"{fmt(M[k])} µs" if M[k] is not None else "TBD"), new)
+        new = link_screenshots(new)
         REPORT.write_text(new, encoding="utf-8")
         print(f"updated {REPORT}")
     else:
