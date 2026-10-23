@@ -91,32 +91,32 @@ The test points are C GPIO writes, a few µs each. Screenshots are in Appendix A
 | # | Number | Start probe → stop probe | Max (µs) | Screenshot |
 |---|---|---|---:|---|
 | 1 | Pi stage | N1 UDP_RX (after the socket read) → CMD_TX (after the CAN writes) | 126.5 | M1 |
-| 2 | CAN_RX C, N3 | N3 CAN A INT (PA10 / D2) falling → CAN_RX_A | TBD | M2 |
-| 3 | DRIVE C, N3 | N3 CAN_RX_A → DIR_A on a brake frame | TBD | M3 |
-| 4 | SPI frame load (B) | MCP2515 CS (PB6 / D10) low → high, longest window | TBD | M4 |
+| 2 | CAN_RX C, N3 | N3 CAN A INT (PA10 / D2) falling → CAN_RX_A | 309 | M2 |
+| 3 | DRIVE C, N3 | N3 CAN_RX_A → DIR_A on a brake frame, N3's bus B unplugged (single bus, as Part 3 assumes). With both buses connected the max was 503 µs: the CTRL copy from bus B arrives right after and N3's bus B driver thread preempts DRIVE for about 300 µs (M2) | 147 | M3 |
+| 4 | SPI frame load (B) | MCP2515 CS (PB6 / D10) low → high, longest window | 116.5 | M4 |
 
 ### 3.2 Node RTA: N3 (drivetrain)
 
 | Task | Priority | C (µs) | T | D | B (µs) | R (µs) | R ≤ D? | Work: C + B + higher-priority C |
 |---|---|---:|---|---|---:|---:|---|---|
-| CAN_RX | coop 2 | C2 | 20 ms per message, 7 per bus | 0.3 ms | B | TBD | TBD | C2 + B |
-| DRIVE | 2 | C3 | 20 ms | 0.5 ms | B | TBD | TBD | C3 + B + 7·C2 |
-| BLINK_R | 3 | 20 | 20 ms | 0.5 ms | B | TBD | TBD | 20 + B + 7·C2 + C3 |
-| TEST_BTN | 4 | 20 | 50 ms | 10 ms | B | TBD | TBD | 20 + B + 7·C2 + C3 + 20 |
-| PID | 5 | 200 | 10 ms | 10 ms | B | TBD | TBD | 200 + B + 7·C2 + C3 + 20 + 20 |
-| HB_MON | 6 | 30 | 20 ms | 20 ms | B | TBD | TBD | 30 + B + 7·C2 + C3 + 20 + 20 + 200 |
-| HB_TX | 7 | 120 | 20 ms | 20 ms | 0 (lowest) | TBD | TBD | 120 + 0 + 7·C2 + C3 + 20 + 20 + 200 + 30 |
+| CAN_RX | coop 2 | 309 | 20 ms per message, 7 per bus | 0.3 ms | 116.5 | 425.5 | **No** | 309 + 116.5 = **425.5** |
+| DRIVE | 2 | 147 | 20 ms | 0.5 ms | 116.5 | 2,426.5 | **No** | 147 + 116.5 + 7·309 = **2,426.5** |
+| BLINK_R | 3 | 20 | 20 ms | 0.5 ms | 116.5 | 2,446.5 | **No** | 20 + 116.5 + 7·309 + 147 = **2,446.5** |
+| TEST_BTN | 4 | 20 | 50 ms | 10 ms | 116.5 | 2,466.5 | Yes | 20 + 116.5 + 7·309 + 147 + 20 = **2,466.5** |
+| PID | 5 | 200 | 10 ms | 10 ms | 116.5 | 2,666.5 | Yes | 200 + 116.5 + 7·309 + 147 + 20 + 20 = **2,666.5** |
+| HB_MON | 6 | 30 | 20 ms | 20 ms | 116.5 | 2,696.5 | Yes | 30 + 116.5 + 7·309 + 147 + 20 + 20 + 200 = **2,696.5** |
+| HB_TX | 7 | 120 | 20 ms | 20 ms | 0 (lowest) | 2,700 | Yes | 120 + 0 + 7·309 + 147 + 20 + 20 + 200 + 30 = **2,700** |
 
 ### 3.3 Node RTA: N2 (steering)
 
 | Task | Priority | C (µs) | T | D | B (µs) | R (µs) | R ≤ D? | Work: C + B + higher-priority C |
 |---|---|---:|---|---|---:|---:|---|---|
-| CAN_RX | coop 2 | 80 | 20 ms per message, 7 per bus | 0.3 ms | B | TBD | TBD | 80 + B |
-| STEER | 2 | 50 | 20 ms | 1 ms | B | TBD | TBD | 50 + B + 7·80 |
-| BLINK_F | 3 | 20 | 20 ms | 0.5 ms | B | TBD | TBD | 20 + B + 7·80 + 50 |
-| TEST_BTN | 4 | 20 | 50 ms | 10 ms | B | TBD | TBD | 20 + B + 7·80 + 50 + 20 |
-| HB_MON | 6 | 30 | 20 ms | 20 ms | B | TBD | TBD | 30 + B + 7·80 + 50 + 20 + 20 |
-| HB_TX | 7 | 120 | 20 ms | 20 ms | B | TBD | TBD | 120 + B + 7·80 + 50 + 20 + 20 + 30 |
+| CAN_RX | coop 2 | 80 | 20 ms per message, 7 per bus | 0.3 ms | 116.5 | 196.5 | Yes | 80 + 116.5 = **196.5** |
+| STEER | 2 | 50 | 20 ms | 1 ms | 116.5 | 726.5 | Yes | 50 + 116.5 + 7·80 = **726.5** |
+| BLINK_F | 3 | 20 | 20 ms | 0.5 ms | 116.5 | 746.5 | **No** | 20 + 116.5 + 7·80 + 50 = **746.5** |
+| TEST_BTN | 4 | 20 | 50 ms | 10 ms | 116.5 | 766.5 | Yes | 20 + 116.5 + 7·80 + 50 + 20 = **766.5** |
+| HB_MON | 6 | 30 | 20 ms | 20 ms | 116.5 | 796.5 | Yes | 30 + 116.5 + 7·80 + 50 + 20 + 20 = **796.5** |
+| HB_TX | 7 | 120 | 20 ms | 20 ms | 116.5 | 916.5 | Yes | 120 + 116.5 + 7·80 + 50 + 20 + 20 + 30 = **916.5** |
 | FORCE_TX | 8 | 120 | 50 ms | 50 ms | 0 (lowest) | 920 | Yes | 120 + 0 + 7·80 + 50 + 20 + 20 + 30 + 120 = **920** |
 
 **Any task marked No above misses for the same reason:** CAN_RX outranks every
@@ -141,11 +141,11 @@ a shorter receive path (lower CAN_RX C), or priority above CAN_RX dispatch for t
 
 | Chain | Stages to add up (µs) | Total | Deadline | Met? |
 |---|---|---:|---:|---|
-| Brake / throttle | Pi 126.5 + CTRL on bus 540 + CAN_RX (N3) TBD + DRIVE TBD | TBD | 2 ms | TBD |
-| Steering | Pi 126.5 + CTRL on bus 540 + CAN_RX (N2) TBD + STEER TBD + one servo period 20,000 | TBD | 50 ms | TBD |
-| Blinker start | Pi 126.5 + BLINK on bus 1,890 + CAN_RX (N3) TBD + BLINK_R TBD | TBD | 100 ms | TBD |
-| Blinker sync | Worst case of one receive path minus the other's best case (C only): N3 TBD − N2 100, and N2 TBD − N3 TBD | TBD | 1 ms | TBD |
-| Error propagation | TEST_BTN (N2) TBD + 3 missed heartbeats 66,000 + one HB_MON period 20,000 + HB_MON (N3) TBD | TBD | 100 ms | TBD |
+| Brake / throttle | Pi 126.5 + CTRL on bus 540 + CAN_RX (N3) 425.5 + DRIVE 2,426.5 | 3,518.5 | 2 ms | **Missed.** DRIVE carries 7 CAN_RX interferences on top of its own receive path. Fix: a tighter arrival bound or a shorter receive path (Appendix B). |
+| Steering | Pi 126.5 + CTRL on bus 540 + CAN_RX (N2) 196.5 + STEER 726.5 + one servo period 20,000 | 21,589.5 | 50 ms | **Met** |
+| Blinker start | Pi 126.5 + BLINK on bus 1,890 + CAN_RX (N3) 425.5 + BLINK_R 2,446.5 | 4,888.5 | 100 ms | **Met** |
+| Blinker sync | Worst case of one receive path minus the other's best case (C only): N3 2,872 − N2 100, and N2 943 − N3 329 | 2,772 | 1 ms | **Missed.** The two zones see different interference after the same frame. Fix: lower CAN_RX C, or a tighter arrival bound. |
+| Error propagation | TEST_BTN (N2) 766.5 + 3 missed heartbeats 66,000 + one HB_MON period 20,000 + HB_MON (N3) 2,696.5 | 89,463 | 100 ms | **Met** |
 
 - **Blinker sync:** both STM32s receive the same BLINK frame at the same instant from the same bus.
   So the edge offset is only the difference between their receive-to-lamp paths. The bound is the larger
@@ -184,21 +184,21 @@ Checkoff cases: N1 off B + N3 off A and N1 off A + N3 off B (N2 relays); N1 off 
 
 | # | Number | Start probe → stop probe | Max (µs) | Screenshot |
 |---|---|---|---:|---|
-| 5 | CAN_RX C, N2 | N2 CAN A INT (PA10 / D2) falling → CAN_RX_A | TBD | M5 |
-| 6 | RELAY C, N2 | N2 CAN_RX_A → RELAY_TX, pulsed right after the relayed frame's `can_send()` on bus B returns; N1 off B, N3 off A | TBD | M6 |
+| 5 | CAN_RX C, N2 | N2 CAN A INT (PA10 / D2) falling → CAN_RX_A | 289.5 | M5 |
+| 6 | RELAY C, N2 | N2 CAN_RX_A → RELAY_TX, pulsed right after the relayed frame's `can_send()` on bus B returns; N1 off B, N3 off A | 405 | M6 |
 
 ### 4.4 Re-analysis: N2 with RELAY
 
 | Task | Priority | C (µs) | T | D | B (µs) | R (µs) | R ≤ D? | Work: C + B + higher-priority C |
 |---|---|---:|---|---|---:|---:|---|---|
-| CAN_RX | coop 2 | C5 | 20 ms per message, 7 per bus × 2 buses | 0.3 ms | B | TBD | TBD | C5 + B |
-| RELAY | 1 | C6 | every frame N2 forwards: 6 per 20 ms in (c) | on the brake chain | B | TBD | see chain | C6 + B + 14·C5 |
-| STEER | 2 | 50 | 20 ms | 1 ms | B | TBD | TBD | 50 + B + 14·C5 + 6·C6 |
-| BLINK_F | 3 | 20 | 20 ms | 0.5 ms | B | TBD | TBD | 20 + B + 14·C5 + 6·C6 + 50 |
-| TEST_BTN | 4 | 20 | 50 ms | 10 ms | B | TBD | TBD | 20 + B + 14·C5 + 6·C6 + 50 + 20 |
-| HB_MON | 6 | 30 | 20 ms | 20 ms | B | TBD | TBD | 30 + B + 14·C5 + 6·C6 + 50 + 20 + 20 |
-| HB_TX | 7 | 120 | 20 ms | 20 ms | B | TBD | TBD | 120 + B + 14·C5 + 6·C6 + 50 + 20 + 20 + 30 |
-| FORCE_TX | 8 | 120 | 50 ms | 50 ms | 0 (lowest) | TBD | TBD | 120 + 0 + 14·C5 + 6·C6 + 50 + 20 + 20 + 30 + 120 |
+| CAN_RX | coop 2 | 289.5 | 20 ms per message, 7 per bus × 2 buses | 0.3 ms | 116.5 | 406 | **No** | 289.5 + 116.5 = **406** |
+| RELAY | 1 | 405 | every frame N2 forwards: 6 per 20 ms in (c) | on the brake chain | 116.5 | 4,574.5 | see chain | 405 + 116.5 + 14·289.5 = **4,574.5** |
+| STEER | 2 | 50 | 20 ms | 1 ms | 116.5 | 6,649.5 | **No** | 50 + 116.5 + 14·289.5 + 6·405 = **6,649.5** |
+| BLINK_F | 3 | 20 | 20 ms | 0.5 ms | 116.5 | 6,669.5 | **No** | 20 + 116.5 + 14·289.5 + 6·405 + 50 = **6,669.5** |
+| TEST_BTN | 4 | 20 | 50 ms | 10 ms | 116.5 | 6,689.5 | Yes | 20 + 116.5 + 14·289.5 + 6·405 + 50 + 20 = **6,689.5** |
+| HB_MON | 6 | 30 | 20 ms | 20 ms | 116.5 | 6,719.5 | Yes | 30 + 116.5 + 14·289.5 + 6·405 + 50 + 20 + 20 = **6,719.5** |
+| HB_TX | 7 | 120 | 20 ms | 20 ms | 116.5 | 6,839.5 | Yes | 120 + 116.5 + 14·289.5 + 6·405 + 50 + 20 + 20 + 30 = **6,839.5** |
+| FORCE_TX | 8 | 120 | 50 ms | 50 ms | 0 (lowest) | 6,843 | Yes | 120 + 0 + 14·289.5 + 6·405 + 50 + 20 + 20 + 30 + 120 = **6,843** |
 
 ### 4.5 Bus utilization with our relay design
 
@@ -219,7 +219,7 @@ Starting from the template's 8.6 % (6 frames per 20 ms + FORCE per 50 ms), each 
 
 | Message | J (µs) | C (µs) | B (µs) | w (µs) | R (µs) |
 |---|---|---:|---:|---:|---:|
-| 0x010 CTRL, relayed | Pi 126.5 + CTRL on A 540 + CAN_RX R (N2) TBD + RELAY R (N2) TBD = **TBD** | 270 | 270 | 270 | **TBD** |
+| 0x010 CTRL, relayed | Pi 126.5 + CTRL on A 540 + CAN_RX R (N2) 406 + RELAY R (N2) 4,574.5 = **5,647** | 270 | 270 | 270 | **6,187** |
 
 J is the whole first hop. On bus B the relayed CTRL still has the lowest ID, so w = 270 µs of blocking and R = J + 540.
 The relayed brake chain is this R + CAN_RX (N3) + DRIVE, so the first hop isn't counted twice.
@@ -228,11 +228,11 @@ The relayed brake chain is this R + CAN_RX (N3) + DRIVE, so the first hop isn't 
 
 | Chain | Stages to add up (µs) | Total | Deadline | Met? | What changed |
 |---|---|---:|---:|---|---|
-| Brake / throttle | relayed CTRL R TBD (= Pi + CTRL on A + CAN_RX (N2) + RELAY + CTRL on B) + CAN_RX (N3) TBD + DRIVE TBD | TBD | 2 ms | TBD | Second bus hop through N2's RELAY |
-| Steering | Pi + CTRL on A 540 + CAN_RX (N2) TBD + STEER TBD + servo period 20,000 | TBD | 50 ms | TBD | N2 still gets CTRL directly on A; only its own load grew (RELAY, 2 buses) |
-| Blinker start | Pi + BLINK on A 1,890 + CAN_RX (N2) + RELAY + BLINK' on B 1,890 + CAN_RX (N3) + BLINK_R | TBD | 100 ms | TBD | N3 gets BLINK only through the relay |
-| Blinker sync | N3's path through the relay: RELAY + BLINK' on B + CAN_RX (N3) + BLINK_R, minus N2's best case | TBD | 1 ms | TBD | N3's edge now trails N2's by the relay hop |
-| Error propagation | TEST_BTN (N2) TBD + 66,000 + 20,000 + HB_MON (N3) TBD | TBD | 100 ms | TBD | N3 still hears HB_N2 directly on B. HB_N1 reaches N3 only through the relay; without it N3 would declare N1 failed |
+| Brake / throttle | relayed CTRL R 6,187 (= Pi + CTRL on A + CAN_RX (N2) + RELAY + CTRL on B) + CAN_RX (N3) 425.5 + DRIVE 2,426.5 | 9,039 | 2 ms | **Missed.** The extra hop adds N2 receive + RELAY + a second bus traversal. Fix: the handout option we take: accept documented degraded latency in this double fault; or forward at the driver/ISR level. | Second bus hop through N2's RELAY |
+| Steering | Pi + CTRL on A 540 + CAN_RX (N2) 406 + STEER 6,649.5 + servo period 20,000 | 27,722 | 50 ms | **Met** | N2 still gets CTRL directly on A; only its own load grew (RELAY, 2 buses) |
+| Blinker start | Pi + BLINK on A 1,890 + CAN_RX (N2) + RELAY + BLINK' on B 1,890 + CAN_RX (N3) + BLINK_R | 11,759 | 100 ms | **Met** | N3 gets BLINK only through the relay |
+| Blinker sync | N3's path through the relay: RELAY + BLINK' on B + CAN_RX (N3) + BLINK_R, minus N2's best case | 9,236.5 | 1 ms | **Missed.** N3 can only act on the relayed copy, one full hop after N2. Fix: accept as degraded in (c), or have N2 delay its own edge by the relay latency while relaying. | N3's edge now trails N2's by the relay hop |
+| Error propagation | TEST_BTN (N2) 6,689.5 + 66,000 + 20,000 + HB_MON (N3) 2,696.5 | 95,386 | 100 ms | **Met** | N3 still hears HB_N2 directly on B. HB_N1 reaches N3 only through the relay; without it N3 would declare N1 failed |
 
 <!-- RTA-END -->
 
@@ -277,19 +277,19 @@ The six measurements the RTA in Sections 3–4 uses. Each screenshot shows both 
 #### M1 — Measurement #1: Pi stage, UDP_RX → CMD_TX (cockpit `--rt`, normal load). Max 126.5 µs, mean 34.9 µs, 3000 samples
 ![M1: Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs](../assets/lab3_scope/required/m1.jpeg)
 
-#### M2 — Measurement #2: CAN_RX C, N3 (CAN A INT falling → CAN_RX_A). Max TBD
+#### M2 — Measurement #2: CAN_RX C, N3 (CAN A INT falling → CAN_RX_A). Max 309 µs
 ![M2: Measurement #2, CAN_RX C, N3](../assets/lab3_scope/required/m2.jpeg)
 
-#### M3 — Measurement #3: DRIVE C, N3 (CAN_RX_A → DIR_A on a brake frame). Max TBD
+#### M3 — Measurement #3: DRIVE C, N3 (CAN_RX_A → DIR_A on a brake frame). Max 147 µs
 ![M3: Measurement #3, DRIVE C, N3](../assets/lab3_scope/required/m3.jpeg)
 
-#### M4 — Measurement #4: SPI frame load (B) (CS low → high, longest window). Max TBD
+#### M4 — Measurement #4: SPI frame load (B) (CS low → high, longest window). Max 116.5 µs
 ![M4: Measurement #4, SPI frame load (B)](../assets/lab3_scope/required/m4.jpeg)
 
-#### M5 — Measurement #5: CAN_RX C, N2 (CAN A INT falling → CAN_RX_A). Max TBD
+#### M5 — Measurement #5: CAN_RX C, N2 (CAN A INT falling → CAN_RX_A). Max 289.5 µs
 ![M5: Measurement #5, CAN_RX C, N2](../assets/lab3_scope/required/m5.jpeg)
 
-#### M6 — Measurement #6: RELAY C, N2 (CAN_RX_A → RELAY_TX, N1 off B and N3 off A). Max TBD
+#### M6 — Measurement #6: RELAY C, N2 (CAN_RX_A → RELAY_TX, N1 off B and N3 off A). Max 405 µs
 ![M6: Measurement #6, RELAY C, N2](../assets/lab3_scope/required/m6.jpeg)
 
 ### A.2 Additional captures (not required)

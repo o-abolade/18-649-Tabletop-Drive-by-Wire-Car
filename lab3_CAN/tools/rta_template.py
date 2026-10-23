@@ -22,11 +22,12 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 M = {  # measured maxima, us
     1: 126.5,   # Pi stage: UDP_RX -> CMD_TX (M1, formerly photo 6)
-    2: None,    # CAN_RX C, N3: INT of CAN A falling -> CAN_RX_A
-    3: None,    # DRIVE C, N3: CAN_RX_A -> DIR_A on a brake frame
-    4: None,    # SPI frame load: longest CS-low window
-    5: None,    # CAN_RX C, N2: INT of CAN A falling -> CAN_RX_A
-    6: None,    # RELAY C, N2: CAN_RX_A -> RELAY_TX (after the send on bus B returns)
+    2: 309.0,   # CAN_RX C, N3: INT of CAN A falling -> CAN_RX_A
+    3: 147.0,   # DRIVE C, N3: CAN_RX_A -> DIR_A on a brake frame, N3 bus B unplugged (single bus).
+                # With both buses: 503 us (the bus B copy's receive preempts DRIVE).
+    4: 116.5,   # SPI frame load: longest CS-low window
+    5: 289.5,   # CAN_RX C, N2: INT of CAN A falling -> CAN_RX_A
+    6: 405.0,   # RELAY C, N2: CAN_RX_A -> RELAY_TX (after the send on bus B returns)
 }
 # Screenshots: Doc/assets/lab3_scope/required/m<N>.jpeg, Appendix A.1 "M<N>"
 
@@ -175,7 +176,7 @@ def build():
     w("|---|---|---|---:|---|")
     desc = {1: ("Pi stage", "N1 UDP_RX (after the socket read) → CMD_TX (after the CAN writes)"),
             2: ("CAN_RX C, N3", "N3 CAN A INT (PA10 / D2) falling → CAN_RX_A"),
-            3: ("DRIVE C, N3", "N3 CAN_RX_A → DIR_A on a brake frame"),
+            3: ("DRIVE C, N3", "N3 CAN_RX_A → DIR_A on a brake frame, N3's bus B unplugged (single bus, as Part 3 assumes). With both buses connected the max was 503 µs: the CTRL copy from bus B arrives right after and N3's bus B driver thread preempts DRIVE for about 300 µs (M2)"),
             4: ("SPI frame load (B)", "MCP2515 CS (PB6 / D10) low → high, longest window")}
     for n in (1, 2, 3, 4):
         name, how = desc[n]
