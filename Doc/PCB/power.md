@@ -39,11 +39,11 @@ Once we select a 12V source, we need the following added to schematic
 ## TODO
 - [ ] Figure out how to change silkscreen labels on connectors so that it's easy to write things on the board
 - [ ] Need to take another look at jumpers
-- [ ] I added buttons so that we can reset the STM32s ourself, not in spec, I just thought it'd be useful
 - [ ] Add protection circuit
 - [ ] Double check SWD
-- [ ] Determine 12 V rail power source
+- [X] Determine 12 V rail power source
 - [ ] Somebody needs to take a look at what I did for power sourcing on the STM32s (all the VDD, AVDD, VCAP, etc.) and what I did for Boot0 (pull down resistor)
 - [ ] Add test points
 - [ ] Get mechanical measurements of board, add to schematic
+- [ ] Double check the right packaging for LEDs was selected
 
