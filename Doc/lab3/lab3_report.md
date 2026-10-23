@@ -17,12 +17,20 @@ captures are in Appendix A. The full log is in
 
 **Bus layout**
 - **Order:** both buses are linear, N1 – N2 – N3.
-- **Termination:** 120 Ω at each end, from the P1 pad on N1's and N3's
-  modules. Bus A measured 58 Ω with power off.
+- **Termination: P1 pads, not discrete resistors.** One 120 Ω at each end of
+  each bus, from the module's P1 pad. **P1 is shorted on these four modules:**
+  - N1 (Pi) CAN A and N1 CAN B;
+  - N3 CAN A and N3 CAN B.
+
+  N2's two modules have P1 open, and there are no discrete resistors on the
+  rails, so each bus has exactly two terminators. Bus A measured 58 Ω
+  CANH–CANL with power off.
 - **Jumpers:** each CANH and CANL tap has its own jumper, which is the R4.8
   fault-injection point.
-- **Trade-off:** P1 sits behind the jumper, so pulling an end node's jumper
-  also removes that end's terminator.
+- **Trade-off (told to our TA):** P1 sits behind the jumper, so pulling one
+  of those four modules' jumpers also removes that end's terminator and
+  leaves the bus with 120 Ω. Our pull tests on N1 and N3 still worked, but
+  the margin is lower.
 
 **Pins**
 - **STM32:** SPI1 is shared (PA5/PA6/PA7). CS is PB6 (A) and PC7 (B); INT is
@@ -58,20 +66,312 @@ captures are in Appendix A. The full log is in
 
 ![Figure 3: Extended task graph for scenario (c): RELAY on N2; relayed brake path 0x010 on A → RELAY → 0x010 on B → DRIVE](../assets/lab3_task_graph_with_relay.drawio.png)
 
-## 3. Real-time analysis
+<!-- RTA-BEGIN -->
+## 3. Single-bus real-time analysis
+
+Following the TA clarification:
+- **Scope:** one bus, with no redundancy and no relay (those are Section 4).
+- **C values:** every C is the handout's Part 2 placeholder, except the four measured values below.
+- **Priorities:** our implemented ones (`common/zephyr/zone_config.h`).
+  - CAN_RX is the MCP2515 driver's cooperative thread, so it outranks every application task.
+  - Our per-bus CAN_TX threads aren't separate rows. Their SPI loads are inside the template's
+    HB_TX and FORCE_TX C (120 µs, both buses).
+- **B = #4, one SPI frame load,** for every task except the lowest priority (B = 0). It isn't 2 × #4
+  because our send helper takes the SPI lock per bus: each bus has its own TX thread, and the
+  lock is held for one transaction.
+- **R** = C + B + Σ over higher-priority j of ⌈R/T_j⌉·C_j, iterated until it stops changing.
+  - Every R here is far below 10 ms, so each ⌈R/T_j⌉ is 1 and each R is a single sum.
+  - CAN_RX runs once per received message: 7 messages per 20 ms on one bus, so it interferes 7 times.
+
+### 3.1 Measurements
+
+Measured on the scope, maximum over at least a minute of traffic, with the node's other tasks idle.
+The test points are C GPIO writes, a few µs each. Screenshots are in Appendix A.1.
+
+| # | Number | Start probe → stop probe | Max (µs) | Screenshot |
+|---|---|---|---:|---|
+| 1 | Pi stage | N1 UDP_RX (after the socket read) → CMD_TX (after the CAN writes) | 126.5 | M1 |
+| 2 | CAN_RX C, N3 | N3 CAN A INT (PA10 / D2) falling → CAN_RX_A | TBD | M2 |
+| 3 | DRIVE C, N3 | N3 CAN_RX_A → DIR_A on a brake frame | TBD | M3 |
+| 4 | SPI frame load (B) | MCP2515 CS (PB6 / D10) low → high, longest window | TBD | M4 |
+
+### 3.2 Node RTA: N3 (drivetrain)
+
+| Task | Priority | C (µs) | T | D | B (µs) | R (µs) | R ≤ D? | Work: C + B + higher-priority C |
+|---|---|---:|---|---|---:|---:|---|---|
+| CAN_RX | coop 2 | C2 | 20 ms per message, 7 per bus | 0.3 ms | B | TBD | TBD | C2 + B |
+| DRIVE | 2 | C3 | 20 ms | 0.5 ms | B | TBD | TBD | C3 + B + 7·C2 |
+| BLINK_R | 3 | 20 | 20 ms | 0.5 ms | B | TBD | TBD | 20 + B + 7·C2 + C3 |
+| TEST_BTN | 4 | 20 | 50 ms | 10 ms | B | TBD | TBD | 20 + B + 7·C2 + C3 + 20 |
+| PID | 5 | 200 | 10 ms | 10 ms | B | TBD | TBD | 200 + B + 7·C2 + C3 + 20 + 20 |
+| HB_MON | 6 | 30 | 20 ms | 20 ms | B | TBD | TBD | 30 + B + 7·C2 + C3 + 20 + 20 + 200 |
+| HB_TX | 7 | 120 | 20 ms | 20 ms | 0 (lowest) | TBD | TBD | 120 + 0 + 7·C2 + C3 + 20 + 20 + 200 + 30 |
+
+### 3.3 Node RTA: N2 (steering)
+
+| Task | Priority | C (µs) | T | D | B (µs) | R (µs) | R ≤ D? | Work: C + B + higher-priority C |
+|---|---|---:|---|---|---:|---:|---|---|
+| CAN_RX | coop 2 | 80 | 20 ms per message, 7 per bus | 0.3 ms | B | TBD | TBD | 80 + B |
+| STEER | 2 | 50 | 20 ms | 1 ms | B | TBD | TBD | 50 + B + 7·80 |
+| BLINK_F | 3 | 20 | 20 ms | 0.5 ms | B | TBD | TBD | 20 + B + 7·80 + 50 |
+| TEST_BTN | 4 | 20 | 50 ms | 10 ms | B | TBD | TBD | 20 + B + 7·80 + 50 + 20 |
+| HB_MON | 6 | 30 | 20 ms | 20 ms | B | TBD | TBD | 30 + B + 7·80 + 50 + 20 + 20 |
+| HB_TX | 7 | 120 | 20 ms | 20 ms | B | TBD | TBD | 120 + B + 7·80 + 50 + 20 + 20 + 30 |
+| FORCE_TX | 8 | 120 | 50 ms | 50 ms | 0 (lowest) | 920 | Yes | 120 + 0 + 7·80 + 50 + 20 + 20 + 30 + 120 = **920** |
+
+**Any task marked No above misses for the same reason:** CAN_RX outranks every
+application task and is charged 7 times, once per catalog message per 20 ms. This is the template's
+conservative assumption that all 7 messages arrive inside the window. One bus can deliver at most
+⌈R / 270 µs⌉ frames in a window of length R, so that tighter bound would remove most misses. Other fixes:
+a shorter receive path (lower CAN_RX C), or priority above CAN_RX dispatch for the tight 0.5 ms tasks.
+
+### 3.4 Message RTA: CTRL (same on both buses)
+
+| Message | J (µs) | C (µs) | B (µs) | w (µs) | R (µs) |
+|---|---:|---:|---:|---:|---:|
+| 0x010 CTRL | 126.5 (#1) | 270 | 270 | 270 | **666.5** |
+
+- **w:** CTRL has the lowest ID, so there is no higher-priority term, and w is just the 270 µs blocking
+  from one lower-priority frame already on the wire.
+- **R** = J + w + C = 126.5 + 270 + 270 = 666.5 µs. "CTRL on bus" in the chains is w + C = 540 µs.
+- **BLINK** (used for the blinker start) has 5 higher-priority IDs (CTRL, FAULT, HB_N1–3), each at most
+  once in the window: w = 270 + 5·270 = 1,620 µs, so BLINK on bus = w + C = 1,890 µs.
+
+### 3.5 End-to-end chains (single bus)
+
+| Chain | Stages to add up (µs) | Total | Deadline | Met? |
+|---|---|---:|---:|---|
+| Brake / throttle | Pi 126.5 + CTRL on bus 540 + CAN_RX (N3) TBD + DRIVE TBD | TBD | 2 ms | TBD |
+| Steering | Pi 126.5 + CTRL on bus 540 + CAN_RX (N2) TBD + STEER TBD + one servo period 20,000 | TBD | 50 ms | TBD |
+| Blinker start | Pi 126.5 + BLINK on bus 1,890 + CAN_RX (N3) TBD + BLINK_R TBD | TBD | 100 ms | TBD |
+| Blinker sync | Worst case of one receive path minus the other's best case (C only): N3 TBD − N2 100, and N2 TBD − N3 TBD | TBD | 1 ms | TBD |
+| Error propagation | TEST_BTN (N2) TBD + 3 missed heartbeats 66,000 + one HB_MON period 20,000 + HB_MON (N3) TBD | TBD | 100 ms | TBD |
+
+- **Blinker sync:** both STM32s receive the same BLINK frame at the same instant from the same bus.
+  So the edge offset is only the difference between their receive-to-lamp paths. The bound is the larger
+  of N3's worst case minus N2's best case and the reverse, so it is symmetric by construction.
+- **Error propagation:** this is the heartbeat path. Our zones also send FAULT on a test-button press,
+  which reached the other zone in 1.1 ms in the lab (photo 13).
+
+## 4. Dual-bus and relay analysis
+
+### 4.1 Hot/parallel transmit
+
+- **Send:** every message goes on bus A and then bus B with one sequence number (`can_link_send`).
+- **Receive:** one dispatch path keeps the first copy by `(ID, seq)` and drops the second; FAULT has one dedup
+  slot per sending zone.
+- **Cost on the receiver:** each message now costs two receive interrupts and two SPI reads, so CAN_RX runs
+  14 times per 20 ms instead of 7 (the N2 table below).
+- **The chains get no worse,** because each receiver acts on whichever copy arrives first and the duplicate only
+  adds interference. That assumes the two copies leave together, which they do: the Pi writes A then B inside
+  the measured #1 stage.
+
+### 4.2 Relay design
+
+| Question | Our decision | Why |
+|---|---|---|
+| Who relays? | **N2 and N3**, the two STM32s; never the Pi | The checkoff's four cases need N2 (N1/N3 on opposite buses) or N3 (N1/N2 on opposite buses). A relay on the Pi would put Linux, which has no worst-case bound, in the path. |
+| When? | **Always**, with no fault detection | A relay that waits for the 60 ms degraded detection would cut CTRL (brakes included) for 60–70 ms after the fault. Always relaying costs bus time instead (4.5). |
+| What? | The **first copy** of every frame the zone didn't send itself, onto the other bus | A node already sends its own frames on both buses. |
+| Loops? | A **relayed flag** (bit 0x10 of byte 0); a flagged frame is never forwarded again | Every frame crosses at most one relay hop, even with two relaying zones. The sequence number is kept, so receivers drop relayed copies with their existing `(ID, seq)` state; no extra relay state is needed. The CTRL CRC masks the flag bits. |
+| RELAY priority? | **1**: above STEER (2) and every application task; below the MCP2515 driver threads and the per-bus CAN_TX threads | RELAY is on the relayed brake path, so it must not wait behind STEER. The receive hook only queues the frame (16 deep) and wakes RELAY. TX queues are sorted by ID, so a relayed CTRL overtakes waiting HB/FORCE. |
+| Cost to N2's own tasks | RELAY: 6 jobs per 20 ms in (c) | In the N2 table below. |
+
+Checkoff cases: N1 off B + N3 off A and N1 off A + N3 off B (N2 relays); N1 off A + N2 off B and N1 off B + N2 off A
+(N3 relays). We analyze the first, as the clarification asks.
+
+### 4.3 Measurements
+
+| # | Number | Start probe → stop probe | Max (µs) | Screenshot |
+|---|---|---|---:|---|
+| 5 | CAN_RX C, N2 | N2 CAN A INT (PA10 / D2) falling → CAN_RX_A | TBD | M5 |
+| 6 | RELAY C, N2 | N2 CAN_RX_A → RELAY_TX, pulsed right after the relayed frame's `can_send()` on bus B returns; N1 off B, N3 off A | TBD | M6 |
+
+### 4.4 Re-analysis: N2 with RELAY
+
+| Task | Priority | C (µs) | T | D | B (µs) | R (µs) | R ≤ D? | Work: C + B + higher-priority C |
+|---|---|---:|---|---|---:|---:|---|---|
+| CAN_RX | coop 2 | C5 | 20 ms per message, 7 per bus × 2 buses | 0.3 ms | B | TBD | TBD | C5 + B |
+| RELAY | 1 | C6 | every frame N2 forwards: 6 per 20 ms in (c) | on the brake chain | B | TBD | see chain | C6 + B + 14·C5 |
+| STEER | 2 | 50 | 20 ms | 1 ms | B | TBD | TBD | 50 + B + 14·C5 + 6·C6 |
+| BLINK_F | 3 | 20 | 20 ms | 0.5 ms | B | TBD | TBD | 20 + B + 14·C5 + 6·C6 + 50 |
+| TEST_BTN | 4 | 20 | 50 ms | 10 ms | B | TBD | TBD | 20 + B + 14·C5 + 6·C6 + 50 + 20 |
+| HB_MON | 6 | 30 | 20 ms | 20 ms | B | TBD | TBD | 30 + B + 14·C5 + 6·C6 + 50 + 20 + 20 |
+| HB_TX | 7 | 120 | 20 ms | 20 ms | B | TBD | TBD | 120 + B + 14·C5 + 6·C6 + 50 + 20 + 20 + 30 |
+| FORCE_TX | 8 | 120 | 50 ms | 50 ms | 0 (lowest) | TBD | TBD | 120 + 0 + 14·C5 + 6·C6 + 50 + 20 + 20 + 30 + 120 |
+
+### 4.5 Bus utilization with our relay design
+
+Starting from the template's 8.6 % (6 frames per 20 ms + FORCE per 50 ms), each frame relayed every 20 ms adds
+270 / 20,000 = 1.35 %.
+
+| Bus | Relayed onto it in scenario (c) | New utilization | ≤ 50 %? |
+|---|---|---:|---|
+| A | HB_N3', FAULT_N3' (N3's frames, from B), each 20 ms: 8.6 + 2 × 1.35 | **11.3 %** | Yes |
+| B | CTRL', HB_N1', BLINK', FAULT_N1' (N1's frames, from A), each 20 ms: 8.6 + 4 × 1.35 | **14.0 %** | Yes |
+
+**Normal operation**, with both buses up, is the worst case for always-relay:
+- N2 forwards N1's 4 and N3's 2 frames per 20 ms.
+- N3 forwards N1's 4 frames, plus HB_N2 and FAULT_N2 (20 ms) and FORCE (50 ms).
+- If every copy lands on one bus: 8.6 + 12 × 1.35 + 0.54 = **25.3 %**, still under 50 %.
+
+### 4.6 Relayed CTRL on bus B
+
+| Message | J (µs) | C (µs) | B (µs) | w (µs) | R (µs) |
+|---|---|---:|---:|---:|---:|
+| 0x010 CTRL, relayed | Pi 126.5 + CTRL on A 540 + CAN_RX R (N2) TBD + RELAY R (N2) TBD = **TBD** | 270 | 270 | 270 | **TBD** |
+
+J is the whole first hop. On bus B the relayed CTRL still has the lowest ID, so w = 270 µs of blocking and R = J + 540.
+The relayed brake chain is this R + CAN_RX (N3) + DRIVE, so the first hop isn't counted twice.
+
+### 4.7 Chains in scenario (c): N1 off bus B, N3 off bus A
+
+| Chain | Stages to add up (µs) | Total | Deadline | Met? | What changed |
+|---|---|---:|---:|---|---|
+| Brake / throttle | relayed CTRL R TBD (= Pi + CTRL on A + CAN_RX (N2) + RELAY + CTRL on B) + CAN_RX (N3) TBD + DRIVE TBD | TBD | 2 ms | TBD | Second bus hop through N2's RELAY |
+| Steering | Pi + CTRL on A 540 + CAN_RX (N2) TBD + STEER TBD + servo period 20,000 | TBD | 50 ms | TBD | N2 still gets CTRL directly on A; only its own load grew (RELAY, 2 buses) |
+| Blinker start | Pi + BLINK on A 1,890 + CAN_RX (N2) + RELAY + BLINK' on B 1,890 + CAN_RX (N3) + BLINK_R | TBD | 100 ms | TBD | N3 gets BLINK only through the relay |
+| Blinker sync | N3's path through the relay: RELAY + BLINK' on B + CAN_RX (N3) + BLINK_R, minus N2's best case | TBD | 1 ms | TBD | N3's edge now trails N2's by the relay hop |
+| Error propagation | TEST_BTN (N2) TBD + 66,000 + 20,000 + HB_MON (N3) TBD | TBD | 100 ms | TBD | N3 still hears HB_N2 directly on B. HB_N1 reaches N3 only through the relay; without it N3 would declare N1 failed |
+
+<!-- RTA-END -->
+
+## 5. Fault-injection test matrix (R4.8 a–f)
+
+**How faults were injected:** by pulling a node's CANH/CANL jumpers. Pulling
+N1's or N3's jumper also removes that end's P1 terminator (Section 1).
+
+**Detection design:** a bus is degraded after 60 ms with no traffic heard;
+HB_MON checks every 10 ms. A zone is failed after 60 ms without its
+heartbeat on both buses.
+
+**Sources:** functional results come from the zone consoles, the Pi status
+line and the LEDs; timing results are scope maxima.
+
+| | Fault | Expected: zones | Expected: LEDs | Measured: function | Measured: time |
+|---|---|---|---|---|---|
+| a | One node off A (demo N2) | All NORMAL, fully operational | That node DEG_A | ✅ N2 B unaffected, N1/N3 unaffected | DEG_A on **68.6 ms** max over 5 (photo 10); design 60–70 ms |
+| b | One node off B | All NORMAL | That node DEG_B | ✅ (seen for N1 in (c); same code path as a) | — |
+| c | N1 off B + N3 off A | All NORMAL via N2's relay | N1 DEG_B, N3 DEG_A | ✅ N3 drives on relayed CTRL; 0 relay drops | Relayed brake **1.1 ms** (photo 3); relay stage 607 µs (photo 4) |
+| d | N2 off both buses | N2 fail-safe (steering held); N1, N3 ERROR (hazards, N3 braked) | N2 DEG_A + DEG_B; others none | ✅ | N3 ERROR **68.4 ms** (photo 14); N2 ERROR **53.6 ms** (photo 15); limit 100 ms |
+| e | Every node off A | All NORMAL on B | All DEG_A | ✅ CTRL gaps 36–39 ms (needed the Pi TX watchdog) | — |
+| f | Restore jumpers | Back to NORMAL, no reset; MCP2515 auto bus-off recovery, Pi `restart-ms 100` | DEG off | ✅ every case | DEG off **14.8 ms** (photo 11, limit 100); recovery N2 **15.6 ms** / N3 **16.5 ms** (photos 16–17, limit 500) |
+
+## 6. Team-defined values and Lab 1 revision
+
+`Doc/lab1/Requirement_Document.md` has been updated for Lab 3:
+- **Section 6:** the template catalog, with our payloads, handling rules and
+  utilization.
+- **Section 7:** a "Lab 3 values" table with every threshold and mapping
+  and its source file.
+- **Revision history:** a 2026-10-21 entry, including the relay limitation.
+
+## Appendix A: Scope captures
+
+Every value is the **maximum over the repeats** listed. Test-point rows refer to Figure 1.
+
+### A.1 Required measurements (TA clarification, M1–M6)
+
+The six measurements the RTA in Sections 3–4 uses. Each screenshot shows both probes and the max.
+
+#### M1 — Measurement #1: Pi stage, UDP_RX → CMD_TX (cockpit `--rt`, normal load). Max 126.5 µs, mean 34.9 µs, 3000 samples
+![M1: Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs](../assets/lab3_scope/required/m1.jpeg)
+
+#### M2 — Measurement #2: CAN_RX C, N3 (CAN A INT falling → CAN_RX_A). Max TBD
+![M2: Measurement #2, CAN_RX C, N3](../assets/lab3_scope/required/m2.jpeg)
+
+#### M3 — Measurement #3: DRIVE C, N3 (CAN_RX_A → DIR_A on a brake frame). Max TBD
+![M3: Measurement #3, DRIVE C, N3](../assets/lab3_scope/required/m3.jpeg)
+
+#### M4 — Measurement #4: SPI frame load (B) (CS low → high, longest window). Max TBD
+![M4: Measurement #4, SPI frame load (B)](../assets/lab3_scope/required/m4.jpeg)
+
+#### M5 — Measurement #5: CAN_RX C, N2 (CAN A INT falling → CAN_RX_A). Max TBD
+![M5: Measurement #5, CAN_RX C, N2](../assets/lab3_scope/required/m5.jpeg)
+
+#### M6 — Measurement #6: RELAY C, N2 (CAN_RX_A → RELAY_TX, N1 off B and N3 off A). Max TBD
+![M6: Measurement #6, RELAY C, N2](../assets/lab3_scope/required/m6.jpeg)
+
+### A.2 Additional captures (not required)
+
+End-to-end chains and fault-injection timings taken before the clarification. They back the
+fault matrix (Section 5) and Appendix B. Photos 1–5 were taken with the cockpit **without**
+`--rt`, so their Pi stage is the slower one (up to about 443 µs) and the chain values are
+conservative. Photo 6 became M1 above.
+
+#### Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15 counts
+![Photo 1: Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15](../assets/lab3_scope/additional/photo01.jpeg)
+
+#### Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10 counts
+![Photo 2: Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10](../assets/lab3_scope/additional/photo02.jpeg)
+
+#### Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10 counts
+![Photo 3: Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10](../assets/lab3_scope/additional/photo03.jpeg)
+
+#### Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10 counts
+![Photo 4: Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10](../assets/lab3_scope/additional/photo04.jpeg)
+
+#### Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 counts
+![Photo 5: Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 edges](../assets/lab3_scope/additional/photo05.jpeg)
+
+#### Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples
+![Photo 7: Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples](../assets/lab3_scope/additional/photo07.jpeg)
+
+#### CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V
+![Photo 8: CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V](../assets/lab3_scope/additional/photo08.jpeg)
+
+#### CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V
+![Photo 9: CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V](../assets/lab3_scope/additional/photo09.jpeg)
+
+#### (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5 counts
+![Photo 10: (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5](../assets/lab3_scope/additional/photo10.jpeg)
+
+#### (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5 counts
+![Photo 11: (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5](../assets/lab3_scope/additional/photo11.jpeg)
+
+#### R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5 counts
+![Photo 12: R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5](../assets/lab3_scope/additional/photo12.jpeg)
+
+#### R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5 counts
+![Photo 13: R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5](../assets/lab3_scope/additional/photo13.jpeg)
+
+#### (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3 counts
+![Photo 14: (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3](../assets/lab3_scope/additional/photo14.jpeg)
+
+#### (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3 counts
+![Photo 15: (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3](../assets/lab3_scope/additional/photo15.jpeg)
+
+#### (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3 counts
+![Photo 16: (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3](../assets/lab3_scope/additional/photo16.jpeg)
+
+#### (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3 counts
+![Photo 17: (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3](../assets/lab3_scope/additional/photo17.jpeg)
+
+## Appendix B: Analysis with measured WCETs (both buses, relay load)
+
+This is our analysis before the TA clarification. It goes further than the
+template in Sections 3–4:
+- it uses our own measured WCETs instead of the placeholders;
+- it charges both buses and every relayed copy at once;
+- it models the MCP2515 driver's real per-frame cost.
+
+It explains the gap between the template bounds and the scope results. Inside
+this appendix, references to "3.x" and "4.x" mean its own subsections B.1–B.5.
+The relay rows describe the design before N3 also relayed; Section 4 has the
+current design.
 
 The tables below already include both buses and N2's relayed copies, which is
 the worst case; on one bus each zone receives fewer frames. A small script
 iterates every equation to convergence.
 
-### 3.0 Pi stage (measured)
+### B.1 Pi stage (measured)
 
 **Method:** scope Delay statistics from UDP_RX to CMD_TX, 60 s per run, 3000
 samples.
 
 | Cockpit scheduling | Load | Max | Mean |
 |---|---|---:|---:|
-| `--rt` (SCHED_FIFO 80, pinned to CPU 3) | normal (photo 6) | **126.5 µs** | 34.9 µs |
+| `--rt` (SCHED_FIFO 80, pinned to CPU 3) | normal (M1) | **126.5 µs** | 34.9 µs |
 | `--rt` | `stress --cpu 4 --io 2` (photo 7) | 82 µs | 32.1 µs |
 | default | normal / stress | 442.5 / 444.5 µs | 53.0 / 104.0 µs |
 
@@ -82,7 +382,7 @@ samples.
 - **Not covered:** the laptop → Pi network delay, which comes before UDP_RX.
   The demo uses Ethernet; over Wi-Fi we saw gaps of up to 139 ms.
 
-### 3.1 Node response-time analysis
+### B.2 Node response-time analysis
 
 **How C was measured.**
 - **Method:** each job reads its own thread's execution cycles
@@ -163,7 +463,7 @@ the burst to be served: about 9–10 ms. Long-run CPU load is still about 60 %.
   invert priorities.
 - N3 prints only after releasing `motor_lock`.
 
-### 3.2 CAN message response times
+### B.3 CAN message response times
 
 **Equations:**
 `w = B + Σ_hp ⌈(w + J_j + 2 µs)/T_j⌉·C`, then `R = J + w + C`.
@@ -210,7 +510,7 @@ arbitration together. A relayed copy trails its original by at least one
 relay delay (≥ 474 µs, photo 4), and FAULTs are rare. TEC and REC stayed 0 in
 every run.
 
-### 3.3 End-to-end chains
+### B.4 End-to-end chains
 
 **Bound:** the sum of the stage bounds above. **Measured:** the maximum of
 repeated scope captures. Photos 1–5 were taken without `--rt`, so they are
@@ -249,9 +549,9 @@ conservative.
 3. **Priority qdisc on the Pi,** with CTRL in the top band. R_CTRL would drop
    from 1.75 to 0.94 ms.
 
-## 4. Dual-redundant CAN and the relay case
+### B.5 Dual bus and relay, with measured WCETs
 
-### 4.1 Hot/parallel transmit
+#### B.5.1 Hot/parallel transmit
 
 **What the code does:**
 - **Send:** each message is queued on A and then B, with one sequence
@@ -268,7 +568,7 @@ the duplicate only adds one interference term. That assumes:
   126.5 µs stage);
 - dropping a duplicate is cheap: a table lookup inside RX_DISPATCH, ≤ 51 µs.
 
-### 4.2 Relay design
+#### B.5.2 Relay design
 
 | Question | Decision | Why |
 |---|---|---|
@@ -279,7 +579,7 @@ the duplicate only adds one interference term. That assumes:
 | Priority? | RELAY = 1: above STEER and all app tasks, below CAN_TX and the driver threads | It's on the brake path. The receive hook only queues (16 deep). TX queues are sorted by ID, so a relayed CTRL overtakes waiting HB/FORCE. |
 | Cost to N2 | ≤ 6 × 86.8 µs + 6 CAN_TX per 20 ms | Already in N2's table. STEER still meets. |
 
-### 4.3 Re-analysis for scenario (c): N1 off B, N3 off A
+#### B.5.3 Re-analysis for scenario (c): N1 off B, N3 off A
 
 **Traffic:** each bus carries 9 unique frames per 20 ms, giving **11.3 %
 utilization**.
@@ -345,91 +645,3 @@ chain measurement (photo 3) covers them.
 **Remedy (not implemented):** run the same relay rule on **every** node that
 is on both buses. It stays loop-free because flagged frames are never
 forwarded, at the cost of more bus load.
-
-## 5. Fault-injection test matrix (R4.8 a–f)
-
-**How faults were injected:** by pulling a node's CANH/CANL jumpers. Pulling
-N1's or N3's jumper also removes that end's P1 terminator (Section 1).
-
-**Detection design:** a bus is degraded after 60 ms with no traffic heard;
-HB_MON checks every 10 ms. A zone is failed after 60 ms without its
-heartbeat on both buses.
-
-**Sources:** functional results come from the zone consoles, the Pi status
-line and the LEDs; timing results are scope maxima.
-
-| | Fault | Expected: zones | Expected: LEDs | Measured: function | Measured: time |
-|---|---|---|---|---|---|
-| a | One node off A (demo N2) | All NORMAL, fully operational | That node DEG_A | ✅ N2 B unaffected, N1/N3 unaffected | DEG_A on **68.6 ms** max over 5 (photo 10); design 60–70 ms |
-| b | One node off B | All NORMAL | That node DEG_B | ✅ (seen for N1 in (c); same code path as a) | — |
-| c | N1 off B + N3 off A | All NORMAL via N2's relay | N1 DEG_B, N3 DEG_A | ✅ N3 drives on relayed CTRL; 0 relay drops | Relayed brake **1.1 ms** (photo 3); relay stage 607 µs (photo 4) |
-| d | N2 off both buses | N2 fail-safe (steering held); N1, N3 ERROR (hazards, N3 braked) | N2 DEG_A + DEG_B; others none | ✅ | N3 ERROR **68.4 ms** (photo 14); N2 ERROR **53.6 ms** (photo 15); limit 100 ms |
-| e | Every node off A | All NORMAL on B | All DEG_A | ✅ CTRL gaps 36–39 ms (needed the Pi TX watchdog) | — |
-| f | Restore jumpers | Back to NORMAL, no reset; MCP2515 auto bus-off recovery, Pi `restart-ms 100` | DEG off | ✅ every case | DEG off **14.8 ms** (photo 11, limit 100); recovery N2 **15.6 ms** / N3 **16.5 ms** (photos 16–17, limit 500) |
-
-## 6. Team-defined values and Lab 1 revision
-
-`Doc/lab1/Requirement_Document.md` has been updated for Lab 3:
-- **Section 6:** the template catalog, with our payloads, handling rules and
-  utilization.
-- **Section 7:** a "Lab 3 values" table with every threshold and mapping
-  and its source file.
-- **Revision history:** a 2026-10-21 entry, including the relay limitation.
-
-## Appendix A: Scope captures
-
-Every value is the **maximum over the repeats** listed. Test-point rows refer
-to Figure 1. Photos 1–5 were taken with the cockpit **without** `--rt`, so
-their Pi stage is the slower one (up to about 443 µs) and the chain values are
-conservative.
-
-### Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15 counts
-![Photo 1: Brake chain (R2.2), Pi UDP_RX → N3 DIR_A. One capture 640 µs; max 940 µs over 15](../assets/lab3_scope/photo01.jpeg)
-
-### Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10 counts
-![Photo 2: Throttle chain (R2.1), Pi UDP_RX → N3 PWM_SET (first pulse). One capture 614 µs; max 626 µs over 10](../assets/lab3_scope/photo02.jpeg)
-
-### Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10 counts
-![Photo 3: Relayed brake chain, scenario (c), Pi UDP_RX → N3 DIR_A via N2 RELAY. Max 1.1 ms over 10](../assets/lab3_scope/photo03.jpeg)
-
-### Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10 counts
-![Photo 4: Relay stage, scenario (c), Pi UDP_RX → N2 RELAY_TX. One capture 474 µs; max 607 µs over 10](../assets/lab3_scope/photo04.jpeg)
-
-### Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 counts
-![Photo 5: Blinker sync (R2.4), N2 FL vs N3 RL rising edges. One capture 186 µs; max 768 µs over 10 edges](../assets/lab3_scope/photo05.jpeg)
-
-### Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs, mean 34.9 µs, 3000 samples
-![Photo 6: Pi stage UDP_RX → CMD_TX, cockpit --rt, normal load. Max 126.5 µs, mean 34.9 µs, 3000 samples](../assets/lab3_scope/photo06.jpeg)
-
-### Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples
-![Photo 7: Pi stage, cockpit --rt, under stress --cpu 4 --io 2. Max 82 µs, mean 32.1 µs, 3000 samples](../assets/lab3_scope/photo07.jpeg)
-
-### CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V
-![Photo 8: CAN A CANH/CANL. Idle 2.18/2.21 V; dominant 2.68/0.61 V, differential 2.07 V](../assets/lab3_scope/photo08.jpeg)
-
-### CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V
-![Photo 9: CAN B CANH/CANL. Idle 2.20/2.19 V; dominant 2.70/0.73 V, differential 1.97 V](../assets/lab3_scope/photo09.jpeg)
-
-### (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5 counts
-![Photo 10: (a) N2 off CAN A, last CAN_RX_A → DEG_A on. 62.8 ms; max 68.6 ms over 5](../assets/lab3_scope/photo10.jpeg)
-
-### (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5 counts
-![Photo 11: (f) N2 bus A restored, first CAN_RX_A → DEG_A off. 9.6 ms; max 14.8 ms over 5](../assets/lab3_scope/photo11.jpeg)
-
-### R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5 counts
-![Photo 12: R2.5 local fail, N2 B1 press → N2 ERR. Max 20 µs over 5](../assets/lab3_scope/photo12.jpeg)
-
-### R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5 counts
-![Photo 13: R2.5 system error, N2 B1 press → N3 ERR. 1.0 ms; max 1.1 ms over 5](../assets/lab3_scope/photo13.jpeg)
-
-### (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3 counts
-![Photo 14: (d) N2 off both buses, last N2 CAN_RX_B → N3 ERR. 59.4 ms; max 68.4 ms over 3](../assets/lab3_scope/photo14.jpeg)
-
-### (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3 counts
-![Photo 15: (d) isolated N2 enters fail-safe, last CAN_RX_B → N2 ERR. 52.4 ms; max 53.6 ms over 3](../assets/lab3_scope/photo15.jpeg)
-
-### (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3 counts
-![Photo 16: (f) N2 jumpers restored, first CAN_RX_A → N2 ERR off. 3.6 ms; max 15.6 ms over 3](../assets/lab3_scope/photo16.jpeg)
-
-### (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3 counts
-![Photo 17: (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3](../assets/lab3_scope/photo17.jpeg)

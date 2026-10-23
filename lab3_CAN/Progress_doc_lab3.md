@@ -491,7 +491,12 @@ Notes:
 ## Scope capture log
 
 Scope screenshots are phone photos, taken in this order: **photo N on the phone
-= entry N here**. Use the "Label" column as the figure caption in the report.
+= entry N here**.
+
+**Files (2026-10-22):** the six measurements the TA clarification requires are in
+`Doc/assets/lab3_scope/required/m1.jpeg` … `m6.jpeg` (M1 = photo 6, the Pi stage;
+M2–M6 still to take). Every other capture is in `Doc/assets/lab3_scope/additional/`
+with its photo number. Use the "Label" column as the figure caption in the report.
 For every timing value, report the **maximum** of the repeated captures, not
 the single photo's value.
 

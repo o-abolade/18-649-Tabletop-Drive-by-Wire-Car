@@ -11,9 +11,9 @@
 | SWT0210-045026GSA | 5 | Self Test Buttons (x3), STM32 NRST (x2) | [Datasheet](https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/8937/swt0210-spec.pdf) | Y | - | - |
 | CX3225SB16000H0FLJCC| 6 | Oscillators for CAN Controllers | [Datasheet](https://ele.kyocera.com/assets/products/crystal-device/cx3225sb_e.pdf) | Y | - | - |
 | RC0603FR-07120RL | 20 | 120 ohm, LED series resistance (x4 for blinkers, x12 status LEDs), CAN Bus Termination (x4) | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
-| CGA3E2X7R1E104K080AA | 19 | 100 nF, RC debounce on self test buttons (3x), RC debounce on NRST (x2), input/output decoupling on buck converters (6x), VDD smoothing for STM32s (x8) | [Datasheet](https://product.tdk.com/system/files/dam/doc/product/capacitor/ceramic/mlcc/catalog/mlcc_automotive_general_en.pdf) | Y | - | - |
+| CGA3E2X7R1E104K080AA | 21 | 100 nF, RC debounce on self test buttons (3x), RC debounce on NRST (x2), input/output decoupling on buck converters (6x), VDD smoothing for STM32s (x8), STM32 ADC input smoothing (x2) | [Datasheet](https://product.tdk.com/system/files/dam/doc/product/capacitor/ceramic/mlcc/catalog/mlcc_automotive_general_en.pdf) | Y | - | - |
 | CRCW060310K0FKEA | 30 | 10 Kohm, Self Test Buttons Pull Up Resistor (3x), NRST Button Pull Up (2x), Buck Converter Enable Voltage Dividers (3x), Buck Converter PG Output (3x), 3V3 buck converter feedback, 5V feedback circuit (4x), 8V8 feedback circuit (3x), CAN transciever RS pins (6x), STM32 BOOT0 pin pull down (x2)  | [Datasheet](https://www.vishay.com/docs/20035/dcrcwe3.pdf) | Y | - | - |
-| RC0603FR-0747KL | 1 | 47 Kohm, 3V3 buck converter feedback  | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
+| RC0603FR-0747KL | 3 | 47 Kohm, 3V3 buck converter feedback, motor sense voltage divider (x2)  | [Datasheet](https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L) | Y | - | - |
 | IHLP2525CZER3R3M11 | 1 | 3.3 uH inductor on 3v3 buck converter output | [Datasheet](https://www.vishay.com/docs/34190/ihlp-2525cz-11.pdf) | N | N | Not available on parts list, equivalent JLCPCB parts either required bulk purchase or had no CAD model |
 | IHLP2525CZER4R7MA1 | 1 | 4.7 uH inductor on 5V buck converter output | [Datasheet](https://www.vishay.com/docs/34241/ihlp-2525cz-a1.pdf) | N | N | See above |
 | IHLP2525CZEK6R8MA1 | 1 | 6.8 uH inductor on 6V8 buck converter output | [Digikey Page](https://www.digikey.com/en/products/detail/vishay-dale/IHLP2525CZEK6R8MA1/26235892) | N | N | See above |
@@ -27,4 +27,8 @@
 | C0603C220J1GACTU | 12 | Crystal Oscillator Load Capacitance | [Digikey Page](https://www.digikey.com/en/products/detail/kemet/C0603C220J1GACTU/2200183) | Y | - | - |
 | 742863160 | 2 | Ferrite beads, AVDD filtering on STM32s | [Digikey Page](https://www.digikey.com/en/products/detail/w%C3%BCrth-elektronik/742863160/2268591?s=N4IgTCBcDaIOwBYwA4BsBmAjKgDCAugL5A) | Y | - | - |
 | GRM188R71A225KE15D | 2 | VCAP on stm32s | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GRM188R71A225KE15D/1033256) | N | N | JLCPCB CAD not compatible with Fusion 360 |
-| 2.54 mm pin headers | 33 | Steering input (x3), Steering SWD pins (x6), Steering STM uart (x3), CAN jumpers (x12), Drivetrain SWD pins (x6), drivetrain STM uart (x3) | N/A | Y | - | - |
+| 2.54 mm pin headers | 40 | Steering input (x3), Steering SWD pins (x6), Steering STM uart (x3), CAN jumpers (x12), Drivetrain SWD pins (x6), drivetrain STM uart (x3), RPI connection (x7) | N/A | Y | - | - |
+| B6B-PH-SM4-TB | 2 | Motor connection (x2) | Y | - | - |
+| B3B-PH-SM4-TB | 1 | Steering Servo connection | N | N | Same product line as B6B conn |
+| GCM1885C2A102FA16D | 2 | Motor current sense filter | Y | - | - |
+| SK520B | 4 | Switching inductive load protection on L298 output (x4) | Y | - | - |
