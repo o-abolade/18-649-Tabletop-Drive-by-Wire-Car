@@ -12,10 +12,18 @@
  * drop the extra copies by seq).
  *
  * What gets relayed: every accepted (first-copy) frame that this zone didn't
- * send itself, onto the OTHER bus from the one it arrived on, with
- * CANP_FLAG_RELAYED set. CTRL's CRC masks the flags nibble, so it stays
- * valid. No loops: a flagged frame is never forwarded again, so every frame
- * crosses at most one relay hop.
+ * send itself, onto the OTHER bus from the one it arrived on, UNCHANGED.
+ *
+ * Why unchanged: a relayed copy can reach the bus at the same moment as the
+ * sender's own copy on that bus (seen with N3 forwarding N2's HB_N2 onto B
+ * while N2's B copy was still queued). Same ID with different data (e.g. a
+ * "relayed" flag bit) is a bit error for both transmitters, and they retry
+ * into each other: TEC climbed to ~76 and TX buffers stuck. Identical frames
+ * sent together are legal CAN and simply go out once.
+ *
+ * No loops without a flag: dedup hands this hook only the FIRST copy of each
+ * (ID, seq), and a zone never relays its own frames, so each zone forwards a
+ * given frame at most once and forwarding stops after every zone has it.
  */
 #include <string.h>
 
@@ -73,9 +81,6 @@ static bool should_relay(uint32_t id, const uint8_t *data)
 {
 	int sender = sender_of(id, data);
 
-	if (canp_flags(data) & CANP_FLAG_RELAYED) {
-		return false;
-	}
 	return sender != 0 && sender != (int)self;
 }
 
@@ -98,8 +103,8 @@ void relay_rx_hook(uint32_t id, const uint8_t data[CANP_DLC], enum canp_bus bus)
 static void relay_sent(enum canp_bus bus, uint32_t id, const uint8_t data[CANP_DLC])
 {
 	ARG_UNUSED(bus);
-	ARG_UNUSED(id);
-	if (!HAVE_RELAY_TP || !(canp_flags(data) & CANP_FLAG_RELAYED)) {
+	/* A frame this zone sends but didn't originate is a relayed one */
+	if (!HAVE_RELAY_TP || !should_relay(id, data)) {
 		return;
 	}
 #if HAVE_RELAY_TP
@@ -121,7 +126,6 @@ static void relay_thread(void *a, void *b, void *c)
 
 		enum canp_bus to = (item.from_bus == CANP_BUS_A) ? CANP_BUS_B : CANP_BUS_A;
 
-		item.data[0] |= CANP_FLAG_RELAYED;
 		if (can_link_send_on(to, item.id, item.data) == 0) {
 			atomic_inc(&relayed);
 		}

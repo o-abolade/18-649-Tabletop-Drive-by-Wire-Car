@@ -42,7 +42,7 @@ enum canp_bus { CANP_BUS_A = 0, CANP_BUS_B = 1 };
 
 /* ---- Byte 0: sequence + flags ---- */
 #define CANP_SEQ_MASK      0x0F
-#define CANP_FLAG_RELAYED  0x10   /* set by N2's RELAY on the forwarded copy */
+#define CANP_FLAG_RELAYED  0x10   /* reserved; relays forward frames unchanged (relay.c) */
 
 static inline uint8_t canp_seq(const uint8_t *d)   { return d[0] & CANP_SEQ_MASK; }
 static inline uint8_t canp_flags(const uint8_t *d) { return d[0] & (uint8_t)~CANP_SEQ_MASK; }
