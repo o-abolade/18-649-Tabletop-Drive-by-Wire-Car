@@ -17,7 +17,7 @@ captures are in Appendix A. The full log is in
 
 **Bus layout**
 - **Order:** both buses are linear, N1 – N2 – N3.
-- **Termination: P1 pads, not discrete resistors.** One 120 Ω at each end of
+- **Termination: P1 pads.** One 120 Ω at each end of
   each bus, from the module's P1 pad. **P1 is shorted on these four modules:**
   - N1 (Pi) CAN A and N1 CAN B;
   - N3 CAN A and N3 CAN B.
@@ -27,7 +27,7 @@ captures are in Appendix A. The full log is in
   CANH–CANL with power off.
 - **Jumpers:** each CANH and CANL tap has its own jumper, which is the R4.8
   fault-injection point.
-- **Trade-off (told to our TA):** P1 sits behind the jumper, so pulling one
+- **Trade-off:** P1 sits behind the jumper, so pulling one
   of those four modules' jumpers also removes that end's terminator and
   leaves the bus with 120 Ω. Our pull tests on N1 and N3 still worked, but
   the margin is lower.
@@ -258,14 +258,10 @@ the DEG LEDs clear within 100 ms, and every zone is back to NORMAL within
 500 ms with no reset. A controller that went bus-off recovers on its own (the
 MCP2515 automatically, the Pi with `restart-ms 100`).
 
-The 15 combinations the TA lists come first: every node off one bus, every
-node off both, and every pair of nodes off different buses. The handout's
-whole-bus loss (e) follows.
-
 **Measured column:**
 - **✅:** run on hardware. Status comes from the zone consoles, the Pi status
   line and the LEDs. Times are scope maxima, with the screenshot linked.
-- **Same path as row N:** not run on its own; the firmware takes the same code
+- **"Same path as row N":** not run on its own; the firmware takes the same code
   path as a row that was measured.
 
 | # | Fault (jumpers pulled) | Expected: N1 (Pi) | Expected: N2 | Expected: N3 | Expected DEG LEDs | Relay needed? | Measured | Restoration (f) |
