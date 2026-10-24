@@ -35,22 +35,37 @@ load before treating this as a final value.
 According to the datasheet, the buck regulator has a maximum duty cycle of 97%, meaning that the minimum input voltage needed for the lines to regulate are $V_{in} = 6.8/0.97 = 7.01 V$ for the 6.8 volt line, $V_{in} = 5 / 0.97 = 5.15 V$ for the 5 volt line, and $V_{in} = 3.3 / 0.97 = 3.40 V$ for the 3.3 volt line. Thus, at the sagged voltage, all lines should still regulate.
 
 
-## Plan for power protection:
-The selected 12 V source is the Tenergy 11616 NiMH pack.  Add the following
-in this order at the battery input:
-- Board-side mating connector / documented Tamiya harness, then a fuse close
-  to the input connector, then high-side reverse-polarity protection, then
-  the protected `+12V` rail
-- Bulk capacitance (from parts list) near the 12V source
-- Fuse protection near source, sized after confirming the connector and wire
-  ratings; it must tolerate the 9.79 A peak without becoming the normal
-  current limit
-- P-channel MOSFET reverse-polarity protection near the power source.  The
-  5 A SK520B Schottkys must **not** be used in series with the battery input;
-  they are flyback diodes on the L298 outputs.  Select a MOSFET rated for at
-  least 30--40 V with low guaranteed RDS(on) and a realistic PCB thermal
-  current rating above 10 A; add a gate-source clamp.
-- Schottky diodes on L298 output switches to protect against voltage spikes on power down
+## Implemented input-power protection
+
+The selected 12 V source is the Tenergy 11616 NiMH pack. The implemented
+schematic path is:
+
+`Tenergy Standard-Tamiya harness -> J4 (TE 282837-2) -> F1 -> Q1 -> +12V_PROTECTED`
+
+- **J4:** TE 282837-2 two-position, 13.5 A terminal block. The battery's
+  Standard-Tamiya lead terminates in a documented Tamiya-to-bare-wire harness
+  at J4; it is not an XT60 connection.
+- **F1:** Littelfuse 0215010.MXEP, a 10 A time-delay, through-hole axial fuse.
+  It is close to J4 and protects against sustained input faults while allowing
+  short motor-start/stall transients.
+- **Q1:** IRF4905PBF P-channel MOSFET in the high side for reverse-polarity
+  protection. Its source is on the fused battery side and its drain creates
+  `+12V_PROTECTED`. Its maximum RDS(on) is 20 mOhm at VGS = -10 V; at 10 A it
+  can dissipate about 2 W, so its copper area and temperature must be checked
+  during bring-up.
+- **R59:** 100 kOhm gate-to-ground pull-down. It turns Q1 on for correct
+  polarity and keeps it off for a reverse battery connection.
+- **D17:** TZM5242B-GS08, a 12 V Zener connected from Q1 gate to source
+  (cathode at source, anode at gate) to limit negative VGS during transients.
+  Fusion's generic SOD-80 symbol is retained, but the BOM identifies the
+  correct 12 V member rather than the library's 5.1 V default.
+- **C47:** 1000 uF, 25 V polarized electrolytic from `+12V_PROTECTED` to GND,
+  connected at the L298 VS motor-supply net. It must be placed near the L298
+  VS/GND pins in layout.
+- The three buck-converter inputs and L298 VS use `+12V_PROTECTED`; no former
+  `12V` input net may bypass F1 or Q1.
+- The 5 A SK520B Schottkys remain flyback diodes on the L298 outputs and are
+  **not** in series with the battery input.
 
 
 ## NOTES
@@ -61,7 +76,7 @@ in this order at the battery input:
 ## TODO
 - [ ] Figure out how to change silkscreen labels on connectors so that it's easy to write things on the board
 - [ ] Need to take another look at jumpers
-- [ ] Add protection circuit
+- [X] Add input protection circuit
 - [ ] Double check SWD
 - [X] Determine 12 V rail power source
 - [ ] Somebody needs to take a look at what I did for power sourcing on the STM32s (all the VDD, AVDD, VCAP, etc.) and what I did for Boot0 (pull down resistor)
