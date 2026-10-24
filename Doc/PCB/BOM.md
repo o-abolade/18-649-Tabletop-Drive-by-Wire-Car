@@ -37,7 +37,8 @@
 | 2.54 mm pin headers | 56 | Steering input (x3), Steering SWD pins (x6), Steering STM uart (x3), CAN jumpers (x12), Drivetrain SWD pins (x6), drivetrain STM uart (x3), RPI connection (x7), forgot to record something but in the Fusion BOM (x12) | N/A | Y | - | - |
 | B6B-PH-SM4-TB | 2 | Motor connection (x2) | [Digikey Page](https://www.digikey.com/en/products/detail/jst-sales-america-inc/B6B-PH-SM4-TB/926645?gclsrc=aw.ds&gad_source=1&gad_campaignid=120565755&gbraid=0AAAAADrbLliM9H_wEtRY90lkKl49OScjt&gclid=Cj0KCQjwrvHWBhDKARIsABmp7h3HMV4eIJakgqLCZihRlaxyHIBRSYzyNv5uCGB4NHl4A2E9SjYGUEkaAlEuEALw_wcB) | Y | - | - |
 | B3B-PH-SM4-TB | 1 | Steering Servo connection | [Digikey Page](https://www.digikey.com/en/products/detail/jst-sales-america-inc/B3B-PH-SM4-TB/926642?gclsrc=aw.ds&gad_source=1&gad_campaignid=120565755&gbraid=0AAAAADrbLliM9H_wEtRY90lkKl49OScjt&gclid=Cj0KCQjwrvHWBhDKARIsABmp7h0447Kks8IEhxxlyhQn8L67pnwxeMzMHeWOBEkdHiciHsQaKSpb4AsaAug3EALw_wcB)  | N | N | Same product line as B6B conn |
-| GCM1885C2A102FA16D | 2 | Motor current sense filter | | Y | - | - |
-| SK520B | 4 | Switching inductive load protection on L298 output (x4) | | Y | - | - |
-| RC0603FR-0768KL | 2 | Motor current sense | | Y | - | - |
-| 5015 | 41 | Test points | | Y | - | - |
+| GCM1885C2A102FA16D | 2 | Motor current sense filter | [Digikey Page](https://www.digikey.com/en/products/detail/murata-electronics/GCM1885C2A102FA16D/7362935)| Y | - | - |
+| SK520B | 4 | Switching inductive load protection on L298 output (x4) | [Digikey Page](https://www.digikey.com/en/products/detail/yageo/RC0603FR-0710KL/729827?gclsrc=aw.ds&gad_source=1&gad_campaignid=120511155&gclid=Cj0KCQjwrvHWBhDKARIsABmp7h3lt2Te5Aptzakej-PLrOPquYTB77dVYfBq12xp9ZOBA8ypaU6JzKUaAgg9EALw_wcB)  | Y | - | - |
+| RC0603FR-0768KL | 2 | Motor current sense |[Digikey Page](https://www.digikey.com/en/products/detail/yageo/RC0603FR-0710KL/729827?gclsrc=aw.ds&gad_source=1&gad_campaignid=120511155&gclid=Cj0KCQjwrvHWBhDKARIsABmp7h3lt2Te5Aptzakej-PLrOPquYTB77dVYfBq12xp9ZOBA8ypaU6JzKUaAgg9EALw_wcB) | Y | - | From parts list, note that I had to use the Diotec SK34SMB in schematic since this didn't have any available CAD models, should be the same footprint though |
+| 5015 | 41 | Test points | [Digikey Page](https://www.digikey.com/en/products/detail/keystone-electronics/5015/278885) | Y | - | - |
+| FIT0587 | 2 | Battery Connections | [Digikey Page](https://www.digikey.com/en/products/detail/dfrobot/FIT0587/9559256) | Y | - | - |
