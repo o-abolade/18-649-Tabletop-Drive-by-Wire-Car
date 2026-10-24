@@ -14,8 +14,10 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from markdown_it import MarkdownIt
+from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SRC = ROOT / "Doc" / "lab3" / "lab3_report.md"
@@ -27,9 +29,10 @@ html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { font-family: "Segoe UI", Calibri, Arial, sans-serif; font-size: 10pt;
        line-height: 1.38; color: #1d2733; margin: 0; }
 h1 { font-size: 20pt; color: #17365d; margin: 0 0 4pt; }
+@page tall { size: Letter portrait; margin: 0.4in 0.45in; }
 h2 { font-size: 15pt; color: #17365d; border-bottom: 1.5pt solid #17365d;
-     padding-bottom: 2pt; margin: 14pt 0 6pt; break-before: page; }
-h1 + p + p + p + h2, body > h2:first-of-type { break-before: auto; }
+     padding-bottom: 2pt; margin: 16pt 0 6pt; break-after: avoid; }
+h2.appendix { break-before: page; }
 h3 { font-size: 12pt; color: #24507f; margin: 12pt 0 4pt; break-after: avoid; }
 h4 { font-size: 10.5pt; color: #24507f; margin: 10pt 0 3pt; break-after: avoid; }
 p { margin: 3pt 0 5pt; }
@@ -51,13 +54,37 @@ th, td { border: 0.6pt solid #b4c0cc; padding: 2.5pt 4pt; vertical-align: top;
 th { white-space: nowrap; }
 tbody tr:nth-child(even) td { background: #f3f6f9; }
 figure { margin: 8pt 0 12pt; text-align: center; break-inside: avoid; }
-figure img { max-width: 100%; max-height: 6.1in; object-fit: contain; }
+figure img { max-width: 100%; max-height: 6.6in; object-fit: contain; }
+figure.wide img { width: 100%; max-height: 6.9in; }
+figure.tall { page: tall; margin: 0 0 6pt; }
+figure.tall img { width: 100%; max-height: 9.4in; }
+.tallpage { page: tall; }
+.tallpage h2 { margin-top: 0; }
+.tallpage figure.tall:first-of-type img { max-height: 8.1in; }
+.tallpage figure.tall ~ figure.tall { break-before: page; }
+.shots { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16pt; }
+.shot { break-inside: avoid; }
+.shot h4 { font-size: 9.5pt; margin: 4pt 0 2pt; min-height: 2.6em; }
+.shot figure { margin: 0 0 8pt; }
+.shot figure img { max-height: 5.6in; }
 figcaption { font-size: 8.8pt; color: #4a5a6b; margin-top: 3pt; font-style: italic; }
 h4 + figure, a + h4 { break-before: avoid; }
 """
 
 
-def render():
+def shrink_photos(body, tmp):
+    """Point scope photos at 2400 px copies so the PDF stays small."""
+    def one(m):
+        src = SRC.parent / m.group(1)
+        im = Image.open(src)
+        im.thumbnail((2400, 2400))
+        out = tmp / src.name
+        im.save(out, "JPEG", quality=85)
+        return f'src="{out.as_uri()}"'
+    return re.sub(r'src="(\.\./assets/lab3_scope/[^"]+\.jpe?g)"', one, body)
+
+
+def render(tmp):
     md = MarkdownIt("commonmark", {"html": True}).enable("table")
     text = SRC.read_text(encoding="utf-8")
     text = re.sub(r"<!--.*?-->\s*", "", text, flags=re.S)
@@ -65,13 +92,32 @@ def render():
     body = md.render(text)
 
     # <p><img alt=..></p>  ->  <figure><img><figcaption>alt</figcaption></figure>
+    # Diagrams: use the vector export from drawio_to_svg.py when present.
     def fig(m):
         img = m.group(1)
+        src = re.search(r'src="([^"]*)"', img).group(1)
+        cls = ""
+        if src.endswith(".drawio.png"):
+            svg = src[:-4] + ".svg"
+            if (SRC.parent / svg).exists():
+                img = img.replace(src, svg)
+            cls = ' class="tall"' if "task_graph" in src else ' class="wide"'
         alt = re.search(r'alt="([^"]*)"', img)
         cap = f"<figcaption>{alt.group(1)}</figcaption>" if alt and alt.group(1) else ""
-        return f"<figure>{img}{cap}</figure>"
+        return f"<figure{cls}>{img}{cap}</figure>"
 
     body = re.sub(r"<p>\s*(<img [^>]*>)\s*</p>", fig, body)
+    body = body.replace("<h2>Appendix", '<h2 class="appendix">Appendix')
+    # A section that is mostly tall diagrams goes on portrait pages, heading included.
+    body = re.sub(r'<h2>[^<]*</h2>\s*<figure class="tall">.*?<figure class="tall">.*?</figure>',
+                  lambda m: f'<div class="tallpage">{m.group(0)}</div>', body, flags=re.S)
+    body = shrink_photos(body, tmp)
+
+    # Scope captures (anchor + heading + photo) two to a page.
+    shot = r'(?:<p>(?:<a id="[^"]+"></a>)+</p>\s*)?<h4>.*?</h4>\s*<figure>.*?</figure>\s*'
+    body = re.sub(f"(?:{shot})+", lambda m: '<div class="shots">' + re.sub(
+        shot, lambda n: f'<div class="shot">{n.group(0)}</div>', m.group(0), flags=re.S) + "</div>",
+        body, flags=re.S)
     base = SRC.parent.as_uri() + "/"
     return (f'<!doctype html><html><head><meta charset="utf-8"><base href="{html.escape(base)}">'
             f"<title>18-449/649 Lab 3 Report</title><style>{CSS}</style></head>"
@@ -89,15 +135,13 @@ def browser():
 
 
 def main():
-    tmp = OUT.with_name("_lab3_report_export.html")
-    tmp.write_text(render(), encoding="utf-8")
-    try:
+    with tempfile.TemporaryDirectory() as d:
+        page = pathlib.Path(d) / "lab3_report.html"
+        page.write_text(render(pathlib.Path(d)), encoding="utf-8")
         subprocess.run([browser(), "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
                         "--allow-file-access-from-files", "--virtual-time-budget=10000",
-                        f"--print-to-pdf={OUT}", tmp.as_uri()],
+                        f"--print-to-pdf={OUT}", page.as_uri()],
                        check=True, capture_output=True, timeout=180)
-    finally:
-        tmp.unlink(missing_ok=True)
     pages = len(re.findall(rb"/Type\s*/Page[^s]", OUT.read_bytes()))
     print(f"wrote {OUT} ({pages} pages)")
 
