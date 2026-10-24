@@ -403,22 +403,28 @@ conservative. [Photo 6](#photo-6) became [M1](#m1) above.
 #### (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3 counts
 ![Photo 17: (f) N2 restored, first N2 CAN_RX_A → N3 ERR off. Max 16.5 ms over 3](../assets/lab3_scope/additional/photo17.jpeg)
 
-## Appendix B: Analysis with measured WCETs (both buses, relay load)
+## Appendix B: Supplemental measured-WCET analysis
 
-This is our analysis before the TA clarification. It goes further than the
-template in Sections 3–4:
+This appendix supplements the final analysis in Sections 3–5 with the
+measured-WCET calculations used during design. It uses the implemented relay
+rule: N2 and N3 relay the first accepted copy of another node's frame,
+deduplicate by `(ID, seq)`, and forward that frame unchanged (Section 4.2).
+The detailed relay timing tables below analyze checkoff case (c), where N2 is
+the active bridge; the opposite-bus N1/N2 cases use the same rule with N3 as
+the active bridge.
+
+It goes further than the template in Sections 3–4:
 - it uses our own measured WCETs instead of the placeholders;
 - it charges both buses and every relayed copy at once;
 - it models the MCP2515 driver's real per-frame cost.
 
-It explains the gap between the template bounds and the scope results. Inside
+It explains the gap between the bounds and the scope results. Inside
 this appendix, references to "3.x" and "4.x" mean its own subsections B.1–B.5.
-The relay rows describe the design before N3 also relayed; Section 4 has the
-current design.
 
 The tables below already include both buses and N2's relayed copies, which is
-the worst case; on one bus each zone receives fewer frames. A small script
-iterates every equation to convergence.
+the active-bridge load for the analyzed case (c); Section 4 gives the final
+system-wide relay analysis. A small script iterates every equation to
+convergence.
 
 ### B.1 Pi stage (measured)
 
@@ -628,12 +634,12 @@ the duplicate only adds one interference term. That assumes:
 
 | Question | Decision | Why |
 |---|---|---|
-| Who relays? | Only N2 | In the handout's (c) it is the only node on both buses. See the pull list in 4.3 for the cost. |
+| Who relays? | N2 and N3; never N1 (the Pi) | N2 bridges the N1/N3 opposite-bus cases, and N3 bridges the N1/N2 opposite-bus cases. This appendix's case (c) timing table is the N2-bridge case. |
 | When? | Always, with no detection | Waiting for detection would cut CTRL (brakes included) for 60–70 ms. Costs bus time: worst bus 11.3 → 19.4 %. |
-| What? | The first copy of every N1/N3 frame (CTRL, BLINK, HB_N1, HB_N3, FAULT), onto the other bus | N2's own frames are already on both buses. |
-| Loops? | Relayed flag 0x10 in byte 0; N2 never relays a flagged frame | The sequence number is kept, so receivers dedup with their existing state. The CTRL CRC masks the flags. |
+| What? | The first accepted copy of every other node's frame, onto the other bus | A node never relays its own frames. The active bridge in case (c) is N2; the corresponding N3 cases use the same rule. |
+| Loops? | Deduplicate by `(ID, seq)`; relay only the first accepted copy and forward it unchanged | Each node forwards a given frame at most once, so forwarding stops once every node has it. Identical same-ID frames may arbitrate safely; no relayed-frame flag is used. |
 | Priority? | RELAY = 1: above STEER and all app tasks, below CAN_TX and the driver threads | It's on the brake path. The receive hook only queues (16 deep). TX queues are sorted by ID, so a relayed CTRL overtakes waiting HB/FORCE. |
-| Cost to N2 | ≤ 6 × 86.8 µs + 6 CAN_TX per 20 ms | Already in N2's table. STEER still meets. |
+| Cost to active bridge | Case (c): N2 forwards ≤ 6 frames per 20 ms; the N3-bridge cases have the corresponding N3 relay load | Case (c) is analyzed below; Section 4 gives the final measured relay cost and bounds. |
 
 #### B.5.3 Re-analysis for scenario (c): N1 off B, N3 off A
 
@@ -694,10 +700,6 @@ chain measurement ([photo 3](#photo-3)) covers them.
 |---|---|---|
 | One node off one bus (a/b), two nodes off the same bus, whole bus (e) | No | Fully operational (tested) |
 | N1 and N3 off opposite buses (handout (c)) | Yes, via N2 | **Fully operational** (tested) |
-| N2 and N3 off opposite buses (Lab 1's R4.8(c) example) | Yes, via N1 | **Not supported:** system ERROR |
-| N1 and N2 off opposite buses | Yes, via N3 | **Not supported:** system ERROR |
+| N2 and N3 off opposite buses | Yes, via N1 | **Not supported:** it would require the Pi to relay, so the system fails safe |
+| N1 and N2 off opposite buses | Yes, via N3 | **Fully operational** (tested in the fault matrix) |
 | One node off both buses (d) | No relay helps | Node fail-safe; others ERROR (tested) |
-
-**Remedy (not implemented):** run the same relay rule on **every** node that
-is on both buses. It stays loop-free because flagged frames are never
-forwarded, at the cost of more bus load.
