@@ -5,6 +5,8 @@
 
 **Misho Alexandrov (mvalexan), Ore Abolade (oabolade), T'sairus Beasley (tbeasley)**
 
+**Repository:** [github.com/o-abolade/18-649-Tabletop-Drive-by-Wire-Car](https://github.com/o-abolade/18-649-Tabletop-Drive-by-Wire-Car) · code as of commit [`7e944c4`](https://github.com/o-abolade/18-649-Tabletop-Drive-by-Wire-Car/tree/7e944c451877a8df8e57cee3ba7fe10661c9afaf) (2026-10-24). The Lab 3 code is in [`lab3_CAN/`](https://github.com/o-abolade/18-649-Tabletop-Drive-by-Wire-Car/tree/7e944c451877a8df8e57cee3ba7fe10661c9afaf/lab3_CAN).
+
 **System:** N1 cockpit (Raspberry Pi 4), N2 steering and N3 drivetrain
 (Nucleo-F401RE, Zephyr), on two 500 kbit/s CAN buses. Every number is
 labeled **measured** (with the method) or **assumed** (with the reason). Scope
@@ -12,8 +14,6 @@ captures are in Appendix A. The full log is in
 `lab3_CAN/Progress_doc_lab3.md`.
 
 ## 1. Wiring schematic
-
-![Figure 1: Dual-CAN wiring. Both buses with termination and jumpers, every module's SPI/CS/INT pins, and the three test-point boards](../assets/lab3_wiring_schematic.drawio.png)
 
 **Bus layout**
 - **Order:** both buses are linear, N1 – N2 – N3.
@@ -52,6 +52,8 @@ captures are in Appendix A. The full log is in
   a pulled bus A jumper left bus B running.
 - **Bus levels:** idle about 2.2 V on both lines; dominant differential
   2.07 V on A and 1.97 V on B (photos [8](#photo-8)–[9](#photo-9)).
+
+![Figure 1: Dual-CAN wiring. Both buses with termination and jumpers, every module's SPI/CS/INT pins, and the three test-point boards](../assets/lab3_wiring_schematic.drawio.png)
 
 ## 2. Task communication graph
 
