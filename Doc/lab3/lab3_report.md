@@ -57,13 +57,6 @@ captures are in Appendix A. The full log is in
 
 ## 2. Task communication graph
 
-- **Edges:** solid edges are CAN frames; dashed edges are hand-offs inside
-  one node (semaphores, or state under a spinlock or mutex).
-- **Priorities:** the implemented ones are in 3.1. They include the per-bus
-  CAN_TX threads and the MCP2515 driver threads, which the template folds
-  into CAN_RX.
-- **Part 4:** Figure 3 adds N2's RELAY task and the second bus hop.
-
 ![Figure 2: Task communication graph, one 20 ms cycle. CAN edges labeled ID, period and deadline; brake/throttle (blue), steering (green), blinker (orange) and error (red) chains highlighted](../assets/lab3_task_graph.drawio.png)
 
 ![Figure 3: Extended task graph for scenario (c): RELAY on N2; relayed brake path 0x010 on A → RELAY → 0x010 on B → DRIVE](../assets/lab3_task_graph_with_relay.drawio.png)

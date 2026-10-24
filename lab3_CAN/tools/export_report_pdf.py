@@ -57,13 +57,8 @@ figure img { max-width: 100%; max-height: 6.6in; object-fit: contain; }
 figure.wide img { width: 100%; max-height: 6.9in; }
 figure.tall { margin: 0 0 6pt; }
 figure.tall img { height: 7.1in; max-height: none; }
-.tallpage h2 { margin-top: 0; }
-.side { display: flex; gap: 18pt; align-items: flex-start; }
-.side figure.tall { flex: none; margin: 0; }
-.side figure.tall img { height: 6.6in; }
-.side figcaption { max-width: 5.9in; margin: 3pt auto 0; }
-.side ul { flex: 1; margin-top: 18pt; }
-.side + figure.tall { break-before: page; }
+h2 + figure.tall img { height: 6.7in; }
+figure.tall + figure.tall { break-before: page; }
 .shots + h3 { break-before: page; }
 .shots { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16pt; }
 .shot { break-inside: avoid; }
@@ -110,12 +105,6 @@ def render(tmp):
         return f"<figure{cls}>{img}{cap}</figure>"
 
     body = re.sub(r"<p>\s*(<img [^>]*>)\s*</p>", fig, body)
-    # A section that is mostly tall diagrams goes on portrait pages, heading included.
-    body = re.sub(r'<h2>[^<]*</h2>(?:(?!<h2).)*?<figure class="tall">.*?<figure class="tall">.*?</figure>',
-                  lambda m: '<div class="tallpage">' + re.sub(
-                      r'(<ul>.*?</ul>)\s*(<figure class="tall">.*?</figure>)',
-                      r'<div class="side">\2\1</div>', m.group(0), count=1, flags=re.S) + "</div>",
-                  body, flags=re.S)
     body = shrink_photos(body, tmp)
 
     # Scope captures (anchor + heading + photo) two to a page.
