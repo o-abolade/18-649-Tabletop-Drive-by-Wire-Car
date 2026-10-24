@@ -29,10 +29,9 @@ html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { font-family: "Segoe UI", Calibri, Arial, sans-serif; font-size: 10pt;
        line-height: 1.38; color: #1d2733; margin: 0; }
 h1 { font-size: 20pt; color: #17365d; margin: 0 0 4pt; }
-@page tall { size: Letter portrait; margin: 0.4in 0.45in; }
 h2 { font-size: 15pt; color: #17365d; border-bottom: 1.5pt solid #17365d;
-     padding-bottom: 2pt; margin: 16pt 0 6pt; break-after: avoid; }
-h2.appendix { break-before: page; }
+     padding-bottom: 2pt; margin: 16pt 0 6pt; break-before: page; break-after: avoid; }
+body > h2:first-of-type { break-before: auto; }
 h3 { font-size: 12pt; color: #24507f; margin: 12pt 0 4pt; break-after: avoid; }
 h4 { font-size: 10.5pt; color: #24507f; margin: 10pt 0 3pt; break-after: avoid; }
 p { margin: 3pt 0 5pt; }
@@ -56,12 +55,16 @@ tbody tr:nth-child(even) td { background: #f3f6f9; }
 figure { margin: 8pt 0 12pt; text-align: center; break-inside: avoid; }
 figure img { max-width: 100%; max-height: 6.6in; object-fit: contain; }
 figure.wide img { width: 100%; max-height: 6.9in; }
-figure.tall { page: tall; margin: 0 0 6pt; }
-figure.tall img { width: 100%; max-height: 9.4in; }
-.tallpage { page: tall; }
+figure.tall { margin: 0 0 6pt; }
+figure.tall img { height: 7.1in; max-height: none; }
 .tallpage h2 { margin-top: 0; }
-.tallpage figure.tall:first-of-type img { max-height: 8.1in; }
-.tallpage figure.tall ~ figure.tall { break-before: page; }
+.side { display: flex; gap: 18pt; align-items: flex-start; }
+.side figure.tall { flex: none; margin: 0; }
+.side figure.tall img { height: 6.6in; }
+.side figcaption { max-width: 5.9in; margin: 3pt auto 0; }
+.side ul { flex: 1; margin-top: 18pt; }
+.side + figure.tall { break-before: page; }
+.shots + h3 { break-before: page; }
 .shots { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16pt; }
 .shot { break-inside: avoid; }
 .shot h4 { font-size: 9.5pt; margin: 4pt 0 2pt; min-height: 2.6em; }
@@ -107,10 +110,12 @@ def render(tmp):
         return f"<figure{cls}>{img}{cap}</figure>"
 
     body = re.sub(r"<p>\s*(<img [^>]*>)\s*</p>", fig, body)
-    body = body.replace("<h2>Appendix", '<h2 class="appendix">Appendix')
     # A section that is mostly tall diagrams goes on portrait pages, heading included.
-    body = re.sub(r'<h2>[^<]*</h2>\s*<figure class="tall">.*?<figure class="tall">.*?</figure>',
-                  lambda m: f'<div class="tallpage">{m.group(0)}</div>', body, flags=re.S)
+    body = re.sub(r'<h2>[^<]*</h2>(?:(?!<h2).)*?<figure class="tall">.*?<figure class="tall">.*?</figure>',
+                  lambda m: '<div class="tallpage">' + re.sub(
+                      r'(<ul>.*?</ul>)\s*(<figure class="tall">.*?</figure>)',
+                      r'<div class="side">\2\1</div>', m.group(0), count=1, flags=re.S) + "</div>",
+                  body, flags=re.S)
     body = shrink_photos(body, tmp)
 
     # Scope captures (anchor + heading + photo) two to a page.

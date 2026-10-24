@@ -157,7 +157,7 @@
           </mxGeometry>
         </mxCell>
         <mxCell id="c83" parent="L_base" style="text;html=1;align=left;fontSize=11;fontColor=#555555;" value="Legend: solid = CAN frame (ID | period | deadline); dashed = in-node handoff; dots on a box = chains through it (blue brake, green steering, orange blinker, red error). Dashed gray RELAY box is reserved for Part 4." vertex="1">
-          <mxGeometry height="20" width="1300" x="44" y="1700" as="geometry" />
+          <mxGeometry height="20" width="1300" x="44" y="1490" as="geometry" />
         </mxCell>
         <mxCell id="1zOBd-d3vzISXv95QfQT-0" edge="1" parent="L_base" source="c54" style="endArrow=none;strokeColor=#000000;html=1;strokeWidth=3;" target="c55" value="">
           <mxGeometry relative="1" as="geometry">

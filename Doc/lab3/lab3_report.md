@@ -57,8 +57,6 @@ captures are in Appendix A. The full log is in
 
 ## 2. Task communication graph
 
-![Figure 2: Task communication graph, one 20 ms cycle. CAN edges labeled ID, period and deadline; brake/throttle (blue), steering (green), blinker (orange) and error (red) chains highlighted](../assets/lab3_task_graph.drawio.png)
-
 - **Edges:** solid edges are CAN frames; dashed edges are hand-offs inside
   one node (semaphores, or state under a spinlock or mutex).
 - **Priorities:** the implemented ones are in 3.1. They include the per-bus
@@ -66,35 +64,34 @@ captures are in Appendix A. The full log is in
   into CAN_RX.
 - **Part 4:** Figure 3 adds N2's RELAY task and the second bus hop.
 
+![Figure 2: Task communication graph, one 20 ms cycle. CAN edges labeled ID, period and deadline; brake/throttle (blue), steering (green), blinker (orange) and error (red) chains highlighted](../assets/lab3_task_graph.drawio.png)
+
 ![Figure 3: Extended task graph for scenario (c): RELAY on N2; relayed brake path 0x010 on A → RELAY → 0x010 on B → DRIVE](../assets/lab3_task_graph_with_relay.drawio.png)
 
 <!-- RTA-BEGIN -->
 ## 3. Single-bus real-time analysis
 
-Following the TA clarification:
-- **Scope:** one bus, with no redundancy and no relay (those are Section 4).
-- **C values:** every C is the handout's Part 2 placeholder, except the four measured values below.
-- **Priorities:** our implemented ones (`common/zephyr/zone_config.h`).
-  - CAN_RX is the MCP2515 driver's cooperative thread, so it outranks every application task.
-  - Our per-bus CAN_TX threads aren't separate rows. Their SPI loads are inside the template's
-    HB_TX and FORCE_TX C (120 µs, both buses).
-- **B = #4, one SPI frame load,** for every task except the lowest priority (B = 0). It isn't 2 × #4
-  because our send helper takes the SPI lock per bus: each bus has its own TX thread, and the
-  lock is held for one transaction.
-- **R** = C + B + Σ over higher-priority j of ⌈R/T_j⌉·C_j, iterated until it stops changing.
-  - Every R here is far below 10 ms, so each ⌈R/T_j⌉ is 1 and each R is a single sum.
-  - CAN_RX runs once per received message: 7 messages per 20 ms on one bus, so it interferes 7 times.
+Per the TA clarification:
+- **Scope:** one bus, no redundancy or relay (Section 4).
+- **C:** the handout's Part 2 placeholders, except the four measured values below.
+- **Priorities:** as implemented (`common/zephyr/zone_config.h`). CAN_RX is the MCP2515 driver's
+  cooperative thread, so it outranks every application task. The per-bus CAN_TX threads are folded
+  into HB_TX and FORCE_TX C (120 µs, both buses).
+- **B = #4 (one SPI frame load)** for every task but the lowest (B = 0). Not 2 × #4: the SPI lock is
+  held for one transaction at a time.
+- **R** = C + B + Σ over higher-priority j of ⌈R/T_j⌉·C_j. Every R is far below 10 ms, so each
+  ⌈R/T_j⌉ is 1, except CAN_RX, which runs once per message: 7 per 20 ms on one bus.
 
 ### 3.1 Measurements
 
-Measured on the scope, maximum over at least a minute of traffic, with the node's other tasks idle.
-The test points are C GPIO writes, a few µs each. Screenshots are in Appendix A.1.
+Scope maxima over at least a minute of traffic, other tasks idle. Test points are GPIO writes of a
+few µs. Screenshots: Appendix A.1.
 
 | # | Number | Start probe → stop probe | Max (µs) | Screenshot |
 |---|---|---|---:|---|
 | 1 | Pi stage | N1 UDP_RX (after the socket read) → CMD_TX (after the CAN writes) | 126.5 | [M1](#m1) |
 | 2 | CAN_RX C, N3 | N3 CAN A INT (PA10 / D2) falling → CAN_RX_A | 309 | [M2](#m2) |
-| 3 | DRIVE C, N3 | N3 CAN_RX_A → DIR_A on a brake frame, N3's bus B unplugged (single bus, as Part 3 assumes). With both buses connected the max was 503 µs: the CTRL copy from bus B arrives right after and N3's bus B driver thread preempts DRIVE for about 300 µs ([M2](#m2)) | 147 | [M3](#m3) |
+| 3 | DRIVE C, N3 | N3 CAN_RX_A → DIR_A on a brake frame, bus B unplugged (single bus). With both buses: 503 µs, because the bus B copy's driver thread preempts DRIVE for ~300 µs ([M2](#m2)) | 147 | [M3](#m3) |
 | 4 | SPI frame load (B) | MCP2515 CS (PB6 / D10) low → high, longest window | 116.5 | [M4](#m4) |
 
 ### 3.2 Node RTA: N3 (drivetrain)
@@ -121,11 +118,9 @@ The test points are C GPIO writes, a few µs each. Screenshots are in Appendix A
 | HB_TX | 7 | 120 | 20 ms | 20 ms | 116.5 | 916.5 | Yes | 120 + 116.5 + 7·80 + 50 + 20 + 20 + 30 = **916.5** |
 | FORCE_TX | 8 | 120 | 50 ms | 50 ms | 0 (lowest) | 920 | Yes | 120 + 0 + 7·80 + 50 + 20 + 20 + 30 + 120 = **920** |
 
-**Any task marked No above misses for the same reason:** CAN_RX outranks every
-application task and is charged 7 times, once per catalog message per 20 ms. This is the template's
-conservative assumption that all 7 messages arrive inside the window. One bus can deliver at most
-⌈R / 270 µs⌉ frames in a window of length R, so that tighter bound would remove most misses. Other fixes:
-a shorter receive path (lower CAN_RX C), or priority above CAN_RX dispatch for the tight 0.5 ms tasks.
+**Why the No rows miss:** CAN_RX outranks every application task and is charged 7 times, as if all 7
+messages arrived inside the window. One bus delivers at most ⌈R / 270 µs⌉ frames in R, so that bound
+would remove most misses; so would a shorter receive path or raising the 0.5 ms tasks above CAN_RX.
 
 ### 3.4 Message RTA: CTRL (same on both buses)
 
@@ -133,11 +128,10 @@ a shorter receive path (lower CAN_RX C), or priority above CAN_RX dispatch for t
 |---|---:|---:|---:|---:|---:|
 | 0x010 CTRL | 126.5 (#1) | 270 | 270 | 270 | **666.5** |
 
-- **w:** CTRL has the lowest ID, so there is no higher-priority term, and w is just the 270 µs blocking
-  from one lower-priority frame already on the wire.
-- **R** = J + w + C = 126.5 + 270 + 270 = 666.5 µs. "CTRL on bus" in the chains is w + C = 540 µs.
-- **BLINK** (used for the blinker start) has 5 higher-priority IDs (CTRL, FAULT, HB_N1–3), each at most
-  once in the window: w = 270 + 5·270 = 1,620 µs, so BLINK on bus = w + C = 1,890 µs.
+- **w** = 270 µs: CTRL has the lowest ID, so only one lower-priority frame already on the wire blocks it.
+  R = J + w + C = 126.5 + 270 + 270 = 666.5 µs; "CTRL on bus" in the chains is w + C = 540 µs.
+- **BLINK** has 5 higher-priority IDs (CTRL, FAULT, HB_N1–3): w = 270 + 5·270 = 1,620 µs, so
+  BLINK on bus = 1,890 µs.
 
 ### 3.5 End-to-end chains (single bus)
 
@@ -149,45 +143,40 @@ a shorter receive path (lower CAN_RX C), or priority above CAN_RX dispatch for t
 | Blinker sync | Worst case of one receive path minus the other's best case (C only): N3 2,872 − N2 100, and N2 943 − N3 329 | 2,772 | 1 ms | **Missed.** The two zones see different interference after the same frame. Fix: lower CAN_RX C, or a tighter arrival bound. |
 | Error propagation | TEST_BTN (N2) 766.5 + 3 missed heartbeats 66,000 + one HB_MON period 20,000 + HB_MON (N3) 2,696.5 | 89,463 | 100 ms | **Met** |
 
-- **Blinker sync:** both STM32s receive the same BLINK frame at the same instant from the same bus.
-  So the edge offset is only the difference between their receive-to-lamp paths. The bound is the larger
-  of N3's worst case minus N2's best case and the reverse, so it is symmetric by construction.
-- **Error propagation:** this is the heartbeat path. Our zones also send FAULT on a test-button press,
-  which reached the other zone in 1.1 ms in the lab ([photo 13](#photo-13)).
+- **Blinker sync:** both STM32s get the same BLINK frame at the same instant, so the offset is the
+  difference of their receive-to-lamp paths: worst minus best, taken both ways.
+- **Error propagation** uses heartbeats; a test-button FAULT frame reached the other zone in 1.1 ms ([photo 13](#photo-13)).
 
 ## 4. Dual-bus and relay analysis
 
 ### 4.1 Hot/parallel transmit
 
-- **Send:** every message goes on bus A and then bus B with one sequence number (`can_link_send`).
-- **Receive:** one dispatch path keeps the first copy by `(ID, seq)` and drops the second; FAULT has one dedup
-  slot per sending zone.
-- **Cost on the receiver:** each message now costs two receive interrupts and two SPI reads, so CAN_RX runs
-  14 times per 20 ms instead of 7 (the N2 table below).
-- **The chains get no worse,** because each receiver acts on whichever copy arrives first and the duplicate only
-  adds interference. That assumes the two copies leave together, which they do: the Pi writes A then B inside
-  the measured #1 stage.
+- **Send:** each message goes on A then B with one sequence number (`can_link_send`).
+- **Receive:** the first copy by `(ID, seq)` is used and the second dropped (FAULT: one dedup slot per sender).
+- **Cost:** two interrupts and SPI reads per message, so CAN_RX runs 14 times per 20 ms instead of 7 (4.4).
+- **Chains get no worse:** receivers act on the first copy, and both copies leave together (the Pi writes
+  A then B inside the measured #1 stage).
 
 ### 4.2 Relay design
 
 | Question | Our decision | Why |
 |---|---|---|
-| Who relays? | **N2 and N3**, the two STM32s; never the Pi | The checkoff's four cases need N2 (N1/N3 on opposite buses) or N3 (N1/N2 on opposite buses). A relay on the Pi would put Linux, which has no worst-case bound, in the path. |
-| When? | **Always**, with no fault detection | A relay that waits for the 60 ms degraded detection would cut CTRL (brakes included) for 60–70 ms after the fault. Always relaying costs bus time instead (4.5). |
+| Who relays? | **N2 and N3**, the two STM32s; never the Pi | The four checkoff cases need N2 (N1/N3 on opposite buses) or N3 (N1/N2). A Pi relay would put unbounded Linux in the path. |
+| When? | **Always**, with no fault detection | Waiting for the 60 ms degraded detection would cut CTRL (brakes included) for 60–70 ms. It costs bus time instead (4.5). |
 | What? | The **first copy** of every frame the zone didn't send itself, onto the other bus | A node already sends its own frames on both buses. |
-| Loops? | **Dedup, no flag:** a zone relays only the *first* copy of each `(ID, seq)` it accepts, and never its own frames; the copy is forwarded **unchanged** | Each zone forwards a given frame at most once, so forwarding stops once every zone has it. The per-ID sequence state that drops duplicates is the only state needed. An earlier version set a "relayed" bit, but that made a relayed copy differ by one bit from the sender's own copy of the same ID: when both started arbitration together, both transmitters saw a bit error and retried into each other (TEC rose to ~76 on the bench). Identical frames sent together are legal CAN. |
-| RELAY priority? | **1**: above STEER (2) and every application task; below the MCP2515 driver threads and the per-bus CAN_TX threads | RELAY is on the relayed brake path, so it must not wait behind STEER. The receive hook only queues the frame (16 deep) and wakes RELAY. TX queues are sorted by ID, so a relayed CTRL overtakes waiting HB/FORCE. |
-| Cost to N2's own tasks | RELAY: 6 jobs per 20 ms in (c) | In the N2 table below. |
+| Loops? | **Dedup, no flag:** only the first copy of each `(ID, seq)`, never own frames, forwarded **unchanged** | Each zone forwards a frame at most once, so forwarding stops. An earlier "relayed" bit made the copy differ from the sender's same-ID frame; when both arbitrated together, both saw bit errors (TEC ~76). Identical frames sent together are legal CAN. |
+| RELAY priority? | **1**: above STEER and all application tasks; below the driver and CAN_TX threads | It is on the relayed brake path. The receive hook only queues (16 deep); ID-sorted TX queues let a relayed CTRL overtake HB/FORCE. |
+| Cost to N2 | 6 RELAY jobs per 20 ms in (c) | In 4.4. |
 
-Checkoff cases: N1 off B + N3 off A and N1 off A + N3 off B (N2 relays); N1 off A + N2 off B and N1 off B + N2 off A
-(N3 relays). We analyze the first, as the clarification asks.
+N2 relays when N1 and N3 are on opposite buses; N3 relays when N1 and N2 are. We analyze N1 off B +
+N3 off A, as the clarification asks.
 
 ### 4.3 Measurements
 
 | # | Number | Start probe → stop probe | Max (µs) | Screenshot |
 |---|---|---|---:|---|
 | 5 | CAN_RX C, N2 | N2 CAN A INT (PA10 / D2) falling → CAN_RX_A | 289.5 | [M5](#m5) |
-| 6 | RELAY C, N2 | N2 CAN_RX_A → RELAY_TX, pulsed right after the relayed frame's `can_send()` on bus B returns; N1 off B, N3 off A | 405 | [M6](#m6) |
+| 6 | RELAY C, N2 | N2 CAN_RX_A → RELAY_TX (pulsed after the relayed `can_send()` on B returns); N1 off B, N3 off A | 405 | [M6](#m6) |
 
 ### 4.4 Re-analysis: N2 with RELAY
 
@@ -204,18 +193,15 @@ Checkoff cases: N1 off B + N3 off A and N1 off A + N3 off B (N2 relays); N1 off 
 
 ### 4.5 Bus utilization with our relay design
 
-Starting from the template's 8.6 % (6 frames per 20 ms + FORCE per 50 ms), each frame relayed every 20 ms adds
-270 / 20,000 = 1.35 %.
+From the template's 8.6 % (6 frames per 20 ms + FORCE per 50 ms), each frame relayed every 20 ms adds 1.35 %.
 
 | Bus | Relayed onto it in scenario (c) | New utilization | ≤ 50 %? |
 |---|---|---:|---|
 | A | HB_N3', FAULT_N3' (N3's frames, from B), each 20 ms: 8.6 + 2 × 1.35 | **11.3 %** | Yes |
 | B | CTRL', HB_N1', BLINK', FAULT_N1' (N1's frames, from A), each 20 ms: 8.6 + 4 × 1.35 | **14.0 %** | Yes |
 
-**Normal operation**, with both buses up, is the worst case for always-relay:
-- N2 forwards N1's 4 and N3's 2 frames per 20 ms.
-- N3 forwards N1's 4 frames, plus HB_N2 and FAULT_N2 (20 ms) and FORCE (50 ms).
-- If every copy lands on one bus: 8.6 + 12 × 1.35 + 0.54 = **25.3 %**, still under 50 %.
+**Worst case is normal operation** (both buses up): N2 forwards N1's 4 and N3's 2 frames per 20 ms; N3
+forwards N1's 4, HB_N2, FAULT_N2 and FORCE. All on one bus: 8.6 + 12 × 1.35 + 0.54 = **25.3 %** < 50 %.
 
 ### 4.6 Relayed CTRL on bus B
 
@@ -223,48 +209,41 @@ Starting from the template's 8.6 % (6 frames per 20 ms + FORCE per 50 ms), each 
 |---|---|---:|---:|---:|---:|
 | 0x010 CTRL, relayed | Pi 126.5 + CTRL on A 540 + CAN_RX R (N2) 406 + RELAY R (N2) 4,574.5 = **5,647** | 270 | 270 | 270 | **6,187** |
 
-J is the whole first hop. On bus B the relayed CTRL still has the lowest ID, so w = 270 µs of blocking and R = J + 540.
-The relayed brake chain is this R + CAN_RX (N3) + DRIVE, so the first hop isn't counted twice.
+J is the whole first hop. The relayed CTRL still has the lowest ID on B, so R = J + 540; the brake chain
+adds CAN_RX (N3) + DRIVE to this R.
 
 ### 4.7 Chains in scenario (c): N1 off bus B, N3 off bus A
 
 | Chain | Stages to add up (µs) | Total | Deadline | Met? | What changed |
 |---|---|---:|---:|---|---|
-| Brake / throttle | relayed CTRL R 6,187 (= Pi + CTRL on A + CAN_RX (N2) + RELAY + CTRL on B) + CAN_RX (N3) 425.5 + DRIVE 2,426.5 | 9,039 | 2 ms | **Missed.** The extra hop adds N2 receive + RELAY + a second bus traversal. Fix: the handout option we take: accept documented degraded latency in this double fault; or forward at the driver/ISR level. | Second bus hop through N2's RELAY |
-| Steering | Pi + CTRL on A 540 + CAN_RX (N2) 406 + STEER 6,649.5 + servo period 20,000 | 27,722 | 50 ms | **Met** | N2 still gets CTRL directly on A; only its own load grew (RELAY, 2 buses) |
+| Brake / throttle | relayed CTRL R (4.6) 6,187 + CAN_RX (N3) 425.5 + DRIVE 2,426.5 | 9,039 | 2 ms | **Missed.** Extra hop: N2 receive + RELAY + second bus. Fix: accept documented degraded latency in this double fault (handout option), or forward at the driver/ISR level. | Second bus hop via N2's RELAY |
+| Steering | Pi + CTRL on A 540 + CAN_RX (N2) 406 + STEER 6,649.5 + servo period 20,000 | 27,722 | 50 ms | **Met** | N2 still gets CTRL on A; only its load grew |
 | Blinker start | Pi + BLINK on A 1,890 + CAN_RX (N2) + RELAY + BLINK' on B 1,890 + CAN_RX (N3) + BLINK_R | 11,759 | 100 ms | **Met** | N3 gets BLINK only through the relay |
-| Blinker sync | N3's path through the relay: RELAY + BLINK' on B + CAN_RX (N3) + BLINK_R, minus N2's best case | 9,236.5 | 1 ms | **Missed.** N3 can only act on the relayed copy, one full hop after N2. Fix: accept as degraded in (c), or have N2 delay its own edge by the relay latency while relaying. | N3's edge now trails N2's by the relay hop |
-| Error propagation | TEST_BTN (N2) 6,689.5 + 66,000 + 20,000 + HB_MON (N3) 2,696.5 | 95,386 | 100 ms | **Met** | N3 still hears HB_N2 directly on B. HB_N1 reaches N3 only through the relay; without it N3 would declare N1 failed |
+| Blinker sync | N3's path through the relay: RELAY + BLINK' on B + CAN_RX (N3) + BLINK_R, minus N2's best case | 9,236.5 | 1 ms | **Missed.** N3 acts on the relayed copy, one hop after N2. Fix: accept as degraded in (c), or delay the N2 edge by the relay latency. | N3's edge trails by the relay hop |
+| Error propagation | TEST_BTN (N2) 6,689.5 + 66,000 + 20,000 + HB_MON (N3) 2,696.5 | 95,386 | 100 ms | **Met** | HB_N1 reaches N3 only via the relay; without it N3 would declare N1 failed |
 
 <!-- RTA-END -->
 
 ## 5. Fault-injection test matrix (R4.8 a–f)
 
-**How faults are injected.** We pull a node's CANH and CANL jumpers for one
-bus. Pulling N1's or N3's jumper also removes that end's P1 terminator
-(Section 1).
+**Injection:** pull a node's CANH and CANL jumpers for one bus (for N1 and N3
+this also removes that end's P1 terminator).
 
-**What the zones do (`common/zephyr/zone_core.c`, `pi_cockpit/cockpit.c`):**
-- **DEG_x LED:** a node turns on DEG_x when it hasn't heard any other zone's
-  heartbeat on bus x for 60 ms. Relayed copies count. HB_MON checks every
-  10 ms.
-- **System ERROR:** a zone enters ERROR when another zone is lost on **both**
-  buses for 60 ms, or when its CTRL is older than 100 ms. ERROR means hazards
-  on, N3 braked, and N2 still tracking the wheel.
-- **Isolated node:** a node cut off from both buses loses everyone, enters its
-  own fail-safe state, and lights both DEG LEDs.
+**Zone behavior (`common/zephyr/zone_core.c`, `pi_cockpit/cockpit.c`):**
+- **DEG_x LED:** on when no other zone's heartbeat (relayed copies count) was
+  heard on bus x for 60 ms; HB_MON checks every 10 ms.
+- **System ERROR:** another zone lost on **both** buses for 60 ms, or CTRL
+  older than 100 ms. Hazards on, N3 braked, N2 still tracking the wheel.
+- **Isolated node:** enters its own fail-safe state and lights both DEG LEDs.
 - **Relaying:** N2 and N3 always relay (4.2); the Pi never does.
 
-**Restoration (f) is a column on every row.** After the jumpers go back in,
-the DEG LEDs clear within 100 ms, and every zone is back to NORMAL within
-500 ms with no reset. A controller that went bus-off recovers on its own (the
-MCP2515 automatically, the Pi with `restart-ms 100`).
+**Restoration (f):** after the jumpers go back in, DEG LEDs clear within
+100 ms and every zone is NORMAL within 500 ms with no reset. Bus-off recovers
+on its own (MCP2515 automatically, the Pi with `restart-ms 100`).
 
-**Measured column:**
-- **✅:** run on hardware. Status comes from the zone consoles, the Pi status
-  line and the LEDs. Times are scope maxima, with the screenshot linked.
-- **"Same path as row N":** not run on its own; the firmware takes the same code
-  path as a row that was measured.
+**Measured column:** ✅ = run on hardware (zone consoles, Pi status line,
+LEDs; times are scope maxima, screenshot linked). "Same path as row N" = not
+run on its own; the firmware takes the same code path as that measured row.
 
 | # | Fault (jumpers pulled) | Expected: N1 (Pi) | Expected: N2 | Expected: N3 | Expected DEG LEDs | Relay needed? | Measured | Restoration (f) |
 |---|---|---|---|---|---|---|---|---|
@@ -286,19 +265,19 @@ MCP2515 automatically, the Pi with `restart-ms 100`).
 | 16 | All nodes off A (e) | NORMAL on B | NORMAL on B | NORMAL on B | All three DEG_A | No | ✅ 10/21: all DEG_A, all NORMAL, CTRL gaps 36–39 ms | ✅ all back on both buses, no reset |
 | 17 | All nodes off B (e) | NORMAL on A | NORMAL on A | NORMAL on A | All three DEG_B | No | Same path as row 16 | Same path as row 16 |
 
-**Two nodes off the same bus** (N1+N2, N1+N3 or N2+N3 off A, or off B) behave
-exactly like rows 16–17. The one node still on that bus hears no other zone,
-so all three show DEG on that bus, and everything runs NORMAL on the other
-bus.
+**Two nodes off the same bus** behave like rows 16–17: the remaining node
+hears no other zone there, so all three show DEG on that bus and run NORMAL on
+the other.
 
 ## 6. Team-defined values and Lab 1 revision
 
-`Doc/lab1/Requirement_Document.md` has been updated for Lab 3:
+`Doc/lab1/Requirement_Document.md` is updated for Lab 3:
 - **Section 6:** the template catalog, with our payloads, handling rules and
   utilization.
-- **Section 7:** a "Lab 3 values" table with every threshold and mapping
-  and its source file.
-- **Revision history:** a 2026-10-21 entry, including the relay limitation.
+- **Section 7:** a "Lab 3 values" table: every threshold and mapping, with its
+  source file.
+- **Revision history:** 2026-10-21 and 2026-10-23 entries (N3 relays too;
+  frames are forwarded unchanged).
 
 ## Appendix A: Scope captures
 
@@ -405,26 +384,13 @@ conservative. [Photo 6](#photo-6) became [M1](#m1) above.
 
 ## Appendix B: Supplemental measured-WCET analysis
 
-This appendix supplements the final analysis in Sections 3–5 with the
-measured-WCET calculations used during design. It uses the implemented relay
-rule: N2 and N3 relay the first accepted copy of another node's frame,
-deduplicate by `(ID, seq)`, and forward that frame unchanged (Section 4.2).
-The detailed relay timing tables below analyze checkoff case (c), where N2 is
-the active bridge; the opposite-bus N1/N2 cases use the same rule with N3 as
-the active bridge.
-
-It goes further than the template in Sections 3–4:
-- it uses our own measured WCETs instead of the placeholders;
-- it charges both buses and every relayed copy at once;
-- it models the MCP2515 driver's real per-frame cost.
-
-It explains the gap between the bounds and the scope results. Inside
-this appendix, references to "3.x" and "4.x" mean its own subsections B.1–B.5.
-
-The tables below already include both buses and N2's relayed copies, which is
-the active-bridge load for the analyzed case (c); Section 4 gives the final
-system-wide relay analysis. A small script iterates every equation to
-convergence.
+Our design-time analysis, beyond the template in Sections 3–4: it uses our
+measured WCETs instead of placeholders, charges both buses and every relayed
+copy at once, and models the MCP2515 driver's real per-frame cost. It explains
+the gap between the bounds and the scope results. The relay rule is the one in
+4.2; the relay tables analyze case (c), where N2 is the active bridge (N3
+bridges the N1/N2 cases the same way). A script iterates every equation to
+convergence. Inside this appendix, "3.x" and "4.x" mean B.1–B.5.
 
 ### B.1 Pi stage (measured)
 
@@ -582,7 +548,7 @@ conservative.
 |---|---|---:|---:|---:|---|
 | Brake (R2.2) | CTRL 1.75 + DRIVE 11.16 | 12.9 ms | **940 µs** ([photo 1](#photo-1), 15 runs) | 2 ms | **No by analysis; yes as measured** |
 | Throttle (R2.1) | same | 12.9 ms | **626 µs** ([photo 2](#photo-2), 10 runs) | 2 ms | **No by analysis; yes as measured** |
-| Brake via relay (c) | CTRL 1.75 + RELAY 10.85 + CTRL' 1.08 + DRIVE 11.16 | 24.8 ms | **1.1 ms** ([photo 3](#photo-3), 10 runs) | 2 ms | **No by analysis; yes as measured.** Degraded latency accepted in (c) (4.3) |
+| Brake via relay (c) | CTRL 1.75 + RELAY 10.85 + CTRL' 1.08 + DRIVE 11.16 | 24.8 ms | **1.1 ms** ([photo 3](#photo-3), 10 runs) | 2 ms | **No by analysis; yes as measured.** Degraded latency accepted in (c) (B.5.1) |
 | Steering (R2.3) | CTRL 1.75 + STEER 11.32 | 13.1 ms | — | 50 ms | **Yes** |
 | Blinker start (R2.4) | BLINK 4.18 + BLINK_F 11.35 / BLINK_R 11.20 | 15.5 ms | — | 100 ms | **Yes** |
 | Blinker sync (R2.4) | max local R 11.35 + skew between bus copies 3.91 | 15.3 ms | **768 µs** ([photo 5](#photo-5), 10 edges) | 1 ms | **No by analysis; yes as measured** (232 µs margin) |
@@ -613,35 +579,13 @@ conservative.
 
 ### B.5 Dual bus and relay, with measured WCETs
 
-#### B.5.1 Hot/parallel transmit
+Hot transmit and the relay rule are as in Sections 4.1–4.2. Here every message
+is 2 CAN_TX jobs and 2 receive events (the duplicate still pays C_ev, and
+dropping it costs ≤ 51 µs inside RX_DISPATCH); the B.2 tables already charge
+both copies. The relay is always on, which costs bus time: worst bus 11.3 →
+19.4 %. In case (c) N2 forwards ≤ 6 frames per 20 ms.
 
-**What the code does:**
-- **Send:** each message is queued on A and then B, with one sequence
-  number (`can_link_send`).
-- **Receive:** one dispatch path keeps the first copy by `(ID, seq)`. FAULT
-  gets one dedup slot per sender.
-- **Cost:** every message is 2 CAN_TX jobs and 2 receive events, and the
-  second event still pays C_ev. Section 3 already charges both copies, so its
-  tables are the 4.1 re-analysis.
-
-**The chains get no worse,** because each receiver acts on the first copy and
-the duplicate only adds one interference term. That assumes:
-- the two copies leave together (the Pi writes A then B inside the measured
-  126.5 µs stage);
-- dropping a duplicate is cheap: a table lookup inside RX_DISPATCH, ≤ 51 µs.
-
-#### B.5.2 Relay design
-
-| Question | Decision | Why |
-|---|---|---|
-| Who relays? | N2 and N3; never N1 (the Pi) | N2 bridges the N1/N3 opposite-bus cases, and N3 bridges the N1/N2 opposite-bus cases. This appendix's case (c) timing table is the N2-bridge case. |
-| When? | Always, with no detection | Waiting for detection would cut CTRL (brakes included) for 60–70 ms. Costs bus time: worst bus 11.3 → 19.4 %. |
-| What? | The first accepted copy of every other node's frame, onto the other bus | A node never relays its own frames. The active bridge in case (c) is N2; the corresponding N3 cases use the same rule. |
-| Loops? | Deduplicate by `(ID, seq)`; relay only the first accepted copy and forward it unchanged | Each node forwards a given frame at most once, so forwarding stops once every node has it. Identical same-ID frames may arbitrate safely; no relayed-frame flag is used. |
-| Priority? | RELAY = 1: above STEER and all app tasks, below CAN_TX and the driver threads | It's on the brake path. The receive hook only queues (16 deep). TX queues are sorted by ID, so a relayed CTRL overtakes waiting HB/FORCE. |
-| Cost to active bridge | Case (c): N2 forwards ≤ 6 frames per 20 ms; the N3-bridge cases have the corresponding N3 relay load | Case (c) is analyzed below; Section 4 gives the final measured relay cost and bounds. |
-
-#### B.5.3 Re-analysis for scenario (c): N1 off B, N3 off A
+#### B.5.1 Re-analysis for scenario (c): N1 off B, N3 off A
 
 **Traffic:** each bus carries 9 unique frames per 20 ms, giving **11.3 %
 utilization**.
