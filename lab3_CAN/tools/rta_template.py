@@ -228,8 +228,8 @@ def build():
 
     # ---------------- Section 4 ----------------
     n2r_rows = [
-        ("CAN_RX", "coop 2", C5, 20000, "20 ms per message, 7 per bus × 2 buses", 300, "0.3 ms", 2 * MSGS),
-        ("RELAY", "1", C6, 20000, "every frame N2 forwards: 6 per 20 ms in (c)", None, "on the brake chain", RELAYED),
+        ("CAN_RX", "coop 2", C5, 20000, "20 ms per message, 7 per bus × 2", 300, "0.3 ms", 2 * MSGS),
+        ("RELAY", "1", C6, 20000, "6 forwarded per 20 ms in (c)", None, "brake chain", RELAYED),
         ("STEER", "2", const(50), 20000, "20 ms", 1000, "1 ms", 1),
         ("BLINK_F", "3", const(20), 20000, "20 ms", 500, "0.5 ms", 1),
         ("TEST_BTN", "4", const(20), 50000, "50 ms", 10000, "10 ms", 1),
@@ -292,15 +292,15 @@ def build():
     w("| Chain | Stages to add up (µs) | Total | Deadline | Met? | What changed |")
     w("|---|---|---:|---:|---|---|")
     w(f"| Brake / throttle | relayed CTRL R (4.6) {fmt(R_rel)} + CAN_RX (N3) {fmt(r3['CAN_RX'])} + DRIVE {fmt(r3['DRIVE'])} | "
-      f"{fmt(rel_brake)} | 2 ms | {verdict(rel_brake, 2000, 'Extra hop: N2 receive + RELAY + second bus.', 'accept documented degraded latency in this double fault (handout option), or forward at the driver/ISR level.')} | Second bus hop via N2's RELAY |")
+      f"{fmt(rel_brake)} | 2 ms | {verdict(rel_brake, 2000, 'Extra hop: N2 receive + RELAY + second bus.', 'accept degraded latency in this double fault (handout option).')} | Second bus hop via N2's RELAY |")
     w(f"| Steering | Pi + CTRL on A 540 + CAN_RX (N2) {fmt(r2r['CAN_RX'])} + STEER {fmt(r2r['STEER'])} + servo period 20,000 | "
       f"{fmt(steer_c)} | 50 ms | {verdict(steer_c, 50000, '', '')} | N2 still gets CTRL on A; only its load grew |")
     w(f"| Blinker start | Pi + BLINK on A {fmt(bus_blink)} + CAN_RX (N2) + RELAY + BLINK' on B {fmt(bus_blink)} + CAN_RX (N3) + BLINK_R | "
       f"{fmt(blink_c)} | 100 ms | {verdict(blink_c, 100000, '', '')} | N3 gets BLINK only through the relay |")
-    w(f"| Blinker sync | N3's path through the relay: RELAY + BLINK' on B + CAN_RX (N3) + BLINK_R, minus N2's best case | "
-      f"{fmt(sync_c)} | 1 ms | {verdict(sync_c, 1000, 'N3 acts on the relayed copy, one hop after N2.', 'accept as degraded in (c), or delay the N2 edge by the relay latency.')} | N3's edge trails by the relay hop |")
+    w(f"| Blinker sync | RELAY + BLINK' on B + CAN_RX (N3) + BLINK_R − N2's best case | "
+      f"{fmt(sync_c)} | 1 ms | {verdict(sync_c, 1000, 'N3 acts on the relayed copy, one hop after N2.', 'accept as degraded in (c).')} | N3's edge trails by the relay hop |")
     w(f"| Error propagation | TEST_BTN (N2) {fmt(r2r['TEST_BTN'])} + 66,000 + 20,000 + HB_MON (N3) {fmt(r3['HB_MON'])} | "
-      f"{fmt(err_c)} | 100 ms | {verdict(err_c, 100000, '', '')} | HB_N1 reaches N3 only via the relay; without it N3 would declare N1 failed |\n")
+      f"{fmt(err_c)} | 100 ms | {verdict(err_c, 100000, '', '')} | HB_N1 reaches N3 only via the relay |\n")
     return "\n".join(out)
 
 

@@ -175,8 +175,8 @@ N3 off A, as the clarification asks.
 
 | Task | Priority | C (µs) | T | D | B (µs) | R (µs) | R ≤ D? | Work: C + B + higher-priority C |
 |---|---|---:|---|---|---:|---:|---|---|
-| CAN_RX | coop 2 | 289.5 | 20 ms per message, 7 per bus × 2 buses | 0.3 ms | 116.5 | 406 | **No** | 289.5 + 116.5 = **406** |
-| RELAY | 1 | 405 | every frame N2 forwards: 6 per 20 ms in (c) | on the brake chain | 116.5 | 4,574.5 | see chain | 405 + 116.5 + 14·289.5 = **4,574.5** |
+| CAN_RX | coop 2 | 289.5 | 20 ms per message, 7 per bus × 2 | 0.3 ms | 116.5 | 406 | **No** | 289.5 + 116.5 = **406** |
+| RELAY | 1 | 405 | 6 forwarded per 20 ms in (c) | brake chain | 116.5 | 4,574.5 | see chain | 405 + 116.5 + 14·289.5 = **4,574.5** |
 | STEER | 2 | 50 | 20 ms | 1 ms | 116.5 | 6,649.5 | **No** | 50 + 116.5 + 14·289.5 + 6·405 = **6,649.5** |
 | BLINK_F | 3 | 20 | 20 ms | 0.5 ms | 116.5 | 6,669.5 | **No** | 20 + 116.5 + 14·289.5 + 6·405 + 50 = **6,669.5** |
 | TEST_BTN | 4 | 20 | 50 ms | 10 ms | 116.5 | 6,689.5 | Yes | 20 + 116.5 + 14·289.5 + 6·405 + 50 + 20 = **6,689.5** |
@@ -209,11 +209,11 @@ adds CAN_RX (N3) + DRIVE to this R.
 
 | Chain | Stages to add up (µs) | Total | Deadline | Met? | What changed |
 |---|---|---:|---:|---|---|
-| Brake / throttle | relayed CTRL R (4.6) 6,187 + CAN_RX (N3) 425.5 + DRIVE 2,426.5 | 9,039 | 2 ms | **Missed.** Extra hop: N2 receive + RELAY + second bus. Fix: accept documented degraded latency in this double fault (handout option), or forward at the driver/ISR level. | Second bus hop via N2's RELAY |
+| Brake / throttle | relayed CTRL R (4.6) 6,187 + CAN_RX (N3) 425.5 + DRIVE 2,426.5 | 9,039 | 2 ms | **Missed.** Extra hop: N2 receive + RELAY + second bus. Fix: accept degraded latency in this double fault (handout option). | Second bus hop via N2's RELAY |
 | Steering | Pi + CTRL on A 540 + CAN_RX (N2) 406 + STEER 6,649.5 + servo period 20,000 | 27,722 | 50 ms | **Met** | N2 still gets CTRL on A; only its load grew |
 | Blinker start | Pi + BLINK on A 1,890 + CAN_RX (N2) + RELAY + BLINK' on B 1,890 + CAN_RX (N3) + BLINK_R | 11,759 | 100 ms | **Met** | N3 gets BLINK only through the relay |
-| Blinker sync | N3's path through the relay: RELAY + BLINK' on B + CAN_RX (N3) + BLINK_R, minus N2's best case | 9,236.5 | 1 ms | **Missed.** N3 acts on the relayed copy, one hop after N2. Fix: accept as degraded in (c), or delay the N2 edge by the relay latency. | N3's edge trails by the relay hop |
-| Error propagation | TEST_BTN (N2) 6,689.5 + 66,000 + 20,000 + HB_MON (N3) 2,696.5 | 95,386 | 100 ms | **Met** | HB_N1 reaches N3 only via the relay; without it N3 would declare N1 failed |
+| Blinker sync | RELAY + BLINK' on B + CAN_RX (N3) + BLINK_R − N2's best case | 9,236.5 | 1 ms | **Missed.** N3 acts on the relayed copy, one hop after N2. Fix: accept as degraded in (c). | N3's edge trails by the relay hop |
+| Error propagation | TEST_BTN (N2) 6,689.5 + 66,000 + 20,000 + HB_MON (N3) 2,696.5 | 95,386 | 100 ms | **Met** | HB_N1 reaches N3 only via the relay |
 
 <!-- RTA-END -->
 

@@ -32,11 +32,11 @@ h1 { font-size: 20pt; color: #17365d; margin: 0 0 4pt; }
 h2 { font-size: 15pt; color: #17365d; border-bottom: 1.5pt solid #17365d;
      padding-bottom: 2pt; margin: 16pt 0 6pt; break-before: page; break-after: avoid; }
 body > h2:first-of-type { break-before: auto; }
-h3 { font-size: 12pt; color: #24507f; margin: 12pt 0 4pt; break-after: avoid; }
+h3 { font-size: 12pt; color: #24507f; margin: 10pt 0 3pt; break-after: avoid; }
 h4 { font-size: 10.5pt; color: #24507f; margin: 10pt 0 3pt; break-after: avoid; }
 p { margin: 3pt 0 5pt; }
 ul, ol { margin: 2pt 0 6pt; padding-left: 18pt; }
-li { margin: 1pt 0; }
+li { margin: 1pt 0; break-inside: avoid; }
 li > ul, li > ol { margin: 1pt 0; }
 a { color: #1f5fa8; text-decoration: none; }
 code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 8.8pt;
@@ -45,10 +45,12 @@ pre { background: #eef2f6; padding: 6pt; border-radius: 3pt; font-size: 8.5pt;
       white-space: pre-wrap; break-inside: avoid; }
 table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt;
         font-size: 8.3pt; line-height: 1.25; }
+table:not(.long) { break-inside: avoid; }
+p:has(+ table:not(.long)) { break-after: avoid; }
 thead { display: table-header-group; }
 tr { break-inside: avoid; }
 th { background: #17365d; color: #fff; text-align: left; font-weight: 600; }
-th, td { border: 0.6pt solid #b4c0cc; padding: 2.5pt 4pt; vertical-align: top;
+th, td { border: 0.6pt solid #b4c0cc; padding: 1.8pt 4pt; vertical-align: top;
          overflow-wrap: break-word; }
 th { white-space: nowrap; }
 tbody tr:nth-child(even) td { background: #f3f6f9; }
@@ -106,6 +108,10 @@ def render(tmp):
 
     body = re.sub(r"<p>\s*(<img [^>]*>)\s*</p>", fig, body)
     body = shrink_photos(body, tmp)
+    # Keep tables on one page, except ones too long to fit (the fault matrix).
+    body = re.sub(r"<table>(.*?)</table>",
+                  lambda m: ('<table class="long">' if m.group(1).count("<tr>") > 15 else "<table>")
+                  + m.group(1) + "</table>", body, flags=re.S)
 
     # Scope captures (anchor + heading + photo) two to a page.
     shot = r'(?:<p>(?:<a id="[^"]+"></a>)+</p>\s*)?<h4>.*?</h4>\s*<figure>.*?</figure>\s*'
