@@ -44,14 +44,14 @@ Signal names are placeholders (the Lab 3 test-point table is not in the Lab 4 do
 - TP25: UDP_RX_GPIO
 
 ## CAN TX/RX (per bus, per zone)
-- TP26: REAR_A_TX
-- TP27: REAR_A_RX
-- TP28: REAR_B_TX
-- TP29: REAR_B_RX
-- TP30: FRONT_A_TX
-- TP31: FRONT_A_RX
-- TP32: FRONT_B_TX
-- TP33: FRONT_B_RX
+- TP26: FRONT_A_TX
+- TP27: FRONT_A_RX
+- TP28: FRONT_B_TX
+- TP29: FRONT_B_RX
+- TP30: REAR_A_TX
+- TP31: REAR_A_RX
+- TP32: REAR_B_TX
+- TP33: REAR_B_RX
 - TP34: COCKPIT_A_TX
 - TP35: COCKPIT_A_RX
 - TP36: COCKPIT_B_TX
