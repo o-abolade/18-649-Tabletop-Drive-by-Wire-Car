@@ -238,24 +238,60 @@ The relayed brake chain is this R + CAN_RX (N3) + DRIVE, so the first hop isn't 
 
 ## 5. Fault-injection test matrix (R4.8 a–f)
 
-**How faults were injected:** by pulling a node's CANH/CANL jumpers. Pulling
-N1's or N3's jumper also removes that end's P1 terminator (Section 1).
+**How faults are injected.** We pull a node's CANH and CANL jumpers for one
+bus. Pulling N1's or N3's jumper also removes that end's P1 terminator
+(Section 1).
 
-**Detection design:** a bus is degraded after 60 ms with no traffic heard;
-HB_MON checks every 10 ms. A zone is failed after 60 ms without its
-heartbeat on both buses.
+**What the zones do (`common/zephyr/zone_core.c`, `pi_cockpit/cockpit.c`):**
+- **DEG_x LED:** a node turns on DEG_x when it hasn't heard any other zone's
+  heartbeat on bus x for 60 ms. Relayed copies count. HB_MON checks every
+  10 ms.
+- **System ERROR:** a zone enters ERROR when another zone is lost on **both**
+  buses for 60 ms, or when its CTRL is older than 100 ms. ERROR means hazards
+  on, N3 braked, and N2 still tracking the wheel.
+- **Isolated node:** a node cut off from both buses loses everyone, enters its
+  own fail-safe state, and lights both DEG LEDs.
+- **Relaying:** N2 and N3 always relay (4.2); the Pi never does.
 
-**Sources:** functional results come from the zone consoles, the Pi status
-line and the LEDs; timing results are scope maxima.
+**Restoration (f) is a column on every row.** After the jumpers go back in,
+the DEG LEDs clear within 100 ms, and every zone is back to NORMAL within
+500 ms with no reset. A controller that went bus-off recovers on its own (the
+MCP2515 automatically, the Pi with `restart-ms 100`).
 
-| | Fault | Expected: zones | Expected: LEDs | Measured: function | Measured: time |
-|---|---|---|---|---|---|
-| a | One node off A (demo N2) | All NORMAL, fully operational | That node DEG_A | ✅ N2 B unaffected, N1/N3 unaffected | DEG_A on **68.6 ms** max over 5 ([photo 10](#photo-10)); design 60–70 ms |
-| b | One node off B | All NORMAL | That node DEG_B | ✅ (seen for N1 in (c); same code path as a) | — |
-| c | N1 off B + N3 off A | All NORMAL via N2's relay | N1 DEG_B, N3 DEG_A | ✅ N3 drives on relayed CTRL; 0 relay drops | Relayed brake **1.1 ms** ([photo 3](#photo-3)); relay stage 607 µs ([photo 4](#photo-4)) |
-| d | N2 off both buses | N2 fail-safe (steering held); N1, N3 ERROR (hazards, N3 braked) | N2 DEG_A + DEG_B; others none | ✅ | N3 ERROR **68.4 ms** ([photo 14](#photo-14)); N2 ERROR **53.6 ms** ([photo 15](#photo-15)); limit 100 ms |
-| e | Every node off A | All NORMAL on B | All DEG_A | ✅ CTRL gaps 36–39 ms (needed the Pi TX watchdog) | — |
-| f | Restore jumpers | Back to NORMAL, no reset; MCP2515 auto bus-off recovery, Pi `restart-ms 100` | DEG off | ✅ every case | DEG off **14.8 ms** ([photo 11](#photo-11), limit 100); recovery N2 **15.6 ms** / N3 **16.5 ms** (photos [16](#photo-16)–[17](#photo-17), limit 500) |
+The 15 combinations the TA lists come first: every node off one bus, every
+node off both, and every pair of nodes off different buses. The handout's
+whole-bus loss (e) follows.
+
+**Measured column:**
+- **✅:** run on hardware. Status comes from the zone consoles, the Pi status
+  line and the LEDs. Times are scope maxima, with the screenshot linked.
+- **Same path as row N:** not run on its own; the firmware takes the same code
+  path as a row that was measured.
+
+| # | Fault (jumpers pulled) | Expected: N1 (Pi) | Expected: N2 | Expected: N3 | Expected DEG LEDs | Relay needed? | Measured | Restoration (f) |
+|---|---|---|---|---|---|---|---|---|
+| 1 | N1 off A | NORMAL | NORMAL | NORMAL | N1 DEG_A | No | ✅ 10/21: Pi DEG_A on, all NORMAL | ✅ DEG off, NORMAL, no reset |
+| 2 | N1 off B | NORMAL | NORMAL | NORMAL | N1 DEG_B | No | Same path as row 1; N1 off B also ran inside rows 11 and 13 ✅ | Same path as row 1 |
+| 3 | N2 off A | NORMAL | NORMAL | NORMAL | N2 DEG_A | No | ✅ DEG_A on 62.8 ms, **max 68.6 ms** over 5 ([photo 10](#photo-10)) | ✅ DEG_A off **max 14.8 ms** over 5 ([photo 11](#photo-11)) |
+| 4 | N2 off B | NORMAL | NORMAL | NORMAL | N2 DEG_B | No | Same path as row 3; N2 off B ran inside row 10 ✅ | Same path as row 3 |
+| 5 | N3 off A | NORMAL | NORMAL | NORMAL | N3 DEG_A | No | Same path as row 3; N3 off A ran inside row 13 ✅ | Same path as row 3 |
+| 6 | N3 off B | NORMAL | NORMAL | NORMAL | N3 DEG_B | No | Same path as row 3; N3 off B ran inside row 12 ✅ | Same path as row 3 |
+| 7 | N1 off A and B | ERROR (hears no one) | ERROR: N1 lost, CTRL stale | ERROR: N1 lost, CTRL stale; braked | N1 DEG_A + DEG_B | No relay can help | Same path as row 8 | Same path as row 8 |
+| 8 | N2 off A and B | NORMAL → ERROR: N2 lost | Fail-safe: ERROR, steering held | ERROR: N2 lost; braked | N2 DEG_A + DEG_B | No relay can help | ✅ N3 ERROR **max 68.4 ms** ([photo 14](#photo-14)); N2 ERROR **max 53.6 ms** ([photo 15](#photo-15)); limit 100 ms | ✅ N2 NORMAL **max 15.6 ms**, N3 **max 16.5 ms** ([photos 16–17](#photo-16)); limit 500 ms, no reset |
+| 9 | N3 off A and B | ERROR: N3 lost | ERROR: N3 lost | Fail-safe: ERROR, braked | N3 DEG_A + DEG_B | No relay can help | Same path as row 8 | Same path as row 8 |
+| 10 | N1 off A, N2 off B | NORMAL | NORMAL (N1 via N3's relay) | NORMAL, relaying | N1 DEG_A, N2 DEG_B | Yes, **N3** | ✅ 10/23: all NORMAL, N3 relaying, CTRL gaps ≤ 28 ms | ✅ all NORMAL, no reset |
+| 11 | N1 off B, N2 off A | NORMAL | NORMAL (N1 via N3's relay) | NORMAL, relaying | N1 DEG_B, N2 DEG_A | Yes, **N3** | ✅ 10/23: all NORMAL, N3 relaying, CTRL gaps ≤ 33 ms | ✅ all NORMAL, no reset |
+| 12 | N1 off A, N3 off B | NORMAL | NORMAL, relaying | NORMAL (N1 via N2's relay) | N1 DEG_A, N3 DEG_B | Yes, **N2** | ✅ 10/23: all NORMAL, N2 relaying, CTRL gaps ≤ 41 ms | ✅ all NORMAL, no reset |
+| 13 | N1 off B, N3 off A (analyzed case) | NORMAL | NORMAL, relaying | NORMAL (N1 via N2's relay) | N1 DEG_B, N3 DEG_A | Yes, **N2** | ✅ 10/23: all NORMAL. Relayed brake **1.1 ms** ([photo 3](#photo-3)); RELAY C **405 µs** ([M6](#m6)) | ✅ all NORMAL, no reset |
+| 14 | N2 off A, N3 off B | NORMAL (hears N2 on B, N3 on A) | ERROR: N3 lost | ERROR: N2 lost; braked | N2 DEG_A, N3 DEG_B | Yes, via **N1**: not supported | Not tested; the TA clarification excludes it (it would need Linux to relay). Fails safe: N3 brakes, hazards on | Same path as row 8 |
+| 15 | N2 off B, N3 off A | NORMAL (hears N2 on A, N3 on B) | ERROR: N3 lost | ERROR: N2 lost; braked | N2 DEG_B, N3 DEG_A | Yes, via **N1**: not supported | Not tested; excluded, as row 14. Fails safe | Same path as row 8 |
+| 16 | All nodes off A (e) | NORMAL on B | NORMAL on B | NORMAL on B | All three DEG_A | No | ✅ 10/21: all DEG_A, all NORMAL, CTRL gaps 36–39 ms | ✅ all back on both buses, no reset |
+| 17 | All nodes off B (e) | NORMAL on A | NORMAL on A | NORMAL on A | All three DEG_B | No | Same path as row 16 | Same path as row 16 |
+
+**Two nodes off the same bus** (N1+N2, N1+N3 or N2+N3 off A, or off B) behave
+exactly like rows 16–17. The one node still on that bus hears no other zone,
+so all three show DEG on that bus, and everything runs NORMAL on the other
+bus.
 
 ## 6. Team-defined values and Lab 1 revision
 
