@@ -37,3 +37,5 @@ Back holes (3.2 mm): (6.5, 228.8) and (49.5, 228.8)
 | Steering servo: shunt + INA180A1 (gain 20) | 3 A | about 0.732 per ADC bit (3 A / 4096 resolution) | 3 W | 16.931 Hz | [TP14: SERVO_PWM] |
 
 # 2.0 Block Diagram
+
+![Power Tree Diagram](../assets/lab4_block_diagram.drawio.png)
