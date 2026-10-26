@@ -28,7 +28,7 @@ load before treating this as a final value. According to the datasheet, the buck
 | Sensor | Full-scale current | mA per ADC count | Resistor power rating | Filter corner | Test point names |
 |---|---|---|---|---|---|
 | Motor A: ACS712ELCTR-05B |  3.2 (motor max input) | about 0.781 mA per bit  | N/A, no external shunt (internal conductor about 1.2 mΩ, roughly 12 mW at 3.2 A) | N/A | [TP12: PWM_L] |
-| Motor B: ACS712ELCTR-05B | 3.2 (motor max current) | about 0.781 mA per bit | About 4.36 (same as motor A) | N/A, no external shunt | N/A | [TP13: PWM_R] |
+| Motor B: ACS712ELCTR-05B | 3.2 (motor max current) | about 0.781 mA per bit | N/A no external shunt | N/A | [TP13: PWM_R] |
 | Steering servo: shunt + INA180A1 (gain 20) | 3 A | about 0.732 per ADC bit (3 A / 4096 resolution) | 3 W | 16.931 Hz | [TP14: SERVO_PWM] |
 
 # 2.0 Block Diagram
