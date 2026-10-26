@@ -1,7 +1,7 @@
 # Lab 4 Test Points
 
 Signal names are placeholders (the Lab 3 test-point table is not in the Lab 4 document). Rename them to match your schematic nets.
-
+Dropped PG pins for space for now
 ## Grounds
 - TP1: GND 
 - TP2: GND
