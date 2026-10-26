@@ -22,7 +22,7 @@ load before treating this as a final value. According to the datasheet, the buck
 
 # 1.2 Mechanical Design
 
-**TODO:** Make board outline w mounting holes, keep outs and connector positions drawn in
+![Power Tree Diagram](../assets/Layout_Holes_Only.png)
 
 **Notes**
 - Board has two pairs of 3.2 mm holes in the back, makes more sense to use the inner 2, as well as 2 2.7 mm holes towards the front, gap between back pair is about 46.2 mm from the far end (43 mm from center to center), gap between front pair is about 58.7 mm end to end (56 mm center to center). Distance between the two pairs is 228.8 mm center to center (231.75 mm end to end). JLCPCB design rules state 0.33 mm between copper and board edge, so reasonable board dimensions are 62 mm x 235 mm. Fixing the front left at (0, 0):
