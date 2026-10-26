@@ -27,8 +27,8 @@ load before treating this as a final value. According to the datasheet, the buck
 # 1.3 Power Metering
 | Sensor | Full-scale current | mA per ADC count | Resistor power rating | Filter corner | Test point names |
 |---|---|---|---|---|---|
-| Motor A: ACS712ELCTR-05B | ±5 A (sensor range); ADC clips at about +4.3 A with no divider | about 4.36 (12-bit, 3.3 V reference, 185 mV/A, no divider); 4.36 / k if a divider of ratio k is used [k = TBD] | N/A, no external shunt (internal conductor about 1.2 mΩ, roughly 12 mW at 3.2 A) | [TBD: R_f, C_f, f_c = 1/(2πR_fC_f)] | [TP12: PWM_L] |
-| Motor B: ACS712ELCTR-05B | ±5 A (sensor range); ADC clips at about +4.3 A with no divider | about 4.36 (same as motor A) | N/A, no external shunt | [TBD] | [TP13: PWM_R] |
-| Steering servo: shunt + INA180A1 (gain 20) | 3.3 A with R_shunt = 0.05 Ω [confirm value] | about 0.806 with R_shunt = 0.05 Ω | 1 W or more (0.45 W at a 3 A stall, 2× margin) [confirm part] | 8.5 Hz (2 kΩ, 2 × 4.7 µF) | [TP_SERVO_RAW: TBD, unfiltered amplifier output]; [TP14: SERVO_PWM] |
+| Motor A: ACS712ELCTR-05B |  3.2 (motor max input) | about 0.781 mA per bit  | N/A, no external shunt (internal conductor about 1.2 mΩ, roughly 12 mW at 3.2 A) | N/A | [TP12: PWM_L] |
+| Motor B: ACS712ELCTR-05B | 3.2 (motor max current) | about 0.781 mA per bit | About 4.36 (same as motor A) | N/A, no external shunt | N/A | [TP13: PWM_R] |
+| Steering servo: shunt + INA180A1 (gain 20) | 3 A | about 0.732 per ADC bit (3 A / 4096 resolution) | 3 W | 16.931 Hz | [TP14: SERVO_PWM] |
 
 # 2.0 Block Diagram
