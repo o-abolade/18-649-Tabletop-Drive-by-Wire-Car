@@ -132,9 +132,10 @@ static uint32_t tx_ok[CANP_NUM_BUSES], tx_fail[CANP_NUM_BUSES];
  * draining for good ("No buffer space available") while RX on the same
  * interface kept working; only `ip link set canX down/up` cleared it. */
 #define CAN_BITRATE        500000
-#define TX_STUCK_MS        200     /* no successful write for this long ... */
+#define TX_STUCK_MS        200     /* writes failing, none OK for this long ... */
 #define TX_RESET_HOLDOFF_MS 1000   /* ... and at most one reset per second */
 static int64_t last_tx_ok_ms[CANP_NUM_BUSES];
+static int64_t last_tx_fail_ms[CANP_NUM_BUSES];   /* -1: no failure yet */
 static int64_t last_reset_ms[CANP_NUM_BUSES];
 static bool can_reset_ifaces;      /* needs root */
 static uint32_t udp_count, ctrl_count;
@@ -292,6 +293,7 @@ static bool send_on(enum canp_bus bus, uint32_t id, const uint8_t d[CANP_DLC])
 		last_tx_ok_ms[bus] = now_ms();
 	} else {
 		tx_fail[bus]++;
+		last_tx_fail_ms[bus] = now_ms();
 	}
 	return ok;
 }
@@ -587,8 +589,12 @@ static void tx_watchdog(int64_t now)
 {
 	for (int b = 0; b < CANP_NUM_BUSES; b++) {
 		bool rx_alive = hb_seen(CANP_ZONE_N2, b, now) || hb_seen(CANP_ZONE_N3, b, now);
+		/* Only writes that are still failing count: while the cockpit is
+		 * deliberately silent (no wheel UDP, LOCAL_FAIL) nothing is written */
+		bool failing = last_tx_fail_ms[b] > last_tx_ok_ms[b] &&
+			       now - last_tx_fail_ms[b] < TX_STUCK_MS;
 
-		if (can_fd[b] < 0 || !rx_alive || now - last_tx_ok_ms[b] < TX_STUCK_MS ||
+		if (can_fd[b] < 0 || !rx_alive || !failing || now - last_tx_ok_ms[b] < TX_STUCK_MS ||
 		    now - last_reset_ms[b] < TX_RESET_HOLDOFF_MS) {
 			continue;
 		}
@@ -723,6 +729,7 @@ int main(int argc, char **argv)
 			       : "can only warn (not root: run with sudo for auto-reset)");
 	for (int b = 0; b < CANP_NUM_BUSES; b++) {
 		last_tx_ok_ms[b] = now_ms();
+		last_tx_fail_ms[b] = -1;
 		last_reset_ms[b] = -TX_RESET_HOLDOFF_MS;
 	}
 	int udp_fd = open_udp();
