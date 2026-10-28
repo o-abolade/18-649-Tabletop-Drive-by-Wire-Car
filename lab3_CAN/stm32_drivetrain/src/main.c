@@ -68,15 +68,29 @@ static unsigned int clamp_duty(float d)
 }
 
 /* Caller holds motor_lock */
-static void brake_locked(void)
+static void reset_drive_locked(void)
 {
-	(void)motor_control_dynamic_brake();
 	driving = false;
 	target_throttle = 0;
 	trim_left = trim_right = 0.0f;
 	pid_controller_reset(&pid_left);
 	pid_controller_reset(&pid_right);
 	have_sample = false;
+}
+
+/* Caller holds motor_lock. Cache braking separately from neutral/coasting. */
+static void brake_locked(void)
+{
+	(void)motor_control_dynamic_brake();
+	reset_drive_locked();
+	duty_left = duty_right = 100U;
+}
+
+static void coast_locked(void)
+{
+	(void)motor_control_safe_stop();
+	reset_drive_locked();
+	duty_left = duty_right = 0U;
 }
 
 /* Caller holds motor_lock. Only rewrite a channel whose duty changed, so the
@@ -112,11 +126,13 @@ static void drive_thread(void *a, void *b, void *c)
 		uint64_t w0 = wcet_begin();
 
 		k_mutex_lock(&motor_lock, K_FOREVER);
-		if (zone_state() != CANP_ZS_NORMAL ||
-		    cmd.brake >= BRAKE_ACTIVE_PCT || cmd.throttle == 0) {
+		if (zone_state() != CANP_ZS_NORMAL || cmd.brake >= BRAKE_ACTIVE_PCT) {
 			if (driving || duty_left != 100U) {
 				brake_locked();
-				duty_left = duty_right = 100U;   /* brake = enables at 100 % */
+			}
+		} else if (cmd.throttle == 0) {
+			if (driving || duty_left != 0U || duty_right != 0U) {
+				coast_locked();
 			}
 		} else {
 			bool start = !driving;

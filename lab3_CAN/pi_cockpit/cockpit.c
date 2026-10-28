@@ -327,6 +327,12 @@ static void send_fault(enum canp_fault_reason reason)
 /* ---------------- blinker master ---------------- */
 static void blink_buttons(uint8_t pressed_edges, int16_t steer)
 {
+	/* Hazard mode discards turn requests, including self-cancel history. */
+	if (state != CANP_ZS_NORMAL) {
+		driver_blink = CANP_BLINK_OFF;
+		past_threshold = false;
+		return;
+	}
 	if (pressed_edges & CANP_BTN_LEFT) {
 		driver_blink = (driver_blink == CANP_BLINK_LEFT) ? CANP_BLINK_OFF : CANP_BLINK_LEFT;
 		past_threshold = false;
@@ -354,6 +360,10 @@ static void blink_buttons(uint8_t pressed_edges, int16_t steer)
 
 static void blink_tick(int64_t now)
 {
+	if (state != CANP_ZS_NORMAL) {
+		driver_blink = CANP_BLINK_OFF;
+		past_threshold = false;
+	}
 	enum canp_blink_state want = (state != CANP_ZS_NORMAL) ? CANP_BLINK_HAZARD : driver_blink;
 	int half = (want == CANP_BLINK_HAZARD) ? HAZARD_HALF_MS : BLINK_HALF_MS;
 
@@ -746,7 +756,8 @@ int main(int argc, char **argv)
 		{ .fd = can_fd[0], .events = POLLIN },   /* fd -1 is ignored by poll */
 		{ .fd = can_fd[1], .events = POLLIN },
 		{ .fd = tfd, .events = POLLIN },
-		{ .fd = STDIN_FILENO, .events = POLLIN },
+		/* systemd supplies /dev/null, which polls readable forever. */
+		{ .fd = isatty(STDIN_FILENO) ? STDIN_FILENO : -1, .events = POLLIN },
 	};
 	int64_t next_hb = now_ms(), next_status = now_ms() + 1000;
 

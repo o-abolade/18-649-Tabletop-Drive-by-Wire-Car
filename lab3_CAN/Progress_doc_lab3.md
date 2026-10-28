@@ -22,6 +22,47 @@ Logitech wheel --USB--> Laptop proxy --UDP:8000 (20ms)--> Raspberry Pi 4  (N1 co
                cockpit      steering/front    drivetrain/rear
 ```
 
+## TA feedback fixes (2026-10-27)
+
+- **Pi power-on startup:** added a systemd service and installer in `pi_cockpit/`.
+  On the Pi, run `bash lab3_CAN/pi_cockpit/install_service.sh` once; this builds
+  the cockpit, installs it under `/opt/lab3-cockpit`, and enables/starts
+  `lab3-cockpit.service`. It waits for both CAN interfaces and brings them up
+  before starting the cockpit; systemd restarts it after a failure. MCP2515
+  overlays must already be configured. Logs: `journalctl -u lab3-cockpit -f`.
+  Re-run the installer after updating the code. Power-cycle verification on
+  the Pi is still required; adding the files alone does not install the service.
+- **Normal neutral:** with fresh CTRL and NORMAL state, zero throttle and a
+  released brake now disable both motor enables (coast), rather than applying
+  full dynamic braking. Brake commands and ERROR/LOCAL_FAIL still brake.
+  Startup remains fail-safe until communication is healthy.
+- **Hazards:** the Pi discards turn-button changes and clears the previous
+  turn/self-cancel state during hazards. The STM32s discard BLINK updates
+  outside NORMAL and clear cached turn state on state transitions. Recovery
+  requires a new turn-button press; a held button must be released first.
+- **53.8 ms error timing:** the reported probes were last **N3 CAN_RX_B**
+  pulse → **N2 ERR rising**. This crosses nodes and is not N2's heartbeat-age
+  measurement: N3's receive pulse does not timestamp what N2 received.
+  Heartbeat expiry uses N2's most recent heartbeat from a given peer on either
+  bus, not an arbitrary CAN_RX pulse. The timeout remains three 20 ms periods,
+  checked every 10 ms; immediate FAULT handling is a separate path.
+  Heartbeat-loss transitions now log the peer and latest heartbeat age in ms
+  (`-1` means never received). For N2 isolation, scope **N2 CAN_RX_B → N2 ERR**
+  after disconnecting its other bus, and correlate with the transition log.
+  Even that interval can be under 60 ms if the final RX pulse was CTRL rather
+  than a heartbeat; a CAN trace identifying the last heartbeat is needed to
+  check heartbeat age. The 66–88 ms expectation cannot be applied to the
+  cross-node probe interval. No artificial timeout delay has been added.
+- **Hardware recheck:** power-cycle with no login; verify neutral → throttle →
+  neutral → brake; enter hazards with a turn already active and press both
+  turn buttons during hazards, then restore and verify lamps stay off until
+  a fresh turn press. Retake timing measurements after reflashing both zones.
+- **Local verification:** both STM32 zone firmware builds pass. Host checks
+  using the actual DRIVE and Pi blinker functions pass for neutral/coast,
+  throttle, brake priority, fault braking, recovery, and hazard input discard.
+  All three Pi shell scripts pass Bash syntax checks. The full Linux cockpit
+  build and service power-cycle test must run on the Pi.
+
 ## Repo structure
 
 ```

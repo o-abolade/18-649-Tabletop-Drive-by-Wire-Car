@@ -12,6 +12,15 @@ set -euo pipefail
 BITRATE=500000
 CONFIG=/boot/firmware/config.txt
 
+# systemd already runs as root; manual invocation still uses sudo.
+as_root() {
+    if (( EUID == 0 )); then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
 for line in "dtparam=spi=on" \
             "dtoverlay=mcp2515-can0,oscillator=16000000,interrupt=25" \
             "dtoverlay=mcp2515-can1,oscillator=16000000,interrupt=24"; do
@@ -25,10 +34,10 @@ for ifc in can0 can1; do
         echo "$ifc: interface does not exist -> check overlay / wiring, then: dmesg | grep -i mcp251" >&2
         continue
     fi
-    sudo ip link set "$ifc" down
+    as_root ip link set "$ifc" down
     # restart-ms: automatic bus-off recovery (R4.8 wants recovery within 100 ms)
-    sudo ip link set "$ifc" type can bitrate "$BITRATE" restart-ms 100
-    sudo ip link set "$ifc" up
+    as_root ip link set "$ifc" type can bitrate "$BITRATE" restart-ms 100
+    as_root ip link set "$ifc" up
     spi=$(basename "$(readlink -f "/sys/class/net/$ifc/device")")
     case "$spi" in
         spi0.0) bus="bus A" ;;
@@ -42,5 +51,9 @@ done
 # Wi-Fi power save delays wheel UDP packets by up to ~100 ms (seen: 97 ms CTRL
 # gaps, enough to trip the STM32s' 100 ms CTRL timeout). Off until next reboot.
 if ip link show wlan0 >/dev/null 2>&1; then
-    sudo iw wlan0 set power_save off && echo "wlan0: $(iw wlan0 get power_save)"
+    if as_root iw wlan0 set power_save off; then
+        echo "wlan0: $(iw wlan0 get power_save)"
+    else
+        echo "Warning: could not disable Wi-Fi power saving." >&2
+    fi
 fi

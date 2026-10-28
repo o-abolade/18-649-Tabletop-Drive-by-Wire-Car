@@ -91,6 +91,11 @@ static void set_state(enum canp_zone_state next, const char *why)
 	if (local_fail) {
 		next = CANP_ZS_LOCAL_FAIL;
 	}
+	if (prev != next) {
+		/* Never restore a turn/phase cached before or during local hazards. */
+		blink_state = CANP_BLINK_OFF;
+		blink_lamps_on = false;
+	}
 	state = next;
 	k_spin_unlock(&lock, key);
 
@@ -141,8 +146,10 @@ static void on_frame(uint32_t id, const uint8_t data[CANP_DLC], enum canp_bus bu
 	case CANP_ID_BLINK: {
 		k_spinlock_key_t key = k_spin_lock(&lock);
 
-		blink_state = canp_blink_state(data);
-		blink_lamps_on = canp_blink_lamps_on(data);
+		if (state == CANP_ZS_NORMAL) {
+			blink_state = canp_blink_state(data);
+			blink_lamps_on = canp_blink_lamps_on(data);
+		}
 		k_spin_unlock(&lock, key);
 		k_sem_give(&blink_sem);
 		break;
@@ -211,15 +218,20 @@ static void hb_mon_thread(void *a, void *b, void *c)
 		bool fault_block = false;
 		bool bus_seen[CANP_NUM_BUSES] = { false, false };
 		int lost_zone = 0, fault_zone = 0;
+		int64_t lost_hb_age_ms = -1;
 
 		for (int z = 1; z <= CANP_NUM_ZONES; z++) {
 			if (z == cfg->zone) {
 				continue;
 			}
 			bool alive = false;
+			int64_t latest_hb_ms = -1;
 
 			for (int bus = 0; bus < CANP_NUM_BUSES; bus++) {
-				if (hb_seen(z, bus, now)) {
+				int64_t hb_ms = can_link_last_hb_ms(z, bus);
+
+				latest_hb_ms = MAX(latest_hb_ms, hb_ms);
+				if (hb_ms >= 0 && now - hb_ms <= ZONE_HB_TIMEOUT_MS) {
 					bus_seen[bus] = true;
 					alive = true;
 				}
@@ -227,6 +239,7 @@ static void hb_mon_thread(void *a, void *b, void *c)
 			if (!alive) {
 				zone_lost = true;
 				lost_zone = z;
+				lost_hb_age_ms = latest_hb_ms < 0 ? -1 : now - latest_hb_ms;
 			}
 
 			/* A FAULT from zone z holds us in ERROR until z sends a newer heartbeat */
@@ -267,12 +280,13 @@ static void hb_mon_thread(void *a, void *b, void *c)
 			send_fault(reason);
 		}
 
-		char why[48];
+		char why[64];
 
 		if (lfail) {
 			set_state(CANP_ZS_LOCAL_FAIL, "test button");
 		} else if (zone_lost) {
-			snprintk(why, sizeof(why), "N%d heartbeat lost on both buses", lost_zone);
+			snprintk(why, sizeof(why), "N%d HB lost on both, age %lld ms",
+				 lost_zone, (long long)lost_hb_age_ms);
 			set_state(CANP_ZS_ERROR, why);
 		} else if (fault_block) {
 			snprintk(why, sizeof(why), "FAULT from N%d", fault_zone);

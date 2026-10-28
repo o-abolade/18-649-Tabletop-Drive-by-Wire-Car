@@ -1,0 +1,20 @@
+[Unit]
+Description=Lab 3 dual-CAN cockpit
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/lab3-cockpit
+ExecStartPre=/bin/bash /opt/lab3-cockpit/boot_can.sh
+ExecStart=/opt/lab3-cockpit/cockpit
+Restart=always
+RestartSec=2
+TimeoutStartSec=30
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
