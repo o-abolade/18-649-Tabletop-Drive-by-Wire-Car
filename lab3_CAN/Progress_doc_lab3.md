@@ -32,6 +32,9 @@ Logitech wheel --USB--> Laptop proxy --UDP:8000 (20ms)--> Raspberry Pi 4  (N1 co
   overlays must already be configured. Logs: `journalctl -u lab3-cockpit -f`.
   Re-run the installer after updating the code. Power-cycle verification on
   the Pi is still required; adding the files alone does not install the service.
+  To stop the cockpit and disable startup on future boots, run
+  `sudo systemctl disable --now lab3-cockpit` on the Pi. To enable and start
+  it again, run `sudo systemctl enable --now lab3-cockpit`.
 - **Normal neutral:** with fresh CTRL and NORMAL state, zero throttle and a
   released brake now disable both motor enables (coast), rather than applying
   full dynamic braking. Brake commands and ERROR/LOCAL_FAIL still brake.
