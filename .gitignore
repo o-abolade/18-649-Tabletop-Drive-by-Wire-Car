@@ -35,3 +35,5 @@ Thumbs.db
 # Local-only Claude context docs — not pushed to GitHub
 **/docs/
 **/CLAUDE.md
+# Lab 5 host-test binary
+Lab5_Time_Sync/tests/run_tests

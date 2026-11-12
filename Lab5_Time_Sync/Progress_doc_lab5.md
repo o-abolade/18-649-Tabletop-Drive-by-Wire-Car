@@ -33,8 +33,11 @@ Handout defaults: three nodes, cockpit default leader, 20 ms heartbeat, three mi
 
 ### 4. Raft state machine
 
-- [ ] Implement log-applied network graph mutations and `getNetwork()`.
-- [ ] Verify each node converges on the same committed network state.
+- [x] Implement log-applied network graph mutations and `getNetwork()`
+  (`common/raft/netstate.c`; host-tested, 2026-11-12).
+- [ ] Verify each node converges on the same committed network state (host
+  test: replaying one log on two nodes gives the same graph; on hardware
+  still to do).
 
 ### 5. Routing and relaying
 
@@ -68,6 +71,32 @@ Record the owner, evidence and completion date beside each item as work progress
 
 **Hardware:** the Lab 3 setup (Pi + two Nucleos, six XIAO CAN modules,
 blinker/DEG/ERR LEDs, test-point boards). The Lab 4 PCB has not arrived.
+
+### Step 1 (branch `lab5-raft-core`, 2026-11-12)
+
+Design: [design.md](design.md). Step 1 adds the portable pieces, with no
+hardware glue yet:
+
+- `common/raft/raft_config.h`: the shared config (all handout keys, plus the
+  random-mode seed and the relay-capable nodes).
+- `common/raft/raft_proto.{h,c}`: IDs and 8-byte layouts for REF, REQ_VOTE,
+  VOTE, APPEND, APPEND_ACK, EVENT and EVENT_RESP.
+- `common/raft/netstate.{h,c}`: log events, the four mutators,
+  `getNetwork()`, and the routing table (which node relays which frames, and
+  whether the graph is partitioned).
+- `tests/`: 14 host tests, 533 checks, all passing. They cover every
+  fault-matrix routing case (no relay, the four relay cases, the
+  steering/drivetrain partition, an isolated node).
+
+**Running the tests:**
+- Any machine with gcc (the Pi, or WSL after `sudo apt install -y gcc make`):
+  `make -C Lab5_Time_Sync/tests`
+- Without a host compiler, on an emulated Cortex-M3 (Zephyr SDK QEMU), from
+  the zephyrproject workspace:
+  ```
+  west build -p always -b qemu_cortex_m3 <repo>/Lab5_Time_Sync/tests/qemu -d build_lab5_tests
+  west build -d build_lab5_tests -t run      # Ctrl+A, then X, to quit QEMU
+  ```
 
 ### Questions for the course staff
 
