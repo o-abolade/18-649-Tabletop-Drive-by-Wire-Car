@@ -95,11 +95,13 @@ answered.
    election timeout (`heartbeat_ms` = 20); the leader also sends an empty
    `APPEND` every 100 ms to carry the commit index when nothing new is
    appended.
-4. **Hazard rates.** Steps 6–7 say failure-mode hazards flash at 4 Hz and
-   "return to 2 Hz". Lab 3 hazards blink at 1 Hz (500 ms toggle). Which rates
-   are required?
-   *Assumption:* 4 Hz in Raft failure mode (cockpit lost), 2 Hz in the other
-   error states.
+4. **Failure-mode hazard rate.** The error-state hazard rate is already
+   defined: 2 Hz ±10 %, 50 % duty (Lab 1 S4, Lab 2 §3.4), and our Lab 3 code
+   uses it. Steps 6–7 add a 4 Hz rate in failure mode that "returns to 2 Hz"
+   when the Pi is back. Is 4 Hz a new Lab 5 requirement for the cockpit-lost
+   failure mode only?
+   *Assumption:* yes: 4 Hz while `COCKPIT_ERROR` is committed, 2 Hz in every
+   other error state.
 5. **Log entry types.** Part 3 defines `COCKPIT_*`, `NODE_X_*` and
    `CANLINK_X_Y_*`. The checkoff counts "`MEMBER` entries" and an "`EVENT`
    from N2 reaching N3's log via the Pi". Are these the same entries? What
