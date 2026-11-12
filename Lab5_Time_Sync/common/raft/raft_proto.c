@@ -11,9 +11,10 @@ static const uint32_t kind_base[] = {
 	[RAFTP_APPEND_ACK] = RAFTP_ID_APPEND_ACK_BASE,
 	[RAFTP_EVENT] = RAFTP_ID_EVENT_BASE,
 	[RAFTP_EVENT_RESP] = RAFTP_ID_EVENT_RESP_BASE,
+	[RAFTP_SNAPSHOT] = RAFTP_ID_SNAPSHOT_BASE,
 };
 
-#define NUM_KINDS (sizeof(kind_base) / sizeof(kind_base[0]))
+#define NUM_KINDS RAFTP_KIND_COUNT
 
 static bool valid_node(unsigned n)
 {
@@ -82,7 +83,12 @@ static bool is_bool(uint8_t b)
 
 uint8_t raftp_commit_delta(uint16_t index, uint16_t commit)
 {
-	if (commit > index || index - commit >= RAFTP_COMMIT_UNKNOWN) {
+	if (commit >= index) {
+		/* Catch-up: the entry is already committed. A follower caps its
+		 * commit at the entry's index anyway, so "through index" is exact. */
+		return 0;
+	}
+	if (index - commit >= RAFTP_COMMIT_UNKNOWN) {
 		return RAFTP_COMMIT_UNKNOWN;
 	}
 	return (uint8_t)(index - commit);
@@ -124,16 +130,18 @@ void raftp_encode_req_vote(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp
 	d[1] = m->term;
 	put16(&d[2], m->last_index);
 	d[4] = m->last_term;
+	d[5] = m->pre ? 1 : 0;
 }
 
 bool raftp_decode_req_vote(const uint8_t d[RAFTP_DLC], struct raftp_req_vote *m)
 {
-	if (!flags_ok(d)) {
+	if (!flags_ok(d) || !is_bool(d[5])) {
 		return false;
 	}
 	m->term = d[1];
 	m->last_index = get16(&d[2]);
 	m->last_term = d[4];
+	m->pre = d[5] != 0;
 	return true;
 }
 
@@ -143,16 +151,18 @@ void raftp_encode_vote(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_vot
 	d[1] = m->term;
 	d[2] = m->candidate;
 	d[3] = m->granted ? 1 : 0;
+	d[4] = m->pre ? 1 : 0;
 }
 
 bool raftp_decode_vote(const uint8_t d[RAFTP_DLC], struct raftp_vote *m)
 {
-	if (!flags_ok(d) || !valid_node(d[2]) || !is_bool(d[3])) {
+	if (!flags_ok(d) || !valid_node(d[2]) || !is_bool(d[3]) || !is_bool(d[4])) {
 		return false;
 	}
 	m->term = d[1];
 	m->candidate = d[2];
 	m->granted = d[3] != 0;
+	m->pre = d[4] != 0;
 	return true;
 }
 
@@ -243,5 +253,26 @@ bool raftp_decode_event_resp(const uint8_t d[RAFTP_DLC], struct raftp_event_resp
 	m->result = d[3];
 	m->leader = d[4];
 	m->index = get16(&d[5]);
+	return true;
+}
+
+void raftp_encode_snapshot(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_snapshot *m)
+{
+	start(d, seq);
+	d[1] = m->term;
+	put16(&d[2], m->index);
+	d[4] = m->index_term;
+	put16(&d[5], m->state);
+}
+
+bool raftp_decode_snapshot(const uint8_t d[RAFTP_DLC], struct raftp_snapshot *m)
+{
+	if (!flags_ok(d)) {
+		return false;
+	}
+	m->term = d[1];
+	m->index = get16(&d[2]);
+	m->index_term = d[4];
+	m->state = get16(&d[5]);
 	return true;
 }

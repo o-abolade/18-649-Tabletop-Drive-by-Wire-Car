@@ -66,10 +66,11 @@ demo needs); log indexes are 16 bits.
 | 0x010 | CTRL | N1 → N2, N3 | Lab 3, unchanged | 20 ms |
 | 0x020 | FAULT | any → all | Lab 3, unchanged | event |
 | 0x025/6/7 | **REF** | leader → all | b1 term · b2 cycle counter · b3–b6 master time (µs, the send time of the *previous* REF) · b7 flags (failure mode) | 20 ms |
-| 0x031/2/3 | **REQ_VOTE** | candidate → all | b1 term · b2–b3 last log index · b4 last log term | election |
-| 0x035/6/7 | **VOTE** | voter → candidate | b1 term · b2 candidate · b3 granted | election |
-| 0x041/2/3 | **APPEND** | leader → all | b1 term · b2–b3 index · b4 prev-entry term · b5 event (0 = empty) · b6–b7 commit index | per entry; empty every 100 ms |
-| 0x045/6/7 | **APPEND_ACK** | follower → leader | b1 term · b2 success · b3–b4 match index | per APPEND |
+| 0x031/2/3 | **REQ_VOTE** | candidate → all | b1 term · b2–b3 last log index · b4 last log term · b5 pre-vote | election |
+| 0x035/6/7 | **VOTE** | voter → candidate | b1 term · b2 candidate · b3 granted · b4 pre-vote | election |
+| 0x041/2/3 | **APPEND** | leader → all | b1 term · b2–b3 index · b4 entry term · b5 previous entry's term · b6 event (0 = empty) · b7 commit delta (commit = index − delta; 255 = unknown) | per entry; empty every 100 ms and when the commit index moves |
+| 0x045/6/7 | **APPEND_ACK** | follower → leader | b1 term · b2 success · b3–b4 match index (on failure: the follower's last index) | per APPEND |
+| 0x051/2/3 | **SNAPSHOT** | leader → all | b1 term · b2–b3 index · b4 its term · b5–b6 network state (16 bits) | when a follower needs compacted entries |
 | 0x061/2/3 | **EVENT** | client → leader | b1 addressed leader · b2 event · b3 client seq | on a detected change |
 | 0x065/6/7 | **EVENT_RESP** | leader → client | b1 client · b2 client seq · b3 result (ok / redirect) · b4 leader id | per EVENT |
 | 0x100–0x102 | HB_Nx | each node | Lab 3, unchanged | 20 ms |
@@ -104,8 +105,21 @@ total stays far below the 50 % limit.
 - **Startup with `default_leader = none`:** every node starts as a follower
   and times out with the seeded jitter, giving an ordinary election.
 - **Election:** standard Raft (RequestVote with log up-to-date check,
-  majority of 2). A link failure never triggers one, because the leader's REF
-  still reaches every node over the other bus or the relay.
+  majority of 2), plus two standard extensions that checkoff step 10 needs:
+  - **Pre-vote:** a node that times out first asks whether a majority would
+    vote for it, and raises its term only if so. A node only grants a
+    pre-vote if it has not heard a leader for 60 ms. An isolated node never
+    gets that majority, so its term never moves, and reconnecting it causes no
+    election: the term changes only when the leader itself is lost.
+  - **Check-quorum:** a leader that hears no APPEND_ACK from a majority for
+    300 ms steps down without changing the term, so an isolated leader turns
+    its LEADER LED off.
+
+  A link failure never triggers an election, because the leader's REF still
+  reaches every node over the other bus or the relay.
+- **Startup mode at run time:** `raft_init_with_leader()` takes the default
+  leader and the seed, so `LEADER=cockpit` and `LEADER=random` need no
+  rebuild; `raft_init()` uses the config values.
 - **Replication:** the leader appends one entry per APPEND, waits for
   APPEND_ACKs, and commits at a majority. Followers apply committed entries
   to the state machine in index order. A rejoining node is caught up by
@@ -123,11 +137,12 @@ total stays far below the 50 % limit.
 
 ## 5. Log and state machine
 
-- **Log:** a ring buffer of recent entries (term, index, event: 4 bytes
-  each) plus a **snapshot** of the network graph at the oldest kept index.
-  Indexes run to `log_size`. The state machine is six link bits and three
-  node bits, so the snapshot is tiny; a ring of a few hundred entries is
-  plenty for the demo (question 8).
+- **Log:** a ring of the 256 most recent entries (term, event, flags:
+  3 bytes each; the index is implicit) plus a **snapshot** of the network
+  graph as of the last compacted index. Indexes run to `log_size`. The
+  state machine is six link bits, three node bits and the cockpit bit, so the
+  snapshot fits in one SNAPSHOT frame, which catches up a Nucleo that rebooted
+  after the entries it needs were compacted (question 8).
 - **State machine (`netstate.c`):** `addLink(X,Y)`, `dropLink(X,Y)`,
   `addNode(X)`, `dropNode(X)` exactly as in the handout table, applied when an
   entry commits. `getNetwork()` returns a copy of the graph: node up/down, and

@@ -14,6 +14,9 @@ target_sources(app PRIVATE
   ${TESTS}/test_main.c
   ${TESTS}/test_netstate.c
   ${TESTS}/test_raft_proto.c
+  ${TESTS}/test_raft.c
   ${RAFT}/netstate.c
   ${RAFT}/raft_proto.c
+  ${RAFT}/raft_log.c
+  ${RAFT}/raft.c
 )

@@ -19,17 +19,17 @@ Handout: [Lab 5: Time Synchronization and Consensus](../Lab%20Handouts/18-449_64
 
 ### 2. Leader election
 
-- [ ] Implement the identical cluster configuration and predefined-leader startup in term 1.
-- [ ] Implement leader heartbeats, missed-heartbeat detection, randomized election timeouts and majority voting.
-- [ ] Test leader failure and recovery without unnecessary elections for isolated link failures.
+- [x] Implement the identical cluster configuration and predefined-leader startup in term 1 (step 1–2; host-tested).
+- [x] Implement leader heartbeats, missed-heartbeat detection, randomized election timeouts and majority voting (step 2, with pre-vote and check-quorum; host-tested).
+- [ ] Test leader failure and recovery without unnecessary elections for isolated link failures (passes in the simulator; hardware still to do).
 
 Handout defaults: three nodes, cockpit default leader, 20 ms heartbeat, three missed heartbeats, 0–39 ms election jitter and 30,000 log entries. Confirm how all startup modes in the checkoff map to the configuration.
 
 ### 3. Replicated log
 
-- [ ] Implement term, index and event fields, replication, commit and recovery.
-- [ ] Record cockpit state, node up/down and each node's individual CAN A/B link up/down events.
-- [ ] Verify consistent ordering and recovery after node and link failures.
+- [x] Implement term, index and event fields, replication, commit and recovery (step 2; host-tested).
+- [ ] Record cockpit state, node up/down and each node's individual CAN A/B link up/down events (event codes done in step 1; detection from the heartbeat monitor is step 4).
+- [ ] Verify consistent ordering and recovery after node and link failures (passes in the simulator; hardware still to do).
 
 ### 4. Raft state machine
 
@@ -97,6 +97,38 @@ hardware glue yet:
   west build -p always -b qemu_cortex_m3 <repo>/Lab5_Time_Sync/tests/qemu -d build_lab5_tests
   west build -d build_lab5_tests -t run      # Ctrl+A, then X, to quit QEMU
   ```
+
+### Step 2 (branch `lab5-raft-core`, 2026-11-12)
+
+The Raft agent and client, still hardware-independent:
+
+- `common/raft/raft_log.{h,c}`: a ring of the 256 most recent entries plus a
+  snapshot of the network graph (log compaction).
+- `common/raft/raft.{h,c}`: election with **pre-vote**, replication over
+  broadcast CAN frames, commit, the Raft client (EVENT, redirect, retries),
+  **check-quorum**, and snapshot catch-up. The predefined-leader startup
+  rules and the runtime `LEADER=cockpit` / `LEADER=random` choice are in
+  `raft_init_with_leader()`. See design.md section 4.
+- `tests/test_raft.c`: a three-node simulator with 11 scenario tests,
+  following the checkoff:
+  - boot with the predefined leader (no REQ_VOTE; REF every 20 ms; empty
+    APPEND every 100 ms) and with the Pi booting 5 s late;
+  - client reports from all three nodes giving one entry at one index;
+    redirect from a follower;
+  - Pi down (one election, new leader within 1 s), Pi back (held entries
+    replayed once, in order, marked replayed; leadership stays);
+  - isolated follower (term unchanged thanks to pre-vote) and isolated
+    leader (term changes exactly once; the old leader steps down);
+  - `LEADER=random`, including finding a seed where the Pi wins;
+  - snapshot catch-up of a rebooted node, and six runs at 15 % frame loss.
+
+  Every scenario also checks Raft safety on each commit: no index is ever
+  committed with two different entries, and no term has two leaders.
+
+**Result:** 26 tests, 679 checks, all passing (QEMU Cortex-M3,
+2026-11-12). The tests found one real bug, fixed in this step: catch-up
+APPENDs for already-committed entries carried "no commit information", so a
+rejoining node did not mark them replayed.
 
 ### Questions for the course staff
 

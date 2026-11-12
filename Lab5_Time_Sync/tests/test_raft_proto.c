@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "netstate.h"
 #include "raft_proto.h"
 
 static void test_ids(void)
@@ -21,7 +22,8 @@ static void test_ids(void)
 	CHECK_EQ(raftp_id(RAFTP_NONE, 1), 0);
 
 	/* Every kind and sender round-trips through classify */
-	for (unsigned k = RAFTP_REF; k <= RAFTP_EVENT_RESP; k++) {
+	CHECK_EQ(raftp_id(RAFTP_SNAPSHOT, 2), 0x052);
+	for (unsigned k = RAFTP_REF; k < RAFTP_KIND_COUNT; k++) {
 		for (unsigned n = 1; n <= RAFT_N; n++) {
 			uint32_t id = raftp_id((enum raftp_kind)k, n);
 
@@ -68,19 +70,23 @@ static void test_ref(void)
 static void test_votes(void)
 {
 	uint8_t d[8];
-	struct raftp_req_vote rv = { .term = 3, .last_index = 30000, .last_term = 2 }, rv2;
-	struct raftp_vote v = { .term = 3, .candidate = 2, .granted = true }, v2;
+	struct raftp_req_vote rv = { .term = 3, .last_index = 30000, .last_term = 2, .pre = true }, rv2;
+	struct raftp_vote v = { .term = 3, .candidate = 2, .granted = true, .pre = true }, v2;
 
 	raftp_encode_req_vote(d, 1, &rv);
 	CHECK(raftp_decode_req_vote(d, &rv2));
 	CHECK_EQ(rv2.term, 3);
 	CHECK_EQ(rv2.last_index, 30000);
 	CHECK_EQ(rv2.last_term, 2);
+	CHECK(rv2.pre);
+	d[5] = 2;   /* pre must be 0/1 */
+	CHECK(!raftp_decode_req_vote(d, &rv2));
 
 	raftp_encode_vote(d, 2, &v);
 	CHECK(raftp_decode_vote(d, &v2));
 	CHECK_EQ(v2.candidate, 2);
 	CHECK(v2.granted);
+	CHECK(v2.pre);
 	d[3] = 2;   /* granted must be 0/1 */
 	CHECK(!raftp_decode_vote(d, &v2));
 	d[3] = 0;
@@ -110,7 +116,7 @@ static void test_append(void)
 
 	/* Commit lagging by 255 or more carries no commit information */
 	CHECK_EQ(raftp_commit_delta(1000, 700), RAFTP_COMMIT_UNKNOWN);
-	CHECK_EQ(raftp_commit_delta(10, 11), RAFTP_COMMIT_UNKNOWN);   /* commit > index */
+	CHECK_EQ(raftp_commit_delta(10, 11), 0);   /* catch-up: committed through index */
 	CHECK_EQ(raftp_commit_delta(300, 46), 254);
 	out.commit_delta = RAFTP_COMMIT_UNKNOWN;
 	CHECK(!raftp_commit_index(&out, &commit));
@@ -164,8 +170,36 @@ static void test_ack_and_events(void)
 	CHECK(!raftp_decode_event_resp(d, &r2));
 }
 
+static void test_snapshot_frame(void)
+{
+	uint8_t d[8];
+	struct netstate ns, back;
+	struct raftp_snapshot in, out;
+
+	/* Pack/unpack round-trips every node, link and cockpit bit */
+	netstate_init(&ns);
+	ns.cockpit_ok = true;
+	netstate_apply(&ns, raft_ev_link(1, 1, false));
+	netstate_apply(&ns, raft_ev_node(3, false));
+	netstate_unpack(netstate_pack(&ns), &back);
+	CHECK(netstate_equal(&ns, &back));
+	netstate_init(&ns);
+	netstate_unpack(netstate_pack(&ns), &back);
+	CHECK(netstate_equal(&ns, &back));
+
+	in = (struct raftp_snapshot){ .term = 5, .index = 4000, .index_term = 4,
+				      .state = netstate_pack(&ns) };
+	raftp_encode_snapshot(d, 3, &in);
+	CHECK(raftp_decode_snapshot(d, &out));
+	CHECK_EQ(out.term, 5);
+	CHECK_EQ(out.index, 4000);
+	CHECK_EQ(out.index_term, 4);
+	CHECK_EQ(out.state, in.state);
+}
+
 void test_raft_proto_all(void)
 {
+	RUN(test_snapshot_frame);
 	RUN(test_ids);
 	RUN(test_ref);
 	RUN(test_votes);

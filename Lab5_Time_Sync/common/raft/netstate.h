@@ -101,6 +101,11 @@ void netstate_get(const struct netstate *ns, struct netstate *out);
 
 bool netstate_equal(const struct netstate *a, const struct netstate *b);
 
+/* 16-bit form for the SNAPSHOT frame: bit (n-1) = node n up, bit 3 = cockpit
+ * OK, bit 8 + 2(n-1) + y = link of node n to bus y up. */
+uint16_t netstate_pack(const struct netstate *ns);
+void netstate_unpack(uint16_t bits, struct netstate *ns);
+
 /* A node is usable on a bus only if both the node and its link are up. */
 static inline bool netstate_on_bus(const struct netstate *ns, unsigned node, unsigned bus)
 {

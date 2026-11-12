@@ -189,6 +189,35 @@ bool netstate_equal(const struct netstate *a, const struct netstate *b)
 	return true;
 }
 
+uint16_t netstate_pack(const struct netstate *ns)
+{
+	uint16_t bits = ns->cockpit_ok ? (1u << 3) : 0;
+
+	for (unsigned n = 1; n <= RAFT_N; n++) {
+		if (ns->node_up[n]) {
+			bits |= (uint16_t)(1u << (n - 1));
+		}
+		for (unsigned b = 0; b < RAFT_NUM_BUSES; b++) {
+			if (ns->link_up[n][b]) {
+				bits |= (uint16_t)(1u << (8 + 2 * (n - 1) + b));
+			}
+		}
+	}
+	return bits;
+}
+
+void netstate_unpack(uint16_t bits, struct netstate *ns)
+{
+	memset(ns, 0, sizeof(*ns));
+	ns->cockpit_ok = (bits & (1u << 3)) != 0;
+	for (unsigned n = 1; n <= RAFT_N; n++) {
+		ns->node_up[n] = (bits & (1u << (n - 1))) != 0;
+		for (unsigned b = 0; b < RAFT_NUM_BUSES; b++) {
+			ns->link_up[n][b] = (bits & (1u << (8 + 2 * (n - 1) + b))) != 0;
+		}
+	}
+}
+
 const char *netstate_format(const struct netstate *ns, char *buf, size_t len)
 {
 	size_t used = 0;

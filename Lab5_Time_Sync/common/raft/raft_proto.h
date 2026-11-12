@@ -27,6 +27,7 @@
 #define RAFTP_ID_VOTE_BASE       0x034   /* 0x035..0x037 */
 #define RAFTP_ID_APPEND_BASE     0x040   /* 0x041..0x043 */
 #define RAFTP_ID_APPEND_ACK_BASE 0x044   /* 0x045..0x047 */
+#define RAFTP_ID_SNAPSHOT_BASE   0x050   /* 0x051..0x053 */
 #define RAFTP_ID_EVENT_BASE      0x060   /* 0x061..0x063 */
 #define RAFTP_ID_EVENT_RESP_BASE 0x064   /* 0x065..0x067 */
 
@@ -39,6 +40,8 @@ enum raftp_kind {
 	RAFTP_APPEND_ACK,
 	RAFTP_EVENT,
 	RAFTP_EVENT_RESP,
+	RAFTP_SNAPSHOT,
+	RAFTP_KIND_COUNT,
 };
 
 uint32_t raftp_id(enum raftp_kind kind, unsigned sender);
@@ -60,19 +63,23 @@ struct raftp_ref {
 };
 
 /* ---- REQ_VOTE: candidate -> all ----
- * b1 term · b2-b3 last log index · b4 last log term */
+ * b1 term · b2-b3 last log index · b4 last log term · b5 pre-vote (0/1)
+ * A pre-vote (Raft thesis 9.6) asks "would you vote for me in term `term`?"
+ * without anyone changing term, so an isolated node cannot raise the term. */
 struct raftp_req_vote {
 	uint8_t term;
 	uint16_t last_index;
 	uint8_t last_term;
+	bool pre;
 };
 
 /* ---- VOTE: voter -> candidate ----
- * b1 term · b2 candidate · b3 granted (0/1) */
+ * b1 term · b2 candidate · b3 granted (0/1) · b4 pre-vote (0/1) */
 struct raftp_vote {
 	uint8_t term;
 	uint8_t candidate;
 	bool granted;
+	bool pre;
 };
 
 /* ---- APPEND: leader -> all ----
@@ -82,8 +89,10 @@ struct raftp_vote {
  *    (index - 1) has term `prev_term`.
  *  - Empty (event == 0): `index` is the leader's last index and
  *    `entry_term` its term; nothing is appended, prev_term is 0.
- *  - commit = index - commit_delta. 255 means "no commit information" (the
- *    commit index lags by 255 or more): the follower keeps its own. */
+ *  - commit = index - commit_delta. 0 also covers a leader commit beyond
+ *    `index` (catch-up of committed entries): followers never commit past
+ *    the entry they verified. 255 means "no commit information" (the commit
+ *    index lags by 255 or more): the follower keeps its own. */
 #define RAFTP_COMMIT_UNKNOWN 255
 
 struct raftp_append {
@@ -137,6 +146,18 @@ struct raftp_event_resp {
 	uint16_t index;
 };
 
+/* ---- SNAPSHOT: leader -> all ----
+ * b1 term · b2-b3 index · b4 term of entry `index` · b5-b6 network state
+ * (netstate_pack) · b7 0
+ * Replaces a follower's log with the leader's state as of `index`, which is
+ * committed. Sent when a follower needs entries the leader has compacted. */
+struct raftp_snapshot {
+	uint8_t term;
+	uint16_t index;
+	uint8_t index_term;
+	uint16_t state;
+};
+
 /* Encoders fill all 8 bytes; `seq` goes in the low nibble of byte 0 (the
  * Zephyr can_link_send() overwrites it anyway). */
 void raftp_encode_ref(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_ref *m);
@@ -148,6 +169,7 @@ void raftp_encode_append_ack(uint8_t d[RAFTP_DLC], uint8_t seq,
 void raftp_encode_event(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_event *m);
 void raftp_encode_event_resp(uint8_t d[RAFTP_DLC], uint8_t seq,
 			     const struct raftp_event_resp *m);
+void raftp_encode_snapshot(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_snapshot *m);
 
 /* Decoders return false for a malformed payload (non-zero flags nibble, an
  * out-of-range node, or a boolean byte other than 0/1). */
@@ -158,5 +180,6 @@ bool raftp_decode_append(const uint8_t d[RAFTP_DLC], struct raftp_append *m);
 bool raftp_decode_append_ack(const uint8_t d[RAFTP_DLC], struct raftp_append_ack *m);
 bool raftp_decode_event(const uint8_t d[RAFTP_DLC], struct raftp_event *m);
 bool raftp_decode_event_resp(const uint8_t d[RAFTP_DLC], struct raftp_event_resp *m);
+bool raftp_decode_snapshot(const uint8_t d[RAFTP_DLC], struct raftp_snapshot *m);
 
 #endif /* RAFT_PROTO_H */
