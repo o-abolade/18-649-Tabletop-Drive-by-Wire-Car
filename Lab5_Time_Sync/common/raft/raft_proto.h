@@ -50,8 +50,11 @@ uint32_t raftp_id(enum raftp_kind kind, unsigned sender);
 enum raftp_kind raftp_classify(uint32_t id, unsigned *sender);
 
 /* ---- REF: leader -> all, every heartbeat_ms ----
- * b1 term · b2 cycle counter · b3-b6 master time (us, u32 LE): the leader's
- * clock when the PREVIOUS REF was handed to the CAN controller · b7 flags */
+ * b1 term · b2 cycle counter · b3-b6 master time (us, u32 LE, modulo
+ * GTIME_WIRE_MOD_US = 4000 s): the leader's global time when the PREVIOUS
+ * REF finished on THIS bus (its TX-complete interrupt) · b7 flags.
+ * The STM32 glue (gsync.c) fills b3-b6 and TIME_VALID per bus, so the copy
+ * on bus A carries bus A's send time and the copy on bus B bus B's. */
 #define RAFTP_REF_TIME_VALID  0x01   /* b3-b6 hold a real send time */
 #define RAFTP_REF_FAILURE     0x02   /* COCKPIT_ERROR committed: failure mode */
 

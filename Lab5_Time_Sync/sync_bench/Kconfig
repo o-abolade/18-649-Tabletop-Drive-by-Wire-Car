@@ -1,0 +1,6 @@
+config SYNC_BENCH_NODE
+	int "Node ID (2 = steering, 3 = drivetrain)"
+	range 2 3
+	default 2
+
+source "Kconfig.zephyr"

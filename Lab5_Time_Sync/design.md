@@ -26,6 +26,7 @@ Lab5_Time_Sync/
   stm32_steering/    N2 app (Lab 3 + Lab 5 glue)
   stm32_drivetrain/  N3 app
   pi_cockpit/        N1 cockpit (Lab 3 + the same Raft core)
+  sync_bench/        step 3: time sync + PPS on the two Nucleos, no Raft
   tests/             host tests: three simulated nodes, scripted faults
 ```
 
@@ -181,18 +182,29 @@ total stays far below the 50 % limit.
 
 ## 7. Time synchronization
 
-- **Master:** the Raft leader. It sends REF every 20 ms. Each REF carries the
-  master time at which the *previous* REF was handed to the controller,
-  captured in the CAN TX path. That works around the MCP2515 having no
-  hardware timestamp.
-- **Followers** timestamp each REF on receipt in the RX callback. They pair
-  the master time from REF k with their receive time of REF k−1, which is the
-  same frame:
-  - offset: `global = L(k−1) + network_delay` at local time F(k−1). The delay
-    is the frame time plus the measured driver latency, calibrated with the
-    PPS scope traces (question 11).
-  - drift: `ratio = (L(k−1) − L(k−2)) / (F(k−1) − F(k−2))`, low-pass filtered
-    over several REFs so one late interrupt doesn't swing it.
+- **Master:** the Raft leader. It sends REF every 20 ms. Each REF carries,
+  per bus, the master time at which the *previous* REF finished on that bus.
+  The MCP2515 has no hardware timestamp, so `can_link` stamps the falling
+  edge of each module's INT line in an ISR (beside the driver's own
+  callback). INT falls when a transmission completes (TXnIF) and when a
+  received frame lands in a buffer (RXnIF): the end of the same frame on the
+  same wire, at the sender and at every receiver. A stamp older than 200 µs
+  when the driver hands over the frame may belong to an earlier frame (INT
+  was still low) and is not used.
+- **Wire format:** master time is sent modulo 4000 s (4·10⁹ µs, below 2³²).
+  A plain 32-bit µs counter wraps after 4294.97 s, which is not a whole
+  number of seconds, so two nodes one wrap apart would place their PPS edges
+  0.97 s apart. With a 4000 s modulus any ambiguity is whole seconds.
+- **Followers** pair the master time from REF k with their receive stamp of
+  REF k−1 *on the same bus* (`gtime.c`, `gsync.c`):
+  - offset: `global = L(k−1) + network_delay` at local time F(k−1). Both
+    stamps mark the end of the frame, so the delay is a small constant
+    (`GSYNC_NET_DELAY_US`, 0 until the PPS traces calibrate it; question 11).
+  - drift: `ratio = (L(k) − L(j)) / (F(k) − F(j))` over pairs at least 1 s
+    apart, low-pass filtered (weight 1/4). Over one 20 ms period, a few µs
+    of stamp jitter would read as hundreds of ppm.
+  - outliers: a sample more than 50 µs off is ignored; three in a row mean
+    the master's time really moved (a new master), and the clock steps.
 - **`global_gettime()`** returns `global_at_sync + (local_now − local_at_sync) × ratio`.
   On the Nucleos the sync also sets the Zephyr clock with `clock_settime()`,
   as the handout asks. The Pi keeps its own offset instead, because resetting
@@ -205,16 +217,19 @@ total stays far below the 50 % limit.
   drift accumulated during the election, a few µs at crystal drift rates.
   That is well inside the 100 µs limit.
 - **Drift print:** a 1 s task prints the ratio and the correction currently
-  applied.
+  applied (`DRIFT` lines).
 - **PPS:** a GPIO on every node rises at each whole second of
-  `global_gettime()`, armed by a timer and finished with a short busy-wait.
-  The line printed on each edge holds global time, local time, drift ratio,
-  and the correction since the last REF.
+  `global_gettime()`. A cooperative thread sleeps to 300 µs before the edge
+  and busy-waits the rest, so no thread preempts the edge. The line printed
+  on each edge (`PPS` lines, from a low-priority thread) holds global time,
+  local time, drift ratio, and the correction since the last REF.
 - **LEDs and test points:**
   - `LEADER` lit on the leader.
   - `SYNC` lit while the follower's global time is valid (a REF in the last
     3 periods).
-  - `REF_RX` pulsed on each REF received.
+  - `REF_RX` toggled on each REF received.
+  - Pins (both STM32s): PPS PA4 (A2), REF_RX PB10 (D6), LEADER PC4,
+    SYNC PC5.
 
 ## 8. Blinkers on global time
 

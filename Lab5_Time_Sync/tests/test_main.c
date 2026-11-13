@@ -7,12 +7,14 @@ int check_count;
 void test_netstate_all(void);
 void test_raft_proto_all(void);
 void test_raft_all(void);
+void test_gtime_all(void);
 
 int main(void)
 {
 	test_netstate_all();
 	test_raft_proto_all();
 	test_raft_all();
+	test_gtime_all();
 	printf("\n%d checks, %d failed\n", check_count, check_failures);
 	return check_failures ? 1 : 0;
 }

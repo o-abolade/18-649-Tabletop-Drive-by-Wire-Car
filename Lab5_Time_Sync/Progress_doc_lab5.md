@@ -47,7 +47,7 @@ Handout defaults: three nodes, cockpit default leader, 20 ms heartbeat, three mi
 
 ### 6. Time synchronization
 
-- [ ] Implement leader reference messages, follower global time and local drift correction.
+- [x] Implement leader reference messages, follower global time and local drift correction (step 3; host-tested, bench app built; scope check still to do).
 - [ ] Coordinate blinker timing and leader handover; measure the timing and drift bounds required by the handout.
 
 ### 7. Demo and checkoff
@@ -130,6 +130,57 @@ The Raft agent and client, still hardware-independent:
 APPENDs for already-committed entries carried "no commit information", so a
 rejoining node did not mark them replayed.
 
+### Step 3 (branch `lab5-raft-core`, 2026-11-12)
+
+Global time and PPS, plus a two-Nucleo bench app to check them on the
+scope before the Raft glue goes in:
+
+- `common/raft/gtime.{h,c}` (portable): the drift-corrected mapping from
+  local to global time, REF samples, outlier rejection, steps when the
+  master changes, and `global_gettime()`'s maths.
+- `common/zephyr/` (Lab 5 copies of the Lab 3 files): `can_link` now
+  accepts the Raft frames and timestamps the end of each frame from the
+  MCP2515 INT line in an ISR. `gsync.{h,c}`:
+  - per-bus REF send times;
+  - pairing on the follower;
+  - `global_gettime()` and `sys_clock_settime()`;
+  - the PPS output with one console line per edge, and a 1 s `DRIFT` line;
+  - the LEADER, SYNC and REF_RX pins.
+- `sync_bench/`: both Nucleos run time sync with a stand-in for the
+  election (N2 leads; N3 takes over after 100 ms without a REF). B1 toggles
+  "silent" on a node.
+- `tests/test_gtime.c`: 6 tests. Lock-in with ±40/−30 ppm crystals and
+  0–4 µs stamp jitter (error ≤ 10 µs, drift estimate within 3 ppm); 1 s
+  holdover (≤ 10 µs, against 70 µs without drift correction); outliers and
+  steps; leader handover without a step; the 4000 s wrap.
+
+**Result:** 32 tests, 740 checks, all passing (QEMU Cortex-M3). Both bench
+images build without warnings (N2 and N3: 46.8 KB flash, 20.5 KB RAM).
+**Not yet run on hardware.**
+
+**Pins (both STM32s):** PPS **PA4 (A2)**, REF_RX **PB10 (D6)**, LEADER
+**PC4** (CN10-34), SYNC **PC5** (CN10-6). All four were unused in Lab 3.
+
+**Bench run:**
+1. Build and flash, from the zephyrproject workspace:
+   ```
+   west build -p always -b nucleo_f401re 18-649-Tabletop-Drive-by-Wire-Car/Lab5_Time_Sync/sync_bench -d build_bench_n2 -- -DCONFIG_SYNC_BENCH_NODE=2
+   west flash -d build_bench_n2
+   west build -p always -b nucleo_f401re 18-649-Tabletop-Drive-by-Wire-Car/Lab5_Time_Sync/sync_bench -d build_bench_n3 -- -DCONFIG_SYNC_BENCH_NODE=3
+   west flash -d build_bench_n3
+   ```
+   Same CAN wiring as Lab 3. The Pi can stay off.
+2. Consoles: N2 prints `ROLE N2: master is N2`, N3 `master is N2`. Each
+   prints one `PPS` and one `DRIFT` line a second. On N3, `drift` should
+   settle within a few seconds (crystals: tens of ppm), `err@REF` should be a
+   few µs, and `bad stamps` should stay near 0.
+3. Scope: CH1 = N2 A2, CH2 = N3 A2, trigger on CH1's rising edge. Measure
+   the edge spread over a minute. Any constant offset is
+   `GSYNC_NET_DELAY_US`: set it and rebuild.
+4. Handover: press B1 on N2. N3 becomes master after 100 ms, with no visible
+   jump in N3's own PPS. Press B1 again: N2 follows N3, and its first
+   `err@REF` shows how far it drifted while silent.
+
 ### Questions for the course staff
 
 The checkoff sequence uses names and behaviour that the handout body does not
@@ -206,7 +257,8 @@ answered.
     previous `REF`'s send time)?
     *Assumption:* the leader timestamps `REF` at transmit completion and
     sends that time in the next `REF`; followers add a fixed delay measured
-    on the scope.
+    on the scope. (Step 3: both ends stamp the MCP2515 interrupt edge at the
+    end of the frame, so the delay is close to 0.)
 12. **Relayed sync delay.** Step 9 syncs a cut-off STM32 through a relayed
     `REF`. Should the follower correct for the extra relay hop?
     *Assumption:* yes. Relays keep forwarding frames unchanged (a "relayed"
