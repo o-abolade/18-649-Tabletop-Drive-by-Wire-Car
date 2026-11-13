@@ -99,6 +99,9 @@ struct raft {
 	bool timer_armed;           /* false until the default leader is heard */
 	int64_t boot_listen_until;  /* default leader's listen window */
 	uint32_t rng;
+	uint32_t seed;
+	bool cluster_wait;          /* LEADER=random: timer off until all heard */
+	int64_t cluster_wait_since;
 	uint8_t votes;              /* bit n = node n granted (pre)vote */
 
 	/* Leader state */
@@ -142,6 +145,19 @@ void raft_init(struct raft *r, unsigned self, const struct raft_io *io, int64_t 
  * the same value. */
 void raft_init_with_leader(struct raft *r, unsigned self, const struct raft_io *io,
 			   int64_t now_ms, unsigned default_leader, uint32_t seed);
+
+/* LEADER=random startup (checkoff 8). After raft_init_with_leader() with
+ * RAFT_LEADER_NONE, keep the election timer off until the whole cluster is
+ * up; the platform then reports, every few ms, which nodes it hears
+ * (bit n = node n). Once all N are heard (or a majority for
+ * RAFT_CLUSTER_WAIT_MS) the timer starts with a timeout of
+ * RAFT_ELECTION_BASE_MS + raft_boot_jitter_ms(seed, self): the node with
+ * the smallest jitter for the seed leads, whatever the boot order. */
+void raft_wait_for_cluster(struct raft *r, int64_t now_ms);
+void raft_cluster_heard(struct raft *r, unsigned heard_mask, int64_t now_ms);
+
+/* First election timeout jitter of `node` for `seed` (0..jitter_ms) */
+unsigned raft_boot_jitter_ms(uint32_t seed, unsigned node);
 
 /* Call every 1-5 ms: timers, REF, replication, client retries. */
 void raft_tick(struct raft *r, int64_t now_ms);

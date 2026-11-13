@@ -28,7 +28,8 @@
  *   --rt       pin to CPU 3, SCHED_FIFO 80, mlockall (PPS thread: CPU 2, FIFO 85)
  *   --no-gpio  run without the test-point GPIOs
  *   --leader   startup mode, as on the STM32s (default cockpit; env LEADER too)
- *   --seed     LEADER=random election jitter seed (default RAFT_SEED)
+ *   --seed     LEADER=random election jitter seed (default RAFT_SEED, an
+ *              STM32 wins); --seed=pi = RAFT_SEED_PI_WINS (the Pi wins)
  * Keys (then Enter): b = send ONE out-of-range CTRL (bad-input demo),
  *                    s = toggle the per-second status line, q = quit
  */
@@ -849,6 +850,12 @@ static void raft_observe(int64_t now)
 	}
 
 	unsigned n = netstate_observe(CANP_ZONE_N1, heard, alive, ev);
+	unsigned mask = 0;
+
+	for (unsigned x = 1; x <= RAFT_N; x++) {
+		mask |= alive[x] ? 1u << x : 0;
+	}
+	raft_cluster_heard(&raft, mask, now);   /* LEADER=random startup */
 
 	/* A queued report that is no longer observed is no longer true */
 	raft_client_retain(&raft, ev, n);
@@ -1022,6 +1029,8 @@ int main(int argc, char **argv)
 			start_leader = RAFT_LEADER_NONE;
 		} else if (!strcmp(argv[i], "--leader=cockpit")) {
 			start_leader = RAFT_DEFAULT_LEADER;
+		} else if (!strcmp(argv[i], "--seed=pi")) {
+			seed = RAFT_SEED_PI_WINS;   /* checkoff 8: the Pi wins */
 		} else if (!strncmp(argv[i], "--seed=", 7)) {
 			seed = (uint32_t)strtoul(argv[i] + 7, NULL, 0);
 		} else {
@@ -1076,6 +1085,9 @@ int main(int argc, char **argv)
 	printf("N1: LEADER=%s (seed 0x%x)\n", start_leader == RAFT_LEADER_NONE ? "random" : "cockpit",
 	       (unsigned)seed);
 	raft_init_with_leader(&raft, CANP_ZONE_N1, &raft_io_cb, now_ms(), start_leader, seed);
+	if (start_leader == RAFT_LEADER_NONE) {
+		raft_wait_for_cluster(&raft, now_ms());   /* the seed decides, not boot order */
+	}
 
 	int rfd = timerfd_create(CLOCK_MONOTONIC, 0);
 	struct itimerspec rits = {

@@ -10,7 +10,8 @@ config LAB5_LEADER_RANDOM
 
 config LAB5_RAFT_SEED
 	int "Seed for the LEADER=random election jitter"
-	default 24301
+	default 1856
 	help
-	  Each node mixes in its own ID. Checkoff step 8 needs one seed where
-	  the Pi wins the election; find it with the host simulator.
+	  Each node mixes in its own ID. 1856 (0x740, RAFT_SEED): an STM32
+	  wins. Holding B1 for 3 s at reset picks RAFT_SEED_PI_WINS instead
+	  (checkoff 8, "the seed that makes the Pi win").

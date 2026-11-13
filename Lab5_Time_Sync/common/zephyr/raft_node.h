@@ -15,8 +15,9 @@
  *   line with getNetwork().
  *
  * Startup mode: CONFIG_LAB5_LEADER_RANDOM picks LEADER=random, otherwise
- * LEADER=cockpit; holding B1 while the board resets picks the other one.
- * All three nodes must run the same mode.
+ * LEADER=cockpit; holding B1 while the board resets picks the other one,
+ * and holding it 3 s more picks the seed that makes the Pi win. All three
+ * nodes must run the same mode and seed.
  */
 #ifndef RAFT_NODE_H
 #define RAFT_NODE_H
@@ -33,6 +34,8 @@
 #define RAFT_NODE_BOOT_QUIET_MS  200
 #define RAFT_NODE_TICK_MS        2
 #define RAFT_NODE_OBSERVE_MS     10
+/* B1 held this long at reset (LEADER=random): use RAFT_SEED_PI_WINS */
+#define RAFT_NODE_SEED_HOLD_MS   3000
 
 /* Call after zone_core_init() (CAN is up). Starts gsync and the RAFT
  * thread. */

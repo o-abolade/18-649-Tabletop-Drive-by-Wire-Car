@@ -202,6 +202,21 @@ static void sim_run(struct sim *s, int64_t ms)
 				raft_tick(&s->node[n], s->now);
 			}
 		}
+		/* The platforms report every 10 ms which nodes they hear */
+		if (s->now % 10 == 0) {
+			for (unsigned n = 1; n <= RAFT_N; n++) {
+				unsigned mask = 0;
+
+				for (unsigned m = 1; m <= RAFT_N; m++) {
+					if (s->alive[m] && s->alive[n] && s->reach[m][n]) {
+						mask |= 1u << m;
+					}
+				}
+				if (s->alive[n]) {
+					raft_cluster_heard(&s->node[n], mask, s->now);
+				}
+			}
+		}
 		s->now++;
 	}
 }
@@ -637,6 +652,60 @@ static void test_random_mode(void)
 	CHECK(pi_won);
 }
 
+/* Checkoff 8 on hardware: the Nucleos boot ~30 s before the Pi. With
+ * LEADER=random they wait for the whole cluster, so the seed (not the boot
+ * order) picks the first leader: an STM32 with RAFT_SEED, the Pi with
+ * RAFT_SEED_PI_WINS. Without the Pi they elect after RAFT_CLUSTER_WAIT_MS. */
+static void boot_random_waiting(uint32_t seed, unsigned mask)
+{
+	sim_start(&sim, RAFT_LEADER_NONE, seed, 0);
+	for (unsigned n = 1; n <= RAFT_N; n++) {
+		if (mask & (1u << n)) {
+			sim_boot(&sim, n);
+			raft_wait_for_cluster(&sim.node[n], sim.now);
+		}
+	}
+}
+
+static void test_random_waits_for_cluster(void)
+{
+	/* Seeds: margins of 30 ms or more cover the Pi arming up to ~20 ms late */
+	CHECK(raft_boot_jitter_ms(RAFT_SEED, S) + 30 <= raft_boot_jitter_ms(RAFT_SEED, C));
+	CHECK(raft_boot_jitter_ms(RAFT_SEED, S) + 30 <= raft_boot_jitter_ms(RAFT_SEED, D));
+	CHECK(raft_boot_jitter_ms(RAFT_SEED_PI_WINS, C) + 30 <=
+	      raft_boot_jitter_ms(RAFT_SEED_PI_WINS, S));
+	CHECK(raft_boot_jitter_ms(RAFT_SEED_PI_WINS, C) + 30 <=
+	      raft_boot_jitter_ms(RAFT_SEED_PI_WINS, D));
+
+	for (int pi_seed = 0; pi_seed < 2; pi_seed++) {
+		uint32_t seed = pi_seed ? RAFT_SEED_PI_WINS : RAFT_SEED;
+
+		/* The Nucleos boot; 3 s later the Pi */
+		boot_random_waiting(seed, (1u << S) | (1u << D));
+		sim_run(&sim, 3000);
+		CHECK_EQ(leaders(&sim, NULL), 0);
+		CHECK_EQ(sim.sent[RAFTP_REQ_VOTE], 0);
+		sim_boot(&sim, C);
+		raft_wait_for_cluster(&sim.node[C], sim.now);
+		sim_run(&sim, 20);   /* the Pi's first heartbeats reach it later */
+		sim_run(&sim, 1000);
+
+		unsigned who = 0;
+
+		CHECK_EQ(leaders(&sim, &who), 1);
+		CHECK_EQ(who, pi_seed ? C : S);
+		CHECK_EQ(sim.node[who].term, 1);
+		CHECK(sim.safety_ok);
+	}
+
+	/* The Pi never comes: the Nucleos elect after RAFT_CLUSTER_WAIT_MS */
+	boot_random_waiting(RAFT_SEED, (1u << S) | (1u << D));
+	sim_run(&sim, RAFT_CLUSTER_WAIT_MS - 100);
+	CHECK_EQ(leaders(&sim, NULL), 0);
+	sim_run(&sim, 500);
+	CHECK_EQ(leaders(&sim, NULL), 1);
+}
+
 /* A Nucleo reboots after the leader compacted the entries it needs: it is
  * caught up with one SNAPSHOT frame and the entries after it. */
 static void test_snapshot_catch_up(void)
@@ -702,6 +771,7 @@ void test_raft_all(void)
 	RUN(test_isolated_follower);
 	RUN(test_isolated_leader);
 	RUN(test_random_mode);
+	RUN(test_random_waits_for_cluster);
 	RUN(test_snapshot_catch_up);
 	RUN(test_lossy_network);
 	RUN(test_client_withdraw);

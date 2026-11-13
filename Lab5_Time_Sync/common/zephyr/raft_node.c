@@ -281,6 +281,13 @@ static void raft_thread(void *a, void *b, void *c)
 			}
 		}
 		observe(now, heard, alive);
+
+		unsigned mask = 0;
+
+		for (unsigned x = 1; x <= RAFT_N; x++) {
+			mask |= alive[x] ? 1u << x : 0;
+		}
+		raft_cluster_heard(&r, mask, now);   /* LEADER=random startup */
 		publish(now, heard);
 	}
 }
@@ -299,17 +306,31 @@ void raft_node_init(enum canp_zone zone)
 	/* LEADER=cockpit or LEADER=random; B1 held at reset flips it */
 	bool random_mode = IS_ENABLED(CONFIG_LAB5_LEADER_RANDOM);
 
-	if (gpio_pin_get_dt(&boot_btn) > 0) {
+	bool held = gpio_pin_get_dt(&boot_btn) > 0;
+	uint32_t seed = CONFIG_LAB5_RAFT_SEED;
+
+	if (held) {
 		random_mode = !random_mode;
+		/* Still held 3 s later: the seed that makes the Pi win */
+		int64_t until = k_uptime_get() + RAFT_NODE_SEED_HOLD_MS;
+
+		while (k_uptime_get() < until && gpio_pin_get_dt(&boot_btn) > 0) {
+			k_msleep(20);
+		}
+		if (gpio_pin_get_dt(&boot_btn) > 0) {
+			seed = RAFT_SEED_PI_WINS;
+		}
 	}
 	start_leader = random_mode ? RAFT_LEADER_NONE : RAFT_DEFAULT_LEADER;
-	printk("RAFT N%u: LEADER=%s%s (seed 0x%x)\n", self, random_mode ? "random" : "cockpit",
-	       gpio_pin_get_dt(&boot_btn) > 0 ? " (B1 held at boot)" : "",
-	       (unsigned)CONFIG_LAB5_RAFT_SEED);
+	printk("RAFT N%u: LEADER=%s%s (seed 0x%x%s)\n", self, random_mode ? "random" : "cockpit",
+	       held ? " (B1 held at boot)" : "", (unsigned)seed,
+	       seed == RAFT_SEED_PI_WINS ? ", the Pi wins" : "");
 
 	gsync_init(self);
-	raft_init_with_leader(&r, self, &io, k_uptime_get(), start_leader,
-			      CONFIG_LAB5_RAFT_SEED);
+	raft_init_with_leader(&r, self, &io, k_uptime_get(), start_leader, seed);
+	if (random_mode) {
+		raft_wait_for_cluster(&r, k_uptime_get());
+	}
 	k_thread_start(raft_tid);
 }
 

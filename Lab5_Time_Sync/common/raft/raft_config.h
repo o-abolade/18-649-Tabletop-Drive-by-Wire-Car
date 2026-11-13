@@ -66,10 +66,25 @@
 #endif
 
 /* Seed for the election jitter in LEADER=random mode; each node mixes in its
- * own ID so the three nodes draw different timeouts from one seed. */
+ * own ID so the three nodes draw different timeouts from one seed. With the
+ * default an STM32 leads (checkoff 8): first timeouts, base + jitter, are
+ * cockpit 39 ms, steering 1 ms, drivetrain 39 ms (raft_boot_jitter_ms). */
 #ifndef RAFT_SEED
-#define RAFT_SEED             0x5EEDu
+#define RAFT_SEED             0x740u
 #endif
+
+/* Checkoff 8, "the seed that makes the Pi win": with this seed the cockpit's
+ * first election timeout is the shortest by a clear margin
+ * (raft_boot_jitter_ms; test_raft.c checks both seeds). */
+#ifndef RAFT_SEED_PI_WINS
+#define RAFT_SEED_PI_WINS     0x209u   /* cockpit 2 ms, steering 38, drivetrain 38 */
+#endif
+
+/* LEADER=random: a node starts its election timer only once it hears all N
+ * nodes, or after this long with a majority, so the seed (not the boot
+ * order) decides the first leader. After a power cycle the Pi boots about
+ * 30 s after the Nucleos, so the fallback must be longer than that. */
+#define RAFT_CLUSTER_WAIT_MS  60000
 
 /* Debug: print election and append messages. */
 #ifndef RAFT_DEBUG

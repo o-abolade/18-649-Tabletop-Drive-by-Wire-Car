@@ -465,6 +465,7 @@ static bool accept_leader_msg(struct raft *r, unsigned sender, uint8_t term, int
 	}
 	r->last_heard_ms = now;
 	r->timer_armed = true;
+	r->cluster_wait = false;   /* a leader exists: no need to wait */
 	r->boot_listen_until = 0;
 	reset_election_timer(r, now);
 	return true;
@@ -842,6 +843,7 @@ void raft_init_with_leader(struct raft *r, unsigned self, const struct raft_io *
 	r->io = *io;
 	raft_log_init(&r->log);
 	netstate_init(&r->state);
+	r->seed = seed;
 	r->rng = (seed * 2654435761u) ^ (self * 0x9E3779B9u);
 	if (r->rng == 0) {
 		r->rng = 1;
@@ -866,6 +868,50 @@ void raft_init_with_leader(struct raft *r, unsigned self, const struct raft_io *
 	reset_election_timer(r, now_ms);
 	dbg(r, "boot term %u leader %s", r->term, r->leader ? raft_node_name(r->leader) : "none");
 	notify_role(r);
+}
+
+unsigned raft_boot_jitter_ms(uint32_t seed, unsigned node)
+{
+	/* A fixed hash of (seed, node), the same on every platform */
+	uint32_t h = (seed * 2654435761u) ^ ((uint32_t)node * 0x9E3779B9u);
+
+	h ^= h >> 16;
+	h *= 0x85EBCA6Bu;
+	h ^= h >> 13;
+	h *= 0xC2B2AE35u;
+	h ^= h >> 16;
+	return h % (RAFT_ELECTION_JITTER_MS + 1);
+}
+
+void raft_wait_for_cluster(struct raft *r, int64_t now_ms)
+{
+	if (r->role != RAFT_FOLLOWER || r->leader != 0) {
+		return;
+	}
+	r->cluster_wait = true;
+	r->timer_armed = false;
+	r->cluster_wait_since = now_ms;
+	dbg(r, "LEADER=random: waiting for the cluster (seed 0x%x, my jitter %u ms)",
+	    (unsigned)r->seed, raft_boot_jitter_ms(r->seed, r->self));
+}
+
+void raft_cluster_heard(struct raft *r, unsigned heard_mask, int64_t now_ms)
+{
+	if (!r->cluster_wait) {
+		return;
+	}
+	unsigned n = popcount((uint8_t)((heard_mask | (1u << r->self)) & 0xFF));
+	bool all = n >= RAFT_N;
+
+	if (!all && !(n >= RAFT_MAJORITY && now_ms - r->cluster_wait_since >= RAFT_CLUSTER_WAIT_MS)) {
+		return;
+	}
+	r->cluster_wait = false;
+	r->timer_armed = true;
+	r->election_deadline = now_ms + RAFT_ELECTION_BASE_MS +
+			       raft_boot_jitter_ms(r->seed, r->self);
+	dbg(r, "cluster %s: first election timeout %u ms", all ? "complete" : "majority (fallback)",
+	    RAFT_ELECTION_BASE_MS + raft_boot_jitter_ms(r->seed, r->self));
 }
 
 void raft_init(struct raft *r, unsigned self, const struct raft_io *io, int64_t now_ms)
