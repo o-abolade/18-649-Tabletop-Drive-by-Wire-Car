@@ -911,6 +911,11 @@ void raft_on_frame(struct raft *r, uint32_t id, const uint8_t d[RAFTP_DLC], int6
 	 * acknowledgements far ahead are dropped. Leader messages are kept: a
 	 * rebooted node learns the current term from them. The raw frame is
 	 * logged to find the source. */
+	if ((d[0] >> 4) != raftp_crc4(d)) {
+		dbg(r, "dropped, bad CRC in id 0x%03x: %02x %02x %02x %02x %02x %02x %02x %02x",
+		    (unsigned)id, d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
+		return;
+	}
 	if (kind == RAFTP_REQ_VOTE || kind == RAFTP_VOTE || kind == RAFTP_APPEND_ACK ||
 	    kind == RAFTP_REF || kind == RAFTP_APPEND || kind == RAFTP_SNAPSHOT) {
 		bool leader_msg = kind == RAFTP_REF || kind == RAFTP_APPEND ||

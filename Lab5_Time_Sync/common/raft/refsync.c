@@ -122,5 +122,6 @@ void refsync_fill_ref(struct refsync *s, const uint8_t d[RAFTP_DLC],
 			put_u32(&out[bus][3], 0);
 			out[bus][7] &= (uint8_t)~RAFTP_REF_TIME_VALID;
 		}
+		raftp_seal(out[bus]);   /* bytes 3-7 changed */
 	}
 }

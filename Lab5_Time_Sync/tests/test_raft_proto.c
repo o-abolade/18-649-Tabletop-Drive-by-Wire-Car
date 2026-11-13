@@ -54,7 +54,8 @@ static void test_ref(void)
 	struct raftp_ref out;
 
 	raftp_encode_ref(d, 0x1B, &in);   /* only the low nibble of seq is kept */
-	CHECK_EQ(d[0], 0x0B);
+	CHECK_EQ(d[0] & 0x0F, 0x0B);
+	CHECK_EQ(d[0] >> 4, raftp_crc4(d));
 	CHECK_EQ(d[3], 0xD4);   /* little-endian master time */
 	CHECK_EQ(d[6], 0xA1);
 	CHECK(raftp_decode_ref(d, &out));
@@ -63,8 +64,20 @@ static void test_ref(void)
 	CHECK_EQ(out.prev_send_us, 0xA1B2C3D4u);
 	CHECK_EQ(out.flags, in.flags);
 
-	d[0] |= 0x10;   /* a set flags nibble is malformed */
+	d[0] ^= 0x10;   /* a wrong CRC nibble is malformed */
 	CHECK(!raftp_decode_ref(d, &out));
+	d[0] ^= 0x10;
+	d[0] = (uint8_t)((d[0] & 0xF0) | 0x05);   /* the seq nibble is not covered */
+	CHECK(raftp_decode_ref(d, &out));
+
+	/* The garbled frames seen on the Pi are rejected */
+	const uint8_t bad1[8] = { 0x0f, 0xf0, 0x01, 0, 0, 0, 0, 0 };   /* "term 240" */
+	const uint8_t bad2[8] = { 0xf8, 0, 0, 0, 0, 0, 0, 0 };
+	struct raftp_append ap;
+	struct raftp_append_ack ak;
+
+	CHECK(!raftp_decode_append(bad1, &ap));
+	CHECK(!raftp_decode_append_ack(bad2, &ak));
 }
 
 static void test_votes(void)
@@ -79,7 +92,7 @@ static void test_votes(void)
 	CHECK_EQ(rv2.last_index, 30000);
 	CHECK_EQ(rv2.last_term, 2);
 	CHECK(rv2.pre);
-	d[5] = 2;   /* pre must be 0/1 */
+	d[5] = 2; raftp_seal(d);   /* pre must be 0/1 */
 	CHECK(!raftp_decode_req_vote(d, &rv2));
 
 	raftp_encode_vote(d, 2, &v);
@@ -87,10 +100,10 @@ static void test_votes(void)
 	CHECK_EQ(v2.candidate, 2);
 	CHECK(v2.granted);
 	CHECK(v2.pre);
-	d[3] = 2;   /* granted must be 0/1 */
+	d[3] = 2; raftp_seal(d);   /* granted must be 0/1 */
 	CHECK(!raftp_decode_vote(d, &v2));
 	d[3] = 0;
-	d[2] = 9;   /* candidate out of range */
+	d[2] = 9; raftp_seal(d);   /* candidate out of range */
 	CHECK(!raftp_decode_vote(d, &v2));
 }
 
@@ -155,7 +168,7 @@ static void test_ack_and_events(void)
 	CHECK_EQ(e2.leader, 1);
 	CHECK_EQ(e2.event, 0x47);
 	CHECK_EQ(e2.client_seq, 33);
-	d[1] = 0;   /* addressed leader must be a node */
+	d[1] = 0; raftp_seal(d);   /* addressed leader must be a node */
 	CHECK(!raftp_decode_event(d, &e2));
 
 	raftp_encode_event_resp(d, 0, &r);
@@ -166,7 +179,7 @@ static void test_ack_and_events(void)
 	r.result = RAFTP_RESULT_NO_LEADER;
 	raftp_encode_event_resp(d, 0, &r);
 	CHECK(raftp_decode_event_resp(d, &r2));
-	d[3] = 7;   /* unknown result code */
+	d[3] = 7; raftp_seal(d);   /* unknown result code */
 	CHECK(!raftp_decode_event_resp(d, &r2));
 }
 

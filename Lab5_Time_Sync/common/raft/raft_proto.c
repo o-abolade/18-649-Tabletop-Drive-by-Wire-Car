@@ -64,16 +64,40 @@ static uint32_t get32(const uint8_t *p)
 	return get16(p) | ((uint32_t)get16(p + 2) << 16);
 }
 
-/* Byte 0: seq in the low nibble, flags nibble 0 */
+/* Byte 0: seq in the low nibble; the high nibble is a CRC-4 of bytes 1-7
+ * (raftp_seal) */
 static void start(uint8_t d[RAFTP_DLC], uint8_t seq)
 {
 	memset(d, 0, RAFTP_DLC);
 	d[0] = seq & 0x0F;
 }
 
+uint8_t raftp_crc4(const uint8_t d[RAFTP_DLC])
+{
+	uint8_t crc = 0;
+
+	for (int i = 1; i < RAFTP_DLC; i++) {
+		for (int bit = 7; bit >= 0; bit--) {
+			uint8_t in = (d[i] >> bit) & 1;
+			uint8_t top = (crc >> 3) & 1;
+
+			crc = (uint8_t)((crc << 1) & 0x0F);
+			if (top ^ in) {
+				crc ^= 0x3;   /* x^4 + x + 1 */
+			}
+		}
+	}
+	return crc;
+}
+
+void raftp_seal(uint8_t d[RAFTP_DLC])
+{
+	d[0] = (uint8_t)((raftp_crc4(d) << 4) | (d[0] & 0x0F));
+}
+
 static bool flags_ok(const uint8_t d[RAFTP_DLC])
 {
-	return (d[0] & 0xF0) == 0;
+	return (d[0] >> 4) == raftp_crc4(d);
 }
 
 static bool is_bool(uint8_t b)
@@ -109,7 +133,7 @@ void raftp_encode_ref(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_ref 
 	d[1] = m->term;
 	d[2] = m->cycle;
 	put32(&d[3], m->prev_send_us);
-	d[7] = m->flags;
+	d[7] = m->flags;	raftp_seal(d);
 }
 
 bool raftp_decode_ref(const uint8_t d[RAFTP_DLC], struct raftp_ref *m)
@@ -130,7 +154,7 @@ void raftp_encode_req_vote(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp
 	d[1] = m->term;
 	put16(&d[2], m->last_index);
 	d[4] = m->last_term;
-	d[5] = m->pre ? 1 : 0;
+	d[5] = m->pre ? 1 : 0;	raftp_seal(d);
 }
 
 bool raftp_decode_req_vote(const uint8_t d[RAFTP_DLC], struct raftp_req_vote *m)
@@ -151,7 +175,7 @@ void raftp_encode_vote(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_vot
 	d[1] = m->term;
 	d[2] = m->candidate;
 	d[3] = m->granted ? 1 : 0;
-	d[4] = m->pre ? 1 : 0;
+	d[4] = m->pre ? 1 : 0;	raftp_seal(d);
 }
 
 bool raftp_decode_vote(const uint8_t d[RAFTP_DLC], struct raftp_vote *m)
@@ -174,7 +198,7 @@ void raftp_encode_append(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_a
 	d[4] = m->entry_term;
 	d[5] = m->prev_term;
 	d[6] = m->event;
-	d[7] = m->commit_delta;
+	d[7] = m->commit_delta;	raftp_seal(d);
 }
 
 bool raftp_decode_append(const uint8_t d[RAFTP_DLC], struct raftp_append *m)
@@ -198,7 +222,7 @@ void raftp_encode_append_ack(uint8_t d[RAFTP_DLC], uint8_t seq,
 	start(d, seq);
 	d[1] = m->term;
 	d[2] = m->success ? 1 : 0;
-	put16(&d[3], m->match_index);
+	put16(&d[3], m->match_index);	raftp_seal(d);
 }
 
 bool raftp_decode_append_ack(const uint8_t d[RAFTP_DLC], struct raftp_append_ack *m)
@@ -217,7 +241,7 @@ void raftp_encode_event(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_ev
 	start(d, seq);
 	d[1] = m->leader;
 	d[2] = m->event;
-	d[3] = m->client_seq;
+	d[3] = m->client_seq;	raftp_seal(d);
 }
 
 bool raftp_decode_event(const uint8_t d[RAFTP_DLC], struct raftp_event *m)
@@ -239,7 +263,7 @@ void raftp_encode_event_resp(uint8_t d[RAFTP_DLC], uint8_t seq,
 	d[2] = m->client_seq;
 	d[3] = m->result;
 	d[4] = m->leader;
-	put16(&d[5], m->index);
+	put16(&d[5], m->index);	raftp_seal(d);
 }
 
 bool raftp_decode_event_resp(const uint8_t d[RAFTP_DLC], struct raftp_event_resp *m)
@@ -262,7 +286,7 @@ void raftp_encode_snapshot(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp
 	d[1] = m->term;
 	put16(&d[2], m->index);
 	d[4] = m->index_term;
-	put16(&d[5], m->state);
+	put16(&d[5], m->state);	raftp_seal(d);
 }
 
 bool raftp_decode_snapshot(const uint8_t d[RAFTP_DLC], struct raftp_snapshot *m)

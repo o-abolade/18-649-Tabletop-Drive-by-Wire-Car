@@ -1,9 +1,11 @@
 /*
  * Lab 5 CAN frames for Raft and time sync (design.md section 3).
  *
- * Every frame: standard 11-bit ID, DLC 8, sent on both buses. Byte 0 keeps
- * the Lab 3 rule: low nibble = 4-bit sequence counter, high nibble = flags
- * (0). Each kind has a separate ID per sender (base + node), so two nodes
+ * Every frame: standard 11-bit ID, DLC 8, sent on both buses. Byte 0: low
+ * nibble = 4-bit sequence counter (the Lab 3 rule), high nibble = CRC-4
+ * (x^4 + x + 1) of bytes 1-7. CAN's own CRC protects the wire, but frames
+ * with a Raft ID and another frame's data reached the Pi's socket (the
+ * mcp251x driver under load), and one carried term 240 into the cluster. Each kind has a separate ID per sender (base + node), so two nodes
  * that briefly both act as leader never send the same ID with different
  * data. Terms are 8 bits (they stop at 255 rather than wrap; raft.c) and
  * log indexes 16 bits, little-endian.
@@ -162,8 +164,14 @@ struct raftp_snapshot {
 	uint16_t state;
 };
 
-/* Encoders fill all 8 bytes; `seq` goes in the low nibble of byte 0 (the
- * Zephyr can_link_send() overwrites it anyway). */
+/* CRC-4 of bytes 1-7, and writing it into byte 0's high nibble. Encoders
+ * seal; a sender that changes bytes 1-7 afterwards (refsync_fill_ref) seals
+ * again. Rewriting the seq nibble (can_link_send) keeps the seal. */
+uint8_t raftp_crc4(const uint8_t d[RAFTP_DLC]);
+void raftp_seal(uint8_t d[RAFTP_DLC]);
+
+/* Encoders fill all 8 bytes and seal; `seq` goes in the low nibble of byte 0
+ * (the Zephyr can_link_send() overwrites it anyway). */
 void raftp_encode_ref(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_ref *m);
 void raftp_encode_req_vote(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_req_vote *m);
 void raftp_encode_vote(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_vote *m);
@@ -175,7 +183,7 @@ void raftp_encode_event_resp(uint8_t d[RAFTP_DLC], uint8_t seq,
 			     const struct raftp_event_resp *m);
 void raftp_encode_snapshot(uint8_t d[RAFTP_DLC], uint8_t seq, const struct raftp_snapshot *m);
 
-/* Decoders return false for a malformed payload (non-zero flags nibble, an
+/* Decoders return false for a malformed payload (CRC-4 mismatch, an
  * out-of-range node, or a boolean byte other than 0/1). */
 bool raftp_decode_ref(const uint8_t d[RAFTP_DLC], struct raftp_ref *m);
 bool raftp_decode_req_vote(const uint8_t d[RAFTP_DLC], struct raftp_req_vote *m);

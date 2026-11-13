@@ -322,8 +322,37 @@ Bugs found by these runs and fixed (each has a simulator test):
   dropped and logged with their raw bytes; the term stops at 255 instead of
   wrapping. Source still to be found from those logs.
 
-**Still to test (needs jumpers):** checkoff 9 (relayed sync with an STM32
-master), and a clean rerun of 4 and 5 with these fixes.
+**Clean rerun with the fixes (2026-11-13, Pi as leader, then an STM32):**
+- *Checkoff 4:* N3 A out/in gives `#2 CANLINK_drivetrain_A_DOWN` and
+  `#3 _UP`, one entry per change, term 1 throughout.
+- *Checkoff 5:* Pi B + N3 A out gives exactly `#4 CANLINK_drivetrain_A_DOWN`
+  and `#5 CANLINK_cockpit_B_DOWN`, term unchanged. N3 lost the leader for
+  8 ms while the relay started; pre-vote kept the term.
+- *Checkoff 6-7:* the Pi powered off and N2 leads term 2 (one election),
+  with `NODE_cockpit_DOWN` and `COCKPIT_ERROR`. The Pi powers on, boots,
+  rejoins as a follower, replays #1-#13 once each, in order, marked
+  `(replayed)`, then live entries. LEADER stays on N2.
+- *Relayed sync with an STM32 master:* N2 leads, Pi off B, N2 off A. N3 is
+  the relay (committed graph and heartbeats agree) and forwards about 194
+  frames/s. The Pi syncs through the relayed REF: worst error per second
+  90-150 µs (direct: 47-63 µs), mean about 0, so the 400 µs relay-delay
+  estimate is right. No steps.
+- *Isolated follower (checkoff 10, by accident):* the Pi lost both links.
+  `NODE_cockpit_DOWN`/`COCKPIT_ERROR` were committed; the Pi pre-voted for
+  6 s without raising the term, then rejoined and caught up.
+
+**Corrupted frames: found and closed.** Two runs had frames with a Raft ID
+and another frame's data reaching the Pi's socket (`0f f0 01 00 ...` read as
+an APPEND for term 240), together with bursts of `mcp251x spi0.0:
+hard_xmit called while tx busy` in the Pi's kernel log. Both started after
+the CAN driver's threads were given real-time priority, so `boot_can.sh` now
+puts them back to the kernel defaults. As defence in depth, every Raft frame
+carries a CRC-4 of bytes 1-7 in byte 0's high nibble; a garbled frame passes
+only 1 time in 16, and then still meets the term guard. The next run had no
+CRC drops, no bad terms and no new driver errors.
+
+**Still open:** checkoff 9 as written (see question 13); scope
+measurements.
 
 ### Questions for the course staff
 
@@ -409,3 +438,13 @@ answered.
     flag caused same-ID collisions in Lab 3), so the follower uses its routing
     table: if the leader has no link on the bus the `REF` arrived on, the
     `REF` was relayed and the follower adds the measured relay delay.
+13. **Checkoff 9 needs the Pi to relay.** "With an STM32 leading, pull the
+    scenario (c) jumpers so the other STM32 is cut off." For N2 and N3 to
+    share no bus, one must be on A only and the other on B only, and only
+    the Pi is then on both. In Lab 3 the relay had to run on an STM32 (the
+    Pi has no worst-case timing bound), and the Lab 3 checkoff did not test
+    this case. Should the Pi relay in Lab 5, or does "cut off" mean cut off
+    from the Pi?
+    *Assumption:* the Pi still never relays. We demonstrate relayed sync
+    with an STM32 master where an STM32 relays (N2 leads; Pi off B, N2 off
+    A; N3 relays N2's REF to the Pi).
