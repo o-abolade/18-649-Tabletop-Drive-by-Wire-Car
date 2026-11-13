@@ -6,9 +6,13 @@ Handout: [Lab 5: Time Synchronization and Consensus](../Lab%20Handouts/18-449_64
 
 - [x] Add the Lab 5 handout to the repository.
 - [x] Review the handout; questions for the course staff are listed under "Questions for the course staff" below.
-- [ ] Resolve those questions with the course staff.
-- [ ] Choose the architecture, task ownership, interfaces, and integration plan.
-- [ ] Implement and test the system and complete the report and checkoff.
+- [ ] Resolve those questions with the course staff (13 open; question 13
+  decides whether the Pi relays for checkoff 9).
+- [x] Choose the architecture, task ownership, interfaces, and integration
+  plan ([design.md](design.md)).
+- [x] Implement and test the system (hardware, 2026-11-13) and write the
+  report (`Doc/lab5/lab5_report.pdf`).
+- [ ] Checkoff with the TA.
 
 ## Implementation checklist
 
@@ -21,53 +25,53 @@ Handout: [Lab 5: Time Synchronization and Consensus](../Lab%20Handouts/18-449_64
 
 - [x] Implement the identical cluster configuration and predefined-leader startup in term 1 (step 1–2; host-tested).
 - [x] Implement leader heartbeats, missed-heartbeat detection, randomized election timeouts and majority voting (step 2, with pre-vote and check-quorum; host-tested).
-- [ ] Test leader failure and recovery without unnecessary elections for isolated link failures (passes in the simulator; hardware still to do).
+- [x] Test leader failure and recovery without unnecessary elections for isolated link failures (hardware: checkoff 4, 6-7, 10; one election per leader loss, term unchanged on link faults).
 
 Handout defaults: three nodes, cockpit default leader, 20 ms heartbeat, three missed heartbeats, 0–39 ms election jitter and 30,000 log entries. Confirm how all startup modes in the checkoff map to the configuration.
 
 ### 3. Replicated log
 
 - [x] Implement term, index and event fields, replication, commit and recovery (step 2; host-tested).
-- [ ] Record cockpit state, node up/down and each node's individual CAN A/B link up/down events (event codes done in step 1; detection from the heartbeat monitor is step 4).
-- [ ] Verify consistent ordering and recovery after node and link failures (passes in the simulator; hardware still to do).
+- [x] Record cockpit state, node up/down and each node's individual CAN A/B link up/down events (step 4: `netstate_observe()` from the heartbeat monitor).
+- [x] Verify consistent ordering and recovery after node and link failures (hardware: the three logs were identical in every run; replay after reboot once, in order).
 
 ### 4. Raft state machine
 
 - [x] Implement log-applied network graph mutations and `getNetwork()`
   (`common/raft/netstate.c`; host-tested, 2026-11-12).
-- [ ] Verify each node converges on the same committed network state (host
-  test: replaying one log on two nodes gives the same graph; on hardware
-  still to do).
+- [x] Verify each node converges on the same committed network state (host
+  test, and on hardware: the `getNetwork()` status line matched on all three
+  nodes in every run).
 
 ### 5. Routing and relaying
 
-- [ ] Derive routing tables from each node's committed network state.
-- [ ] Handle multi-link failure and information propagation, including relayed traffic and recovery.
-- [ ] Confirm the handout's Part 5 checkpoint and replay behavior against the final design.
+- [x] Derive routing tables from each node's committed network state (`netstate_routes()`, `relay.c`).
+- [x] Handle multi-link failure and information propagation, including relayed traffic and recovery (heartbeat link health + 200 ms node-down; checkoff 5 committed exactly two entries; relayed sync with an STM32 master).
+- [x] Confirm the handout's Part 5 checkpoint and replay behavior against the final design (checkoff 6-7 on hardware; question 10 asks which scenario is meant).
 
 ### 6. Time synchronization
 
-- [x] Implement leader reference messages, follower global time and local drift correction (step 3; host-tested, bench app built; scope check still to do).
-- [ ] Coordinate blinker timing and leader handover; measure the timing and drift bounds required by the handout.
+- [x] Implement leader reference messages, follower global time and local drift correction (step 3; scope: PPS spread < 1 µs).
+- [x] Coordinate blinker timing and leader handover; measure the timing and drift bounds required by the handout (step 5: FL/RL 0.5 µs, 0.74 µs at 4 Hz after the handover, turn signals 0-1 µs, HZ 46 µs).
 
 ### 7. Demo and checkoff
 
-- [ ] Prepare leader-election, log-integrity and synchronization demonstrations.
-- [ ] Run the handout's cold-start, traffic, blinker, link-fault, relay, leader-failure, rejoin, random-leader and isolation scenarios.
-- [ ] Capture scope evidence: FL/RL synchronization, failure response, leader handover and relayed synchronization.
-- [ ] Review the handout's Redis/GUI requirements and their applicability with the course staff; implement and demonstrate as required.
+- [x] Prepare leader-election, log-integrity and synchronization demonstrations.
+- [x] Run the handout's cold-start, traffic, blinker, link-fault, relay, leader-failure, rejoin, random-leader and isolation scenarios (all on hardware, 2026-11-13; checkoff 9 only with an STM32 relaying, see question 13).
+- [ ] Capture scope evidence: FL/RL synchronization, failure response and leader handover are measured; relayed synchronization so far only from the consoles (Pi 90-150 µs).
+- [ ] Redis/GUI extra credit (optional, 15 points): not started.
 
 ## Report and submission
 
-- [ ] Submit the report to Gradescope with the GitHub link.
-- [ ] Explain drift detection and adjustment (maximum one page).
-- [ ] Describe the Raft state machine (maximum one page).
-- [ ] Explain client functionality and CAN routing during multi-link failures (maximum one page).
-- [ ] Prepare every team member for checkoff questions.
+- [ ] Submit the report to Gradescope with the GitHub link (`Doc/lab5/lab5_report.pdf`).
+- [x] Explain drift detection and adjustment (maximum one page; report section 1).
+- [x] Describe the Raft state machine (maximum one page; report section 2).
+- [x] Explain client functionality and CAN routing during multi-link failures (maximum one page; report section 3).
+- [x] Prepare every team member for checkoff questions ([Checkoff_QA.md](Checkoff_QA.md); every team member should read it).
 
 ## Decisions, measurements and open questions
 
-Record the owner, evidence and completion date beside each item as work progresses. Timing results and hardware behavior are not yet verified for Lab 5.
+Record the owner, evidence and completion date beside each item as work progresses. Timing results and hardware behavior below were measured on the bench (Pi + N2 + N3) on 2026-11-12/13.
 
 **Hardware:** the Lab 3 setup (Pi + two Nucleos, six XIAO CAN modules,
 blinker/DEG/ERR LEDs, test-point boards). The Lab 4 PCB has not arrived.
@@ -418,6 +422,26 @@ Pi set to `--leader=random`.
   CAN bus. Reseating the jumpers cleared it, though it came back once
   later. Reseat or replace those jumpers before the checkoff. The CRC and
   the term guard dropped every bad frame.
+
+### Wrap-up (2026-11-13)
+
+- **Report:** `Doc/lab5/lab5_report.md` / `.pdf`, three one-page sections,
+  code pinned to commit `5c54aca` (only documentation changed after it).
+  Exported with `Lab5_Time_Sync/tools/export_report_pdf.py`.
+- **design.md** rewritten to describe the system as built and tested.
+- **Checkoff_QA.md:** short answers to the likely checkoff questions,
+  including "what would change with four nodes", and a quick reference for
+  running the checkoff.
+- **Merged `lab5-raft-core` into `main`** (fast-forward). The Pi runs the
+  cockpit from its clone via `lab5-cockpit.service`.
+
+**Before the checkoff:**
+1. Get the TA's answers to the open questions; question 13 decides whether
+   to add the Pi as a fallback relay (a few hours: routing fallback, Pi
+   forwarding, bench test of checkoff 9).
+2. Reseat or replace the Pi's bus A module wiring (header pins 19, 21, 22,
+   23, 24, 3V3, GND). It caused the corrupted frames.
+3. Optional: a scope capture of relayed sync (checkoff 9) for the record.
 
 ### Questions for the course staff
 
