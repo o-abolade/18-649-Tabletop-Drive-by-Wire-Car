@@ -166,6 +166,12 @@ images build without warnings (N2 and N3: 46.8 KB flash, 20.5 KB RAM).
 - **Calibrated: `GSYNC_NET_DELAY_US` = −2 µs (one bit). Spread after
   calibration: under 1 µs.** The remaining jitter comes from whole-µs
   timestamps on both nodes and interrupt entry time.
+- **Handover and holdover (B1 on N2):** N2 went silent and N3 took over as
+  master, with no visible change in either PPS on the scope. N3 then kept
+  N2's time base using its drift estimate (−4.35 ppm). After about 83 s,
+  N2 rejoined as a follower with no step and no outliers: its worst error
+  in that second was 6 µs. Without drift correction the two boards would
+  have been about 360 µs apart (4.35 ppm × 83 s).
 - N3's error at each REF (`err@REF`): 0 ± 1 µs; worst over each second:
   1–2 µs.
 - Drift of N3 against N2's global time: −5.3 to −5.5 ppm, stable.
