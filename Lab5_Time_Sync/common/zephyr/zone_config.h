@@ -47,6 +47,7 @@
 #define ZONE_PRIO_ACT       2   /* DRIVE (N3) / STEER (N2): CTRL -> actuator */
 #define ZONE_PRIO_BLINK     3   /* BLINK_F / BLINK_R: 0.5 ms from reception */
 #define ZONE_PRIO_BTN       4   /* TEST_BTN: local fail within 10 ms */
+#define ZONE_PRIO_RAFT      4   /* Lab 5 RAFT thread: 2 ms tick, REF every 20 ms */
 #define ZONE_PRIO_PID       5   /* N3 only: 10 ms */
 #define ZONE_PRIO_HB_MON    6   /* 10 ms poll, 20 ms deadline */
 #define ZONE_PRIO_HB_TX     7   /* 20 ms */

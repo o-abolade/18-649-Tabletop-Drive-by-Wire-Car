@@ -727,6 +727,25 @@ void raft_client_report(struct raft *r, uint8_t event)
 	}
 }
 
+bool raft_client_withdraw(struct raft *r, uint8_t event)
+{
+	for (unsigned i = 0; i < r->client_count; i++) {
+		if (r->client_queue[i] != event) {
+			continue;
+		}
+		memmove(&r->client_queue[i], &r->client_queue[i + 1], r->client_count - i - 1);
+		r->client_count--;
+		if (i == 0) {
+			/* The head was in flight: a late answer to it must not pop
+			 * the next report */
+			r->client_seq++;
+			r->client_retry_ms = 0;
+		}
+		return true;
+	}
+	return false;
+}
+
 static void client_tick(struct raft *r, int64_t now)
 {
 	if (r->client_count == 0) {

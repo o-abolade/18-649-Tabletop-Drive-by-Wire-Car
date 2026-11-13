@@ -296,3 +296,79 @@ void netstate_routes(const struct netstate *ns, unsigned self, unsigned relay_ca
 		}
 	}
 }
+
+/* ---------------- Client detection ---------------- */
+
+static bool hears_bus(unsigned self, const bool heard[RAFT_N + 1][RAFT_NUM_BUSES], unsigned b)
+{
+	for (unsigned x = 1; x <= RAFT_N; x++) {
+		if (x != self && heard[x][b]) {
+			return true;
+		}
+	}
+	return false;
+}
+
+unsigned netstate_observe(unsigned self, const bool heard[RAFT_N + 1][RAFT_NUM_BUSES],
+			  uint8_t events[NETSTATE_OBS_MAX])
+{
+	unsigned n = 0;
+	bool hears_anyone = false;
+
+	for (unsigned b = 0; b < RAFT_NUM_BUSES; b++) {
+		hears_anyone |= hears_bus(self, heard, b);
+	}
+	events[n++] = raft_ev_node(self, true);
+	if (!hears_anyone) {
+		return n;
+	}
+	for (unsigned b = 0; b < RAFT_NUM_BUSES; b++) {
+		events[n++] = raft_ev_link(self, b, hears_bus(self, heard, b));
+	}
+	for (unsigned x = 1; x <= RAFT_N; x++) {
+		if (x == self) {
+			continue;
+		}
+		bool alive = false;
+
+		for (unsigned b = 0; b < RAFT_NUM_BUSES; b++) {
+			alive |= heard[x][b];
+		}
+		events[n++] = raft_ev_node(x, alive);
+		if (x == RAFT_NODE_COCKPIT) {
+			events[n++] = raft_ev_cockpit(alive);
+		}
+	}
+	return n;
+}
+
+uint8_t raft_ev_opposite(uint8_t code)
+{
+	struct raft_ev ev;
+
+	if (!raft_ev_parse(code, &ev)) {
+		return code;
+	}
+	switch (ev.type) {
+	case RAFT_EVT_COCKPIT: return raft_ev_cockpit(!ev.up);
+	case RAFT_EVT_NODE:    return raft_ev_node(ev.node, !ev.up);
+	case RAFT_EVT_LINK:    return raft_ev_link(ev.node, ev.bus, !ev.up);
+	default:               return code;
+	}
+}
+
+void netstate_local_view(const struct netstate *committed, unsigned self,
+			 const bool heard[RAFT_N + 1][RAFT_NUM_BUSES],
+			 const int health[RAFT_N + 1], struct netstate *out)
+{
+	*out = *committed;
+	for (unsigned x = 1; x <= RAFT_N; x++) {
+		for (unsigned b = 0; b < RAFT_NUM_BUSES; b++) {
+			if (x == self) {
+				out->link_up[x][b] = hears_bus(self, heard, b);
+			} else if (health[x] >= 0) {
+				out->link_up[x][b] = (health[x] >> b) & 1;
+			}
+		}
+	}
+}

@@ -37,6 +37,13 @@
 #define GSYNC_NET_DELAY_US     (-2)
 #endif
 
+/* Extra delay of a REF that a relay forwarded: the relay's receive, its
+ * RELAY thread and one more frame time. First estimate; measured with the
+ * PPS traces in checkoff step 9. */
+#ifndef GSYNC_RELAY_DELAY_US
+#define GSYNC_RELAY_DELAY_US   400
+#endif
+
 /* PPS: wake this long before the edge, then busy-wait to it */
 #define GSYNC_PPS_WAKE_EARLY_US 300
 #define GSYNC_PPS_WIDTH_MS      100
@@ -55,6 +62,11 @@ int gsync_init(unsigned self);
 /* The current time master: `self` makes this node master (frozen global
  * time), another node makes us follow its REFs, 0 = none (ignore REFs). */
 void gsync_set_leader(unsigned leader);
+
+/* Buses on which the leader's REF only arrives relayed (the leader has no
+ * link there): samples from them get GSYNC_RELAY_DELAY_US added (checkoff
+ * step 9, question 12). Bit b = bus b. */
+void gsync_set_relayed_buses(unsigned mask);
 
 /* Send a REF built with raftp_encode_ref() (term, cycle, flags): fills each
  * bus's b3-b6 send time and RAFTP_REF_TIME_VALID, and queues it on both

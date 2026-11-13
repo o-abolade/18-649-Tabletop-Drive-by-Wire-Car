@@ -42,3 +42,13 @@ macro(lab5_add_common_libs)
   target_link_libraries(gsync PUBLIC can_link raft_core)
   target_include_directories(app PRIVATE ${LAB5_INCLUDES})
 endmacro()
+
+# The zone apps (N2, N3) add Lab 3's zone core and relay, and the Raft glue.
+macro(lab5_add_zone_libs)
+  lab5_add_lib(zone_core ${LAB5_COMMON}/zephyr/zone_core.c)
+  lab5_add_lib(relay     ${LAB5_COMMON}/zephyr/relay.c)
+  lab5_add_lib(raft_node ${LAB5_COMMON}/zephyr/raft_node.c)
+  target_link_libraries(zone_core PUBLIC can_link raft_node wcet)
+  target_link_libraries(relay PUBLIC can_link raft_node wcet)
+  target_link_libraries(raft_node PUBLIC can_link gsync raft_core)
+endmacro()

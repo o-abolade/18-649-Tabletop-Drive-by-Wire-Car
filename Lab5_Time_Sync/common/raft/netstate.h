@@ -141,4 +141,40 @@ struct route_table {
 void netstate_routes(const struct netstate *ns, unsigned self, unsigned relay_capable,
 		     struct route_table *rt);
 
+/* ---- Client detection (design.md section 6) ----
+ * heard[X][b]: node X's heartbeat arrived on bus b within the heartbeat
+ * timeout (any copy, direct or relayed). heard[self][*] is ignored.
+ *
+ * A node vouches only for what it can tell apart:
+ *  - itself: always up;
+ *  - while it hears at least one other node (on either bus):
+ *    - its own links: link b is up iff it hears any other node on bus b (a
+ *      cut jumper cuts both directions, so nothing arrives on that bus);
+ *    - other nodes up/down, and for the cockpit COCKPIT_OK/ERROR as well.
+ *  A node that hears nobody cannot tell whether its links or the others
+ *  failed (seen at boot, before the other board came up: its "my links are
+ *  down" reports were committed the moment it won an election). It reports
+ *  nothing; the others report it down, and its links come back with
+ *  NODE_UP and its own link reports.
+ * Writes the event codes that describe the current observation and returns
+ * how many (at most NETSTATE_OBS_MAX). The client reports those that would
+ * change the committed graph and withdraws their opposites. */
+#define NETSTATE_OBS_MAX (RAFT_NUM_BUSES + 1 + 2 * (RAFT_N - 1))
+
+unsigned netstate_observe(unsigned self, const bool heard[RAFT_N + 1][RAFT_NUM_BUSES],
+			  uint8_t events[NETSTATE_OBS_MAX]);
+
+/* The opposite of an event (UP <-> DOWN, OK <-> ERROR); NONE stays NONE. */
+uint8_t raft_ev_opposite(uint8_t code);
+
+/* Routing view for handout 5.2: the committed graph, with links replaced by
+ * fresher local knowledge, so a relay starts before the failure commits.
+ *  - self's links: from heard[] as in netstate_observe();
+ *  - node X's links: from the health bits in X's latest heartbeat
+ *    (health[X] bit b = X hears someone on bus b), if health[X] >= 0.
+ * Node up/down stays as committed. */
+void netstate_local_view(const struct netstate *committed, unsigned self,
+			 const bool heard[RAFT_N + 1][RAFT_NUM_BUSES],
+			 const int health[RAFT_N + 1], struct netstate *out);
+
 #endif /* NETSTATE_H */

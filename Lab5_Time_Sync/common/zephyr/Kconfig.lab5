@@ -1,0 +1,16 @@
+# Lab 5 options shared by both STM32 zone apps (rsource'd from each app's
+# Kconfig). All three nodes must use the same mode and seed.
+
+config LAB5_LEADER_RANDOM
+	bool "LEADER=random: no predefined leader, term-1 election"
+	help
+	  Off (default) = LEADER=cockpit: every node boots in term 1 with the
+	  Pi as leader and no election. On = LEADER=random. Holding B1 while
+	  the board resets picks the other mode without rebuilding.
+
+config LAB5_RAFT_SEED
+	int "Seed for the LEADER=random election jitter"
+	default 24301
+	help
+	  Each node mixes in its own ID. Checkoff step 8 needs one seed where
+	  the Pi wins the election; find it with the host simulator.

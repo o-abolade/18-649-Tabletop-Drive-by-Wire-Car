@@ -35,6 +35,7 @@ struct rx_slot {
 	int64_t local_us;
 };
 static struct rx_slot rx_slot[CANP_NUM_BUSES];
+static unsigned relayed_buses;   /* bit b: REF on bus b arrives relayed */
 static uint8_t toggle_sender, toggle_cycle;   /* REF_RX: once per REF, not per copy */
 
 /* Samples come from one bus at a time. The two MCP2515 INT edges of one REF
@@ -104,6 +105,12 @@ static void on_rx_stamp(enum canp_bus bus, uint32_t id, const uint8_t data[CANP_
 	struct rx_slot *p = &rx_slot[bus];
 
 	stats.ref_rx++;
+	/* Only the first copy of a REF on each bus: a relayed copy of the same
+	 * REF arrives later and must not replace the direct one's stamp */
+	if (p->have && p->sender == sender && p->cycle == m.cycle) {
+		k_spin_unlock(&lock, key);
+		return;
+	}
 	if (!edge_ok) {
 		stats.stamp_rx_bad++;
 	}
@@ -120,7 +127,8 @@ static void on_rx_stamp(enum canp_bus bus, uint32_t id, const uint8_t data[CANP_
 	    (sync_bus < 0 || sync_bus == (int)bus ||
 	     local - sync_bus_last_us > SYNC_BUS_SWITCH_US)) {
 		enum gtime_result r = gtime_sample(&g, m.prev_send_us, p->local_us,
-						   GSYNC_NET_DELAY_US);
+						   GSYNC_NET_DELAY_US +
+						   ((relayed_buses >> bus) & 1 ? GSYNC_RELAY_DELAY_US : 0));
 
 		sync_bus = bus;
 		sync_bus_last_us = local;
@@ -216,6 +224,14 @@ void gsync_set_leader(unsigned leader)
 	k_spin_unlock(&lock, key);
 
 	gpio_pin_set_dt(&leader_led, leader == self_node);
+}
+
+void gsync_set_relayed_buses(unsigned mask)
+{
+	k_spinlock_key_t key = k_spin_lock(&lock);
+
+	relayed_buses = mask;
+	k_spin_unlock(&lock, key);
 }
 
 /* ---- Global time ---- */

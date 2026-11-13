@@ -324,8 +324,97 @@ static void test_routes_isolated(void)
 	CHECK(!rt.reachable[S][D] && !rt.reachable[D][S]);
 }
 
+static bool has(const uint8_t *ev, unsigned n, uint8_t code)
+{
+	for (unsigned i = 0; i < n; i++) {
+		if (ev[i] == code) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void test_observe(void)
+{
+	bool heard[RAFT_N + 1][RAFT_NUM_BUSES];
+	uint8_t ev[NETSTATE_OBS_MAX];
+	unsigned n;
+
+	/* Everyone heard on both buses */
+	memset(heard, 1, sizeof(heard));
+	n = netstate_observe(S, heard, ev);
+	CHECK_EQ(n, 6);
+	CHECK(has(ev, n, raft_ev_link(S, A, true)) && has(ev, n, raft_ev_link(S, B, true)));
+	CHECK(has(ev, n, raft_ev_node(C, true)) && has(ev, n, raft_ev_cockpit(true)));
+	CHECK(has(ev, n, raft_ev_node(D, true)) && has(ev, n, raft_ev_node(S, true)));
+	CHECK_EQ(netstate_observe(C, heard, ev), 5);   /* the cockpit: no COCKPIT_* */
+
+	/* Drivetrain's A jumper pulled: it hears nobody on A, so its own A link
+	 * is down; the others hear it only on B, but vouch for its node only */
+	memset(heard, 1, sizeof(heard));
+	heard[C][A] = heard[S][A] = false;
+	n = netstate_observe(D, heard, ev);
+	CHECK(has(ev, n, raft_ev_link(D, A, false)) && has(ev, n, raft_ev_link(D, B, true)));
+	CHECK(has(ev, n, raft_ev_node(C, true)) && has(ev, n, raft_ev_node(S, true)));
+	memset(heard, 1, sizeof(heard));
+	heard[D][A] = false;
+	n = netstate_observe(S, heard, ev);
+	CHECK(has(ev, n, raft_ev_node(D, true)));
+	CHECK(!has(ev, n, raft_ev_link(D, A, false)));   /* not steering's to say */
+
+	/* Cockpit lost on both buses */
+	memset(heard, 1, sizeof(heard));
+	heard[C][A] = heard[C][B] = false;
+	n = netstate_observe(S, heard, ev);
+	CHECK(has(ev, n, raft_ev_node(C, false)) && has(ev, n, raft_ev_cockpit(false)));
+
+	/* Hears nobody (isolated, or alone at boot): only itself */
+	memset(heard, 0, sizeof(heard));
+	n = netstate_observe(D, heard, ev);
+	CHECK_EQ(n, 1);
+	CHECK(has(ev, n, raft_ev_node(D, true)));
+	CHECK(!has(ev, n, raft_ev_link(D, A, false)) && !has(ev, n, raft_ev_node(C, false)));
+
+	CHECK_EQ(raft_ev_opposite(raft_ev_link(S, B, true)), raft_ev_link(S, B, false));
+	CHECK_EQ(raft_ev_opposite(raft_ev_node(C, false)), raft_ev_node(C, true));
+	CHECK_EQ(raft_ev_opposite(RAFT_EV_COCKPIT_OK), RAFT_EV_COCKPIT_ERROR);
+	CHECK_EQ(raft_ev_opposite(RAFT_EV_NONE), RAFT_EV_NONE);
+}
+
+/* Checkoff step 5 before anything commits: cockpit off B, drivetrain off A.
+ * The heartbeat health bits alone make steering the relay. */
+static void test_local_view_relay(void)
+{
+	struct netstate committed, view;
+	struct route_table rt;
+	bool heard[RAFT_N + 1][RAFT_NUM_BUSES];
+	int health[RAFT_N + 1] = { -1, 0x1, 0x3, 0x2 };   /* C: A only, D: B only */
+
+	netstate_init(&committed);
+	netstate_routes(&committed, S, RAFT_RELAY_CAPABLE, &rt);
+	CHECK_EQ(rt.relay_node, 0);
+
+	memset(heard, 0, sizeof(heard));
+	heard[C][A] = heard[D][B] = true;
+	netstate_local_view(&committed, S, heard, health, &view);
+	CHECK(view.link_up[S][A] && view.link_up[S][B]);
+	CHECK(!view.link_up[C][B] && !view.link_up[D][A]);
+	netstate_routes(&view, S, RAFT_RELAY_CAPABLE, &rt);
+	CHECK_EQ(rt.relay_node, S);
+	CHECK(rt.relay[C][A] && rt.relay[D][B]);
+	CHECK(rt.reachable[C][D] && rt.reachable[D][C]);
+
+	/* Unknown health keeps the committed links */
+	int none[RAFT_N + 1] = { -1, -1, -1, -1 };
+
+	netstate_local_view(&committed, S, heard, none, &view);
+	CHECK(view.link_up[C][B] && view.link_up[D][A]);
+}
+
 void test_netstate_all(void)
 {
+	RUN(test_observe);
+	RUN(test_local_view_relay);
 	RUN(test_event_codes);
 	RUN(test_initial_state);
 	RUN(test_mutators);

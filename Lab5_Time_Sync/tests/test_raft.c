@@ -318,6 +318,32 @@ static void test_client_reports(void)
 	CHECK(sim.safety_ok);
 }
 
+/* A withdrawn report never reaches the leader: an isolated node queues a
+ * link-down report, its link comes back, and the report is dropped. */
+static void test_client_withdraw(void)
+{
+	uint8_t down = raft_ev_link(D, 0, false), other = raft_ev_link(D, 1, false);
+
+	sim_start(&sim, C, RAFT_SEED, ALL);
+	sim_run(&sim, 500);
+	sim_isolate(&sim, D, true);
+	raft_client_report(&sim.node[D], down);
+	raft_client_report(&sim.node[D], other);
+	sim_run(&sim, 200);
+	CHECK_EQ(sim.node[D].client_count, 2);   /* no leader reachable */
+	CHECK(raft_client_withdraw(&sim.node[D], down));
+	CHECK(raft_client_withdraw(&sim.node[D], other));
+	CHECK(!raft_client_withdraw(&sim.node[D], other));
+	CHECK_EQ(sim.node[D].client_count, 0);
+	sim_isolate(&sim, D, false);
+	sim_run(&sim, 500);
+	for (unsigned n = 1; n <= RAFT_N; n++) {
+		CHECK_EQ(sim.node[n].commit, 0);
+		CHECK(sim.node[n].state.link_up[D][0]);
+	}
+	CHECK(sim.safety_ok);
+}
+
 /* A client that addresses a follower is redirected to the leader. */
 static void test_redirect(void)
 {
@@ -562,4 +588,5 @@ void test_raft_all(void)
 	RUN(test_random_mode);
 	RUN(test_snapshot_catch_up);
 	RUN(test_lossy_network);
+	RUN(test_client_withdraw);
 }

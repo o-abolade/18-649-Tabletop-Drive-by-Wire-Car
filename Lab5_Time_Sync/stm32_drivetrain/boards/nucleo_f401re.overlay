@@ -1,0 +1,121 @@
+/*
+ * N3 drivetrain zone (rear). Applied after common/zephyr/dual_can.overlay,
+ * which provides the CAN modules, CAN test points, DEG/ERR LEDs, TEST_BTN
+ * and the watchdog.
+ *
+ * Lab 2 pins that collided with the handout's CAN wiring were moved:
+ *   Right PWM ENB  PA7 -> PB13  (TIM1 CH1N, same channel/complementary flag)
+ *   Right IN3      PB5 -> PA9   (D8)
+ *   Encoder R-B    PA5 -> PA1   (A1, EXTI1)
+ *   Encoder L-B    PB10 -> PB0  (A3, EXTI0; EXTI10 is CAN A's INT)
+ *   RL             PC7 -> PB9   (D14)
+ *   RR             PB6 -> PB8   (D15)
+ * Unchanged: left PWM/PWM_OUT PA0, IN1 PC1, IN2 PC0, IN4/DIR_A PB3,
+ *            encoder R-A PA8, L-A PB4, PWM_SET PC6.
+ */
+#include <zephyr/dt-bindings/pwm/stm32_pwm.h>
+
+/ {
+	aliases {
+		motor-left-pwm = &motor_left_pwm;
+		motor-right-pwm = &motor_right_pwm;
+		motor-left-in1 = &motor_left_in1;
+		motor-left-in2 = &motor_left_in2;
+		motor-right-in3 = &motor_right_in3;
+		motor-right-in4 = &motor_right_in4;
+		encoder-right-a = &encoder_right_a;
+		encoder-right-b = &encoder_right_b;
+		encoder-left-a = &encoder_left_a;
+		encoder-left-b = &encoder_left_b;
+		blinker-left = &blinker_rl;
+		blinker-right = &blinker_rr;
+		tp-pwm-set = &tp_pwm_set;
+	};
+
+	rear_blinkers {
+		compatible = "gpio-leds";
+
+		/* Left = D14, right = D15 on both zones (same as N2's FL/FR) */
+		blinker_rl: blinker_rl {
+			gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>;    /* D14 */
+		};
+		blinker_rr: blinker_rr {
+			gpios = <&gpiob 8 GPIO_ACTIVE_HIGH>;    /* D15 */
+		};
+	};
+
+	n3_test_points {
+		compatible = "gpio-leds";
+
+		tp_pwm_set: tp_pwm_set {
+			gpios = <&gpioc 6 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	motor_pwm_outputs {
+		compatible = "pwm-leds";
+
+		motor_left_pwm: motor_left_pwm {
+			pwms = <&pwm2 1 PWM_USEC(100) PWM_POLARITY_NORMAL>;
+		};
+		motor_right_pwm: motor_right_pwm {
+			pwms = <&pwm1 1 PWM_USEC(100)
+				(PWM_POLARITY_NORMAL | STM32_PWM_COMPLEMENTARY)>;
+		};
+	};
+
+	motor_direction_outputs {
+		compatible = "gpio-leds";
+
+		motor_left_in1: motor_left_in1 {
+			gpios = <&gpioc 1 GPIO_ACTIVE_HIGH>;    /* A4 */
+		};
+		motor_left_in2: motor_left_in2 {
+			gpios = <&gpioc 0 GPIO_ACTIVE_HIGH>;    /* A5 */
+		};
+		motor_right_in3: motor_right_in3 {
+			gpios = <&gpioa 9 GPIO_ACTIVE_HIGH>;    /* D8 */
+		};
+		motor_right_in4: motor_right_in4 {
+			gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>;    /* D3, DIR_A test point */
+		};
+	};
+
+	encoder_inputs {
+		compatible = "gpio-keys";
+
+		encoder_right_a: encoder_right_a {
+			gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>;    /* D7, EXTI8 */
+		};
+		encoder_right_b: encoder_right_b {
+			gpios = <&gpioa 1 GPIO_ACTIVE_HIGH>;    /* A1, EXTI1 */
+		};
+		encoder_left_a: encoder_left_a {
+			gpios = <&gpiob 4 GPIO_ACTIVE_HIGH>;    /* D5, EXTI4 */
+		};
+		encoder_left_b: encoder_left_b {
+			gpios = <&gpiob 0 GPIO_ACTIVE_HIGH>;    /* A3, EXTI0 */
+		};
+	};
+};
+
+/* Re-enable TIM2 (the shared overlay disables it) with CH1 on PA0 */
+&timers2 {
+	status = "okay";
+};
+
+&pwm2 {
+	status = "okay";
+	pinctrl-0 = <&tim2_ch1_pa0>;
+	pinctrl-names = "default";
+};
+
+&timers1 {
+	status = "okay";
+
+	pwm1: pwm {
+		status = "okay";
+		pinctrl-0 = <&tim1_ch1n_pb13>;
+		pinctrl-names = "default";
+	};
+};

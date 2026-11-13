@@ -150,6 +150,12 @@ void raft_on_frame(struct raft *r, uint32_t id, const uint8_t d[RAFTP_DLC], int6
  * and delivered to the leader; duplicates already queued are dropped. */
 void raft_client_report(struct raft *r, uint8_t event);
 
+/* Client: drop a queued report that is no longer true (the observation
+ * flipped back before the report was answered, e.g. on an isolated node).
+ * Returns true if it was queued. A report already taken by the leader may
+ * still commit; the opposite report then corrects it. */
+bool raft_client_withdraw(struct raft *r, uint8_t event);
+
 /* The platform reports when the REF it just sent was handed to the CAN
  * controller, in its microsecond clock; the next REF carries it. */
 void raft_ref_sent(struct raft *r, uint32_t send_us);
