@@ -91,7 +91,7 @@
  * MCP2515 INT lines (24, 25) are taken. UDP_RX/CMD_TX are Lab 2's pins. */
 #define GPIO_CHIP_PATH      "/dev/gpiochip0"
 enum tp { TP_UDP_RX, TP_CMD_TX, TP_CAN_TX_A, TP_CAN_TX_B, TP_DEG_A, TP_DEG_B,
-	  TP_PPS, TP_REF_RX, TP_LEADER, TP_SYNC, TP_COUNT };
+	  TP_PPS, TP_REF_RX, TP_LEADER, TP_SYNC, TP_HZ, TP_COUNT };
 static const unsigned int tp_offset[TP_COUNT] = {
 	[TP_UDP_RX] = 18,     /* pin 12 */
 	[TP_CMD_TX] = 27,     /* pin 13 */
@@ -104,6 +104,7 @@ static const unsigned int tp_offset[TP_COUNT] = {
 	[TP_REF_RX] = 4,      /* pin 7 */
 	[TP_LEADER] = 26,     /* pin 37, LED */
 	[TP_SYNC] = 16,       /* pin 36, LED */
+	[TP_HZ] = 12,         /* pin 32, hazard lamp (checkoff 1 scopes FL, RL, HZ) */
 };
 
 /* Linux numbers can0/can1 in whatever order the two MCP2515s finish probing,
@@ -145,6 +146,8 @@ static bool inject_bad;
 static enum canp_blink_state driver_blink = CANP_BLINK_OFF;
 static bool past_threshold;
 static enum canp_blink_state sent_blink = CANP_BLINK_OFF;
+static int64_t sent_start_g;   /* Lab 5: global start time of sent_blink */
+#define BLINK_START_AHEAD_US 50000   /* start 50 ms out: all zones get it first */
 static bool blink_phase;
 static int64_t next_toggle_ms, last_blink_tx_ms = -1000;
 static bool blink_pending;
@@ -432,6 +435,7 @@ static void blink_tick(int64_t now)
 	int half = (want == CANP_BLINK_HAZARD) ? HAZARD_HALF_MS : BLINK_HALF_MS;
 
 	if (want != sent_blink) {
+		sent_start_g = global_gettime_us() + BLINK_START_AHEAD_US;
 		/* R2.4: start blinking right away, lamps ON on the first frame */
 		sent_blink = want;
 		blink_phase = (want != CANP_BLINK_OFF);
@@ -450,6 +454,7 @@ static void blink_tick(int64_t now)
 		uint8_t d[CANP_DLC];
 
 		canp_encode_blink(d, next_seq(SLOT_BLINK), sent_blink, blink_phase);
+		canp_blink_set_start(d, gtime_wire(sent_start_g));
 		send_both(CANP_ID_BLINK, d);
 		last_blink_tx_ms = now;
 		blink_pending = false;
@@ -940,6 +945,47 @@ static void handle_stdin(void)
 	}
 }
 
+/* ---------------- Lab 5: HZ lamp on global time ----------------
+ * In phase with FL and RL: hazards are on in the even half-periods counted
+ * from global time 0 on every node (zone_core.c on the STM32s). 4 Hz in
+ * failure mode (COCKPIT_ERROR committed), 2 Hz otherwise. Read without a
+ * lock: the main loop writes these word-sized values, this thread only
+ * reads them once per half-period. */
+static volatile int hz_state = CANP_ZS_ERROR;
+static volatile int hz_blink = CANP_BLINK_OFF;
+static volatile bool hz_failure;
+
+static void *hz_thread(void *arg)
+{
+	int64_t at = INT64_MIN;   /* the edge just waited for */
+
+	(void)arg;
+	for (;;) {
+		bool hazard = hz_state != CANP_ZS_NORMAL || hz_blink == CANP_BLINK_HAZARD;
+
+		if (!hazard) {
+			tp_set(TP_HZ, false);
+			at = INT64_MIN;
+			usleep(20000);
+			continue;
+		}
+		int64_t half = (hz_failure ? 125000 : 250000);
+		/* At an edge, use the edge itself: the clock may still read a
+		 * microsecond short of it, which would flash the old level */
+		int64_t g = global_gettime_us();
+
+		if (g < at) {
+			g = at;
+		}
+		int64_t k = g / half - (g < 0 && g % half ? 1 : 0);
+
+		tp_set(TP_HZ, (k % 2) == 0);
+		pi_sync_wait_until((k + 1) * half);
+		at = (k + 1) * half;
+	}
+	return NULL;
+}
+
 static void go_realtime(void)
 {
 	cpu_set_t set;
@@ -1015,6 +1061,11 @@ int main(int argc, char **argv)
 
 	/* Lab 5: time sync and Raft */
 	pi_sync_init(CANP_ZONE_N1, sync_pin, rt);
+	{
+		pthread_t tid;
+
+		pthread_create(&tid, NULL, hz_thread, NULL);
+	}
 	boot_ms = now_ms();
 	for (unsigned i = 0; i < 256; i++) {
 		last_report_ms[i] = -REPORT_MS;
@@ -1076,6 +1127,9 @@ int main(int argc, char **argv)
 			(void)!read(tfd, &expirations, sizeof(expirations));
 			hb_mon(now);
 			raft_observe(now);
+			hz_state = state;
+			hz_blink = sent_blink;
+			hz_failure = !raft.state.cockpit_ok;
 			tx_watchdog(now);
 			if (now >= next_hb) {
 				hb_tx();

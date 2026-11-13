@@ -8,6 +8,7 @@
 #include <zephyr/sys/printk.h>
 
 #include "can_link.h"
+#include "gsync.h"
 #include "raft_node.h"
 #include "zone_config.h"
 #include "wcet.h"
@@ -39,6 +40,7 @@ static int64_t ctrl_max_gap_ms;      /* longest gap between valid CTRLs, per sta
 static int64_t fault_rx_ms[CANP_NUM_ZONES + 1] = { -1, -1, -1, -1 };
 static enum canp_blink_state blink_state;
 static bool blink_lamps_on;
+static int64_t blink_start_g;        /* Lab 5: BLINK start, global us */
 static bool deg[CANP_NUM_BUSES];
 static uint32_t ctrl_bad_crc;
 
@@ -148,8 +150,13 @@ static void on_frame(uint32_t id, const uint8_t data[CANP_DLC], enum canp_bus bu
 		k_spinlock_key_t key = k_spin_lock(&lock);
 
 		if (state == CANP_ZS_NORMAL) {
+			uint32_t start_wire;
+
 			blink_state = canp_blink_state(data);
 			blink_lamps_on = canp_blink_lamps_on(data);
+			if (canp_blink_start(data, &start_wire)) {
+				blink_start_g = gsync_unwrap(start_wire);
+			}
 		}
 		k_spin_unlock(&lock, key);
 		k_sem_give(&blink_sem);
@@ -351,39 +358,70 @@ static void set_lamps(bool left, bool right)
 	gpio_pin_set_dt(&lamp_right, right);
 }
 
+/*
+ * Lab 5: the lamp phase comes from global time, so FL (N2) and RL (N3) switch
+ * at the same global instants without any frame per edge.
+ *  - Hazards (zone not NORMAL, or BLINK hazard): on in the even half-periods
+ *    counted from global time 0, so every node, the Pi's HZ included, is in
+ *    phase. 4 Hz in failure mode (COCKPIT_ERROR committed), else 2 Hz.
+ *  - Turn signals: on in the even 500 ms slots after the BLINK start time.
+ * Lamps on at global time g with slots of `half` counted from `anchor`;
+ * *next = the next slot boundary. */
+static bool lamp_phase(int64_t g, int64_t anchor, int64_t half, int64_t *next)
+{
+	int64_t d = g - anchor;
+	int64_t k = d / half;
+
+	if (d % half != 0 && d < 0) {
+		k--;   /* floor */
+	}
+	*next = anchor + (k + 1) * half;
+	return d >= 0 ? (k % 2) == 0 : (anchor == 0 && (k % 2) == 0);
+}
+
 static void blink_thread(void *a, void *b, void *c)
 {
 	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
-	bool hazard_on = false;
-	int64_t next_toggle = 0;
+	int64_t at = INT64_MIN;   /* the edge just waited for */
 
 	while (1) {
 		uint64_t w0 = wcet_begin();
+		int64_t g = MAX(global_gettime_us(), at);
+		int64_t next;
+		bool left, right;
 
 		if (zone_state() != CANP_ZS_NORMAL) {
-			/* Own schedule: BLINK frames waking us must not add toggles */
-			if (k_uptime_get() >= next_toggle) {
-				hazard_on = !hazard_on;
-				set_lamps(hazard_on, hazard_on);
-				next_toggle = k_uptime_get() + ZONE_HAZARD_HALF_MS;
+			int64_t half = (raft_node_failure_mode() ? ZONE_FAILURE_HALF_MS
+								 : ZONE_HAZARD_HALF_MS) * 1000LL;
+			bool on = lamp_phase(g, 0, half, &next);
+
+			left = right = on;
+		} else {
+			k_spinlock_key_t key = k_spin_lock(&lock);
+			enum canp_blink_state s = blink_state;
+			int64_t start = blink_start_g;
+
+			k_spin_unlock(&lock, key);
+			if (s == CANP_BLINK_OFF) {
+				set_lamps(false, false);
+				wcet_end(WCET_BLINK, w0);
+				at = INT64_MIN;
+				k_sem_take(&blink_sem, K_FOREVER);
+				continue;
 			}
-			wcet_end(WCET_BLINK, w0);
-			(void)k_sem_take(&blink_sem, K_TIMEOUT_ABS_MS(next_toggle));
-			continue;
+			bool hazard = s == CANP_BLINK_HAZARD;
+			bool on = lamp_phase(g, hazard ? 0 : start,
+					     (hazard ? ZONE_HAZARD_HALF_MS : ZONE_TURN_HALF_MS) * 1000LL,
+					     &next);
+
+			left = on && (s == CANP_BLINK_LEFT || hazard);
+			right = on && (s == CANP_BLINK_RIGHT || hazard);
 		}
-		next_toggle = 0;
-
-		/* Edges come only from BLINK frames, so N2 and N3 stay in sync */
-		k_spinlock_key_t key = k_spin_lock(&lock);
-		enum canp_blink_state s = blink_state;
-		bool on = blink_lamps_on;
-
-		k_spin_unlock(&lock, key);
-		set_lamps(on && (s == CANP_BLINK_LEFT || s == CANP_BLINK_HAZARD),
-			  on && (s == CANP_BLINK_RIGHT || s == CANP_BLINK_HAZARD));
-		hazard_on = false;
+		set_lamps(left, right);
 		wcet_end(WCET_BLINK, w0);
-		k_sem_take(&blink_sem, K_FOREVER);
+
+		/* Until the next edge (precise), or a BLINK / state change */
+		at = gsync_wait_until(next, &blink_sem) ? next : INT64_MIN;
 	}
 }
 

@@ -98,7 +98,11 @@ enum canp_zone_state {
 
 /* ---- BLINK 0x200, N1 -> N2, N3 ----
  * b1 blinker state (enum canp_blink_state)
- * b2 phase: 1 = lamps on, 0 = lamps off */
+ * b2 phase: 1 = lamps on, 0 = lamps off (Lab 3; Lab 5 zones ignore it)
+ * b3-b6 Lab 5: start time, global us modulo GTIME_WIRE_MOD_US (u32 LE)
+ * b7 Lab 5: 1 = b3-b6 hold a start time
+ * Lab 5 zones switch the lamps from global time: a turn signal is on in the
+ * even 500 ms slots after its start, so FL and RL change together. */
 enum canp_blink_state {
 	CANP_BLINK_OFF = 0,
 	CANP_BLINK_LEFT = 1,
@@ -142,6 +146,23 @@ static inline enum canp_zone_state canp_hb_state(const uint8_t *d) { return d[1]
 static inline uint8_t canp_hb_health(const uint8_t *d) { return d[2]; }
 static inline enum canp_blink_state canp_blink_state(const uint8_t *d) { return d[1] & 0x3; }
 static inline bool canp_blink_lamps_on(const uint8_t *d) { return d[2] != 0; }
+
+/* Lab 5 BLINK start time */
+static inline void canp_blink_set_start(uint8_t *d, uint32_t start_wire)
+{
+	d[3] = (uint8_t)start_wire;
+	d[4] = (uint8_t)(start_wire >> 8);
+	d[5] = (uint8_t)(start_wire >> 16);
+	d[6] = (uint8_t)(start_wire >> 24);
+	d[7] = 1;
+}
+
+static inline bool canp_blink_start(const uint8_t *d, uint32_t *start_wire)
+{
+	*start_wire = (uint32_t)d[3] | ((uint32_t)d[4] << 8) | ((uint32_t)d[5] << 16) |
+		      ((uint32_t)d[6] << 24);
+	return d[7] == 1;
+}
 static inline uint8_t canp_fault_zone(const uint8_t *d) { return d[1]; }
 static inline uint8_t canp_fault_reason(const uint8_t *d) { return d[2]; }
 static inline int8_t canp_force(const uint8_t *d) { return (int8_t)d[1]; }

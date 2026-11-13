@@ -76,4 +76,8 @@ bool pi_sync_valid(void);
 /* The 1 s DRIFT line (handout 6.2); call from the main loop */
 void pi_sync_print_drift(void);
 
+/* Sleep until global time `global`, ending with a busy-wait (the edge lands
+ * within tens of us; Linux wake-up alone is late by up to ~1 ms) */
+void pi_sync_wait_until(int64_t global);
+
 #endif /* PI_SYNC_H */

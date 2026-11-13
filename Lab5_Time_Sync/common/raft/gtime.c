@@ -83,6 +83,18 @@ uint32_t gtime_wire(int64_t global)
 	return (uint32_t)(m < 0 ? m + GTIME_WIRE_MOD_US : m);
 }
 
+int64_t gtime_unwrap(uint32_t wire, int64_t near)
+{
+	int64_t d = (int64_t)wire - (int64_t)gtime_wire(near);
+
+	if (d >= GTIME_WIRE_MOD_US / 2) {
+		d -= GTIME_WIRE_MOD_US;
+	} else if (d < -GTIME_WIRE_MOD_US / 2) {
+		d += GTIME_WIRE_MOD_US;
+	}
+	return near + d;
+}
+
 enum gtime_result gtime_sample(struct gtime *g, uint32_t master_wire, int64_t local_rx,
 			       int32_t delay_us)
 {

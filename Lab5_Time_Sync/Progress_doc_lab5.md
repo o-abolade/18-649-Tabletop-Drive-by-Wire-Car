@@ -354,6 +354,27 @@ CRC drops, no bad terms and no new driver errors.
 **Still open:** checkoff 9 as written (see question 13); scope
 measurements.
 
+### Step 5 (branch `lab5-raft-core`, 2026-11-13)
+
+Blinkers on global time.
+
+- **STM32 lamps** (`zone_core.c`): the phase comes from global time, not
+  from BLINK frames, so FL and RL switch at the same global instants.
+  - Hazards (zone not NORMAL, or a BLINK hazard): on in the even
+    half-periods counted from global time 0; 4 Hz (125 ms) in failure mode
+    (`COCKPIT_ERROR` committed), otherwise 2 Hz.
+  - Turn signals: on in the even 500 ms slots after the BLINK start time.
+  - Edges use `gsync_wait_until()`: sleep, then a busy-wait of at most
+    300 µs with the scheduler locked.
+- **BLINK** gains a start time (b3-b6, global µs, modulo 4000 s; b7 = 1).
+  The Pi sets it 50 ms ahead when the driver's request changes and repeats
+  the same start on every resend.
+- **Pi HZ output** (GPIO12, header pin 32): same rule as the STM32 hazards.
+- **Lamp pins:** FL = N2 PB9 (D14), RL = N3 PB9 (D14), HZ = Pi pin 32.
+
+**Scope, 2026-11-13** (no wheel proxy, so all three nodes are in ERROR with
+2 Hz hazards): **FL vs RL 0.5 µs, FL vs HZ 46 µs** (checkoff 1, limit 1 ms).
+
 ### Questions for the course staff
 
 The checkoff sequence uses names and behaviour that the handout body does not

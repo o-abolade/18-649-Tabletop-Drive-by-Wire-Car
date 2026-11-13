@@ -118,4 +118,8 @@ enum gtime_result gtime_sample(struct gtime *g, uint32_t master_wire, int64_t lo
 /* Global time as sent in REF b3-b6 */
 uint32_t gtime_wire(int64_t global);
 
+/* The global time a wire value stands for: the copy nearest `near` (e.g.
+ * global time now). For BLINK start times. */
+int64_t gtime_unwrap(uint32_t wire, int64_t near);
+
 #endif /* GTIME_H */

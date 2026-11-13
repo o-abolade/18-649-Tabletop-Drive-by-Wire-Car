@@ -25,6 +25,8 @@
 #include <stdint.h>
 #include <time.h>
 
+#include <zephyr/kernel.h>
+
 #include "raft_proto.h"
 
 /* Network delay added to every sample: receiver's end-of-frame edge minus
@@ -79,6 +81,16 @@ int global_gettime(struct timespec *ts);
 
 /* Local monotonic clock (us) used by gtime */
 int64_t gsync_local_us(void);
+
+/* Global time of a wire value (BLINK start), the copy nearest now */
+int64_t gsync_unwrap(uint32_t wire);
+
+/* Wait until global time `global`: sleep to GSYNC_EDGE_EARLY_US before it,
+ * then busy-wait with the scheduler locked, so the caller acts within a few
+ * us of the instant (blinker edges on FL and RL line up). Returns false if
+ * `wake` (may be NULL) was given first, during the sleep. */
+#define GSYNC_EDGE_EARLY_US 300
+bool gsync_wait_until(int64_t global, struct k_sem *wake);
 
 /* SYNC: master, or a sample in the last 3 heartbeats */
 bool gsync_valid(void);

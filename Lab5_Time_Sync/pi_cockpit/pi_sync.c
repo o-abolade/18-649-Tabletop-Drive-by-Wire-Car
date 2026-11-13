@@ -164,6 +164,29 @@ void pi_sync_print_drift(void)
 	       gtime_valid(&g, local) ? "" : " NO-SYNC");
 }
 
+static void sleep_us(int64_t us);
+
+void pi_sync_wait_until(int64_t global)
+{
+	int64_t target;
+
+	for (;;) {
+		int64_t now = pi_local_us();
+
+		pthread_mutex_lock(&mu);
+		target = gtime_local_of(&rs.g, global);
+		pthread_mutex_unlock(&mu);
+		if (target - now <= PI_SYNC_PPS_WAKE_EARLY_US) {
+			break;
+		}
+		int64_t t = target - now - PI_SYNC_PPS_WAKE_EARLY_US;
+
+		sleep_us(t < PPS_SLICE_US ? t : PPS_SLICE_US);
+	}
+	while (pi_local_us() < target) {
+	}
+}
+
 /* ---- PPS (handout 6.4) ---- */
 
 static void sleep_us(int64_t us)

@@ -114,6 +114,47 @@ void gsync_set_relayed_buses(unsigned mask)
 	k_spin_unlock(&lock, key);
 }
 
+int64_t gsync_unwrap(uint32_t wire)
+{
+	return gtime_unwrap(wire, global_gettime_us());
+}
+
+bool gsync_wait_until(int64_t global, struct k_sem *wake)
+{
+	int64_t target;
+
+	for (;;) {
+		int64_t now = gsync_local_us();
+		k_spinlock_key_t key = k_spin_lock(&lock);
+
+		target = gtime_local_of(&rs.g, global);
+		k_spin_unlock(&lock, key);
+
+		int64_t left = target - now;
+
+		if (left <= GSYNC_EDGE_EARLY_US) {
+			break;
+		}
+		k_timeout_t to = K_USEC(MIN(left - GSYNC_EDGE_EARLY_US, 100000));
+
+		if (wake) {
+			if (k_sem_take(wake, to) == 0) {
+				return false;
+			}
+		} else {
+			k_sleep(to);
+		}
+	}
+	/* The last <= GSYNC_EDGE_EARLY_US: no other thread may delay the edge */
+	k_sched_lock();
+	uint64_t tc = k_us_to_cyc_ceil64((uint64_t)MAX(target, 0));
+
+	while (k_cycle_get_64() < tc) {
+	}
+	k_sched_unlock();
+	return true;
+}
+
 /* ---- Global time ---- */
 
 int64_t global_gettime_us(void)

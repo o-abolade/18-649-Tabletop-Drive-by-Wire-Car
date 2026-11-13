@@ -29,6 +29,10 @@
 
 /* ---- Local hazard while in ERROR / LOCAL_FAIL (no BLINK needed) ---- */
 #define ZONE_HAZARD_HALF_MS     250   /* 2 Hz, same as Lab 2 */
+/* Lab 5: failure mode (COCKPIT_ERROR committed) flashes at 4 Hz (checkoff 6;
+ * question 4). Turn signals: 1 Hz, 50 % duty. */
+#define ZONE_FAILURE_HALF_MS    125
+#define ZONE_TURN_HALF_MS       500
 
 /* ---- Independent watchdog (R4.5), fed by HB_MON every 10 ms ----
  * IWDG runs from the LSI RC oscillator (17-47 kHz on F401), so leave margin. */
