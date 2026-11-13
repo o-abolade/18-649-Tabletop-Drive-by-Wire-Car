@@ -389,6 +389,22 @@ edges); cancel turns both off. The zones dropped to ERROR on a stale CTRL
 only during the first ~3 s of the proxy starting (12 drops on each board).
 None in the next 4.5 min: CTRL max gap about 40 ms, UDP max gap 42-51 ms.
 
+**LEADER=random (checkoff 8), 2026-11-13:** Nucleos reset with B1 held, the
+Pi set to `--leader=random`.
+- An STM32 leads: N2, term 9; the Pi joined as a follower.
+- N2 unplugged: N3 leads term 10 after one election, its REF replaces N2's,
+  `NODE_steering_DOWN` is committed and there is **no failure mode** (no
+  `COCKPIT_ERROR`). N2 plugged back in rejoins and reports its links.
+- Pi powered off: `NODE_cockpit_DOWN` and `COCKPIT_ERROR` committed under
+  N3 (failure mode). Back on, the Pi replays all 66 entries once, in order,
+  marked `(replayed)`, then live entries.
+- **Gap:** "the seed that makes the Pi win" cannot happen yet. Every node
+  starts its election timer at boot, and the Nucleos elect within 100 ms
+  while the Pi takes about 30 s to boot. Planned fix: in random mode, start
+  the timer only once all three nodes' heartbeats are heard (falling back to
+  5 s with a majority), so the seeded timeouts decide whatever the boot
+  order.
+
 ### Questions for the course staff
 
 The checkoff sequence uses names and behaviour that the handout body does not
