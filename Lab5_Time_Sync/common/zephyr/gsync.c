@@ -37,6 +37,16 @@ struct rx_slot {
 static struct rx_slot rx_slot[CANP_NUM_BUSES];
 static uint8_t toggle_sender, toggle_cycle;   /* REF_RX: once per REF, not per copy */
 
+/* Samples come from one bus at a time. The two MCP2515 INT edges of one REF
+ * land microseconds apart and their ISRs run one after the other, so the two
+ * buses' pairs differ by a few us; mixing them made the anchor saw-tooth
+ * (err@REF about -10 us every REF on the bench) and the drift baseline
+ * noisy. Switch bus only when the current one gave no sample for this long. */
+#define SYNC_BUS_SWITCH_US (2 * RAFT_HEARTBEAT_MS * 1000LL)
+static int sync_bus = -1;
+static int64_t sync_bus_last_us;
+static int32_t err_max_us;      /* worst |err@REF| since the last DRIFT line */
+
 /* Leader: when our last REF finished on each bus */
 struct tx_slot {
 	bool have;
@@ -106,10 +116,21 @@ static void on_rx_stamp(enum canp_bus bus, uint32_t id, const uint8_t data[CANP_
 	/* REF k carries the send time of REF k-1 on this bus */
 	if (sender == leader_node && sender != self_node && !g.master &&
 	    (m.flags & RAFTP_REF_TIME_VALID) && p->have && p->ok && p->sender == sender &&
-	    (uint8_t)(p->cycle + 1) == m.cycle) {
+	    (uint8_t)(p->cycle + 1) == m.cycle &&
+	    (sync_bus < 0 || sync_bus == (int)bus ||
+	     local - sync_bus_last_us > SYNC_BUS_SWITCH_US)) {
 		enum gtime_result r = gtime_sample(&g, m.prev_send_us, p->local_us,
 						   GSYNC_NET_DELAY_US);
 
+		sync_bus = bus;
+		sync_bus_last_us = local;
+		if (r == GTIME_OK) {
+			int32_t e = g.last_error_us < 0 ? -g.last_error_us : g.last_error_us;
+
+			if (e > err_max_us) {
+				err_max_us = e;
+			}
+		}
 		stats.samples = g.samples;
 		stats.outliers = g.outliers;
 		stats.steps = g.steps;
@@ -188,6 +209,9 @@ void gsync_set_leader(unsigned leader)
 	} else if (leader != self_node && g.master) {
 		gtime_become_follower(&g);
 	}
+	if (leader != leader_node) {
+		sync_bus = -1;
+	}
 	leader_node = leader;
 	k_spin_unlock(&lock, key);
 
@@ -251,35 +275,43 @@ struct pps_rec {
 
 K_MSGQ_DEFINE(pps_q, sizeof(struct pps_rec), 4, 8);
 
+/* Sleep at most this long at a time while waiting for an edge */
+#define PPS_SLICE_US     100000
+/* An edge we are later than this for is skipped, not fired late */
+#define PPS_LATE_MAX_US  1000
+
 static void pps_thread(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
+	int64_t next = -1;   /* global time of the next edge */
 
 	while (1) {
 		int64_t now = gsync_local_us();
 		k_spinlock_key_t key = k_spin_lock(&lock);
-		int64_t next = (floor_div(gtime_global(&g, now), US_PER_S) + 1) * US_PER_S;
+		int64_t g_now = gtime_global(&g, now);
+
+		/* Pick the next whole second, and pick again whenever global time
+		 * stepped (first sync, new master) past it or back from it. A
+		 * stale edge maps to a local time far in the past. */
+		if (next < 0 || g_now - next > PPS_LATE_MAX_US || next - g_now > US_PER_S) {
+			next = (floor_div(g_now, US_PER_S) + 1) * US_PER_S;
+		}
 		int64_t target = gtime_local_of(&g, next);
 
 		k_spin_unlock(&lock, key);
 
-		/* Sleep to just before the edge; a REF may move the target
-		 * meanwhile, so recompute it after waking */
+		/* Sleep to just before the edge, in slices so a REF that moves
+		 * global time is noticed */
 		if (target - now > GSYNC_PPS_WAKE_EARLY_US) {
-			k_sleep(K_USEC(target - now - GSYNC_PPS_WAKE_EARLY_US));
-			now = gsync_local_us();
-			key = k_spin_lock(&lock);
-			target = gtime_local_of(&g, next);
-			k_spin_unlock(&lock, key);
-			if (target - now > GSYNC_PPS_WAKE_EARLY_US) {
-				continue;   /* woke early (target moved later) */
-			}
+			k_sleep(K_USEC(MIN(target - now - GSYNC_PPS_WAKE_EARLY_US, PPS_SLICE_US)));
+			continue;
 		}
 
-		uint64_t target_cyc = k_us_to_cyc_ceil64((uint64_t)target);
+		/* Busy-wait the last <= GSYNC_PPS_WAKE_EARLY_US (or not at all if
+		 * already up to PPS_LATE_MAX_US late) */
+		uint64_t target_cyc = k_us_to_cyc_ceil64((uint64_t)MAX(target, 0));
 
 		while (k_cycle_get_64() < target_cyc) {
-			/* busy-wait: at most GSYNC_PPS_WAKE_EARLY_US */
 		}
 		gpio_pin_set_dt(&pps_pin, 1);
 		uint64_t edge_cyc = k_cycle_get_64();
@@ -300,6 +332,7 @@ static void pps_thread(void *p1, void *p2, void *p3)
 		};
 		k_spin_unlock(&lock, key);
 		(void)k_msgq_put(&pps_q, &rec, K_NO_WAIT);
+		next += US_PER_S;
 
 		k_sleep(K_MSEC(GSYNC_PPS_WIDTH_MS));
 		gpio_pin_set_dt(&pps_pin, 0);
@@ -359,6 +392,10 @@ static void print_thread(void *p1, void *p2, void *p3)
 		k_spinlock_key_t key = k_spin_lock(&lock);
 		struct gtime snap = g;
 		struct gsync_stats st = stats;
+		int32_t err_max = err_max_us;
+		int bus = sync_bus;
+
+		err_max_us = 0;
 		unsigned leader = leader_node;
 
 		k_spin_unlock(&lock, key);
@@ -370,10 +407,11 @@ static void print_thread(void *p1, void *p2, void *p3)
 		ppm_str(raw, sizeof(raw), snap.last_raw_ppb);
 		printk("DRIFT N%u leader=N%u g=%s drift=%s ppm (last raw %s) corr now=%+d us "
 		       "err@REF=%+d us (drift part %+d) samples=%u outliers=%u steps=%u "
-		       "bad stamps rx=%u tx=%u%s\n",
+		       "bad stamps rx=%u tx=%u | max|err| 1s=%d us bus=%c%s\n",
 		       self_node, leader, gs, ppm, raw, gtime_drift_corr_us(&snap, local),
 		       snap.last_error_us, snap.last_drift_us, snap.samples, snap.outliers,
-		       snap.steps, st.stamp_rx_bad, st.stamp_tx_bad,
+		       snap.steps, st.stamp_rx_bad, st.stamp_tx_bad, err_max,
+		       bus < 0 ? '-' : 'A' + bus,
 		       gtime_valid(&snap, local) ? "" : " NO-SYNC");
 	}
 }

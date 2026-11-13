@@ -156,7 +156,32 @@ scope before the Raft glue goes in:
 
 **Result:** 32 tests, 740 checks, all passing (QEMU Cortex-M3). Both bench
 images build without warnings (N2 and N3: 46.8 KB flash, 20.5 KB RAM).
-**Not yet run on hardware.**
+
+**Bench, consoles only (2026-11-13; scope not yet done):** N2 master, N3
+follower, Pi off.
+- N3's error at each REF (`err@REF`): 0 ± 1 µs; worst over each second:
+  1–2 µs.
+- Drift of N3 against N2's global time: −5.3 to −5.5 ppm, stable.
+- 0 untrusted stamps, 0 outliers, 0 steps. PPS edges fire 1–2 µs after
+  their target (busy-wait exit).
+- Global time carried over each time a board was reflashed: the other
+  board took over as master and the rebooted one followed it, with no step.
+
+The bench found two bugs, both fixed:
+1. **PPS hang:** a node whose global time stepped at first sync (booting
+   while the other board was already master) was left waiting for an edge
+   about 60 s in the past. The negative local time, cast to an unsigned
+   cycle count, made the busy-wait endless; the cooperative PPS thread then
+   starved the console. The PPS thread now picks the edge again after any
+   step and sleeps in 100 ms slices.
+2. **Bus saw-tooth:** samples from both buses were mixed. The two INT edges
+   of one REF are serviced one after the other, so bus A and bus B pairs
+   differ by a few µs, and `err@REF` sat near −10 µs. Samples now come from
+   one bus, switching only after 40 ms without a sample on it.
+
+Flashing two boards from one PC: this board's OpenOCD config ignores
+`west flash --serial`. Use
+`west flash -d <build> -r openocd --cmd-pre-init "adapter serial <ST-Link SN>"`.
 
 **Pins (both STM32s):** PPS **PA4 (A2)**, REF_RX **PB10 (D6)**, LEADER
 **PC4** (CN10-34), SYNC **PC5** (CN10-6). All four were unused in Lab 3.
