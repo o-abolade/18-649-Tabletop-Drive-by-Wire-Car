@@ -383,6 +383,12 @@ handover. The Pi powered back on, rejoined as a follower (LEADER stayed on
 N3), `NODE_cockpit_UP` and `COCKPIT_OK` were committed, and FL/RL returned
 to 2 Hz. All three logs are identical (44 entries).
 
+**Turn signals (checkoff 3), scope:** wheel and proxy running, all zones
+NORMAL. Left: **FL vs RL 0 s**; right: **FR vs RR 1 µs** (limit 1 ms over ten
+edges); cancel turns both off. The zones dropped to ERROR on a stale CTRL
+only during the first ~3 s of the proxy starting (12 drops on each board).
+None in the next 4.5 min: CTRL max gap about 40 ms, UDP max gap 42-51 ms.
+
 ### Questions for the course staff
 
 The checkoff sequence uses names and behaviour that the handout body does not
