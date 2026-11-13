@@ -398,12 +398,26 @@ Pi set to `--leader=random`.
 - Pi powered off: `NODE_cockpit_DOWN` and `COCKPIT_ERROR` committed under
   N3 (failure mode). Back on, the Pi replays all 66 entries once, in order,
   marked `(replayed)`, then live entries.
-- **Gap:** "the seed that makes the Pi win" cannot happen yet. Every node
-  starts its election timer at boot, and the Nucleos elect within 100 ms
-  while the Pi takes about 30 s to boot. Planned fix: in random mode, start
-  the timer only once all three nodes' heartbeats are heard (falling back to
-  5 s with a majority), so the seeded timeouts decide whatever the boot
-  order.
+- **Seed (fixed the same day):** every node started its election timer at
+  boot, so the Nucleos elected within 100 ms and the Pi, which boots about
+  30 s later, could never win. Now `raft_wait_for_cluster()` keeps the timer
+  off until all three nodes are heard (fallback: a majority for 60 s), and
+  the first timeout is base + `raft_boot_jitter_ms(seed, node)`. Seeds:
+  default 0x740, where steering wins by 38 ms; 0x209 (B1 held 3 s at reset,
+  Pi `--seed=pi`), where the cockpit wins by 36 ms. On hardware, with the
+  Nucleos started before the Pi:
+  - default seed: **N2 won term 1** after one election;
+  - Pi-wins seed: **the Pi won term 1** after one election.
+  - Step 6 again with the Pi leading: Pi powered off, N3 elected in term 2,
+    `NODE_cockpit_DOWN` and `COCKPIT_ERROR` committed. The Pi rebooted,
+    rejoined as a follower, replayed the missed entries once, in order,
+    marked `(replayed)`.
+- **The corrupted frames were the Pi's bus A wiring:** every bus A
+  transmit failed and received frames carried garbled data with intact
+  IDs, which points to the SPI wiring of the CE0 MCP2515 module, not the
+  CAN bus. Reseating the jumpers cleared it, though it came back once
+  later. Reseat or replace those jumpers before the checkoff. The CRC and
+  the term guard dropped every bad frame.
 
 ### Questions for the course staff
 
