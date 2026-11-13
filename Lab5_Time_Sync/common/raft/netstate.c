@@ -310,7 +310,7 @@ static bool hears_bus(unsigned self, const bool heard[RAFT_N + 1][RAFT_NUM_BUSES
 }
 
 unsigned netstate_observe(unsigned self, const bool heard[RAFT_N + 1][RAFT_NUM_BUSES],
-			  uint8_t events[NETSTATE_OBS_MAX])
+			  const bool alive_in[RAFT_N + 1], uint8_t events[NETSTATE_OBS_MAX])
 {
 	unsigned n = 0;
 	bool hears_anyone = false;
@@ -329,7 +329,9 @@ unsigned netstate_observe(unsigned self, const bool heard[RAFT_N + 1][RAFT_NUM_B
 		if (x == self) {
 			continue;
 		}
-		bool alive = false;
+		/* Heard now on some bus counts too, so a short window can't call
+		 * a node down that the link view still hears */
+		bool alive = alive_in[x];
 
 		for (unsigned b = 0; b < RAFT_NUM_BUSES; b++) {
 			alive |= heard[x][b];

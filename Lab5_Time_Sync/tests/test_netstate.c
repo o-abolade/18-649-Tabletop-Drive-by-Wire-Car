@@ -334,6 +334,8 @@ static bool has(const uint8_t *ev, unsigned n, uint8_t code)
 	return false;
 }
 
+static const bool no_alive[RAFT_N + 1];
+
 static void test_observe(void)
 {
 	bool heard[RAFT_N + 1][RAFT_NUM_BUSES];
@@ -342,35 +344,42 @@ static void test_observe(void)
 
 	/* Everyone heard on both buses */
 	memset(heard, 1, sizeof(heard));
-	n = netstate_observe(S, heard, ev);
+	n = netstate_observe(S, heard, no_alive, ev);
 	CHECK_EQ(n, 6);
 	CHECK(has(ev, n, raft_ev_link(S, A, true)) && has(ev, n, raft_ev_link(S, B, true)));
 	CHECK(has(ev, n, raft_ev_node(C, true)) && has(ev, n, raft_ev_cockpit(true)));
 	CHECK(has(ev, n, raft_ev_node(D, true)) && has(ev, n, raft_ev_node(S, true)));
-	CHECK_EQ(netstate_observe(C, heard, ev), 5);   /* the cockpit: no COCKPIT_* */
+	CHECK_EQ(netstate_observe(C, heard, no_alive, ev), 5);   /* the cockpit: no COCKPIT_* */
 
 	/* Drivetrain's A jumper pulled: it hears nobody on A, so its own A link
 	 * is down; the others hear it only on B, but vouch for its node only */
 	memset(heard, 1, sizeof(heard));
 	heard[C][A] = heard[S][A] = false;
-	n = netstate_observe(D, heard, ev);
+	n = netstate_observe(D, heard, no_alive, ev);
 	CHECK(has(ev, n, raft_ev_link(D, A, false)) && has(ev, n, raft_ev_link(D, B, true)));
 	CHECK(has(ev, n, raft_ev_node(C, true)) && has(ev, n, raft_ev_node(S, true)));
 	memset(heard, 1, sizeof(heard));
 	heard[D][A] = false;
-	n = netstate_observe(S, heard, ev);
+	n = netstate_observe(S, heard, no_alive, ev);
 	CHECK(has(ev, n, raft_ev_node(D, true)));
 	CHECK(!has(ev, n, raft_ev_link(D, A, false)));   /* not steering's to say */
 
 	/* Cockpit lost on both buses */
 	memset(heard, 1, sizeof(heard));
 	heard[C][A] = heard[C][B] = false;
-	n = netstate_observe(S, heard, ev);
+	n = netstate_observe(S, heard, no_alive, ev);
 	CHECK(has(ev, n, raft_ev_node(C, false)) && has(ev, n, raft_ev_cockpit(false)));
+
+	/* ... but not while it was heard within RAFT_NODE_DOWN_MS (the relay
+	 * of a double link fault is still starting) */
+	bool alive[RAFT_N + 1] = { false, true, true, true };
+
+	n = netstate_observe(S, heard, alive, ev);
+	CHECK(has(ev, n, raft_ev_node(C, true)) && has(ev, n, raft_ev_cockpit(true)));
 
 	/* Hears nobody (isolated, or alone at boot): only itself */
 	memset(heard, 0, sizeof(heard));
-	n = netstate_observe(D, heard, ev);
+	n = netstate_observe(D, heard, no_alive, ev);
 	CHECK_EQ(n, 1);
 	CHECK(has(ev, n, raft_ev_node(D, true)));
 	CHECK(!has(ev, n, raft_ev_link(D, A, false)) && !has(ev, n, raft_ev_node(C, false)));

@@ -48,6 +48,9 @@
  * unacknowledged one */
 #define RAFT_APPEND_GAP_MS      2
 #define RAFT_APPEND_RETRY_MS    20
+/* Votes and acknowledgements whose term is more than this far ahead of
+ * ours are dropped as corrupted (raft_on_frame); leader messages are not. */
+#define RAFT_TERM_JUMP_MAX      32
 /* Client: resend an unanswered EVENT after this long */
 #define RAFT_CLIENT_RETRY_MS    50
 #define RAFT_CLIENT_QUEUE       8
@@ -107,6 +110,7 @@ struct raft {
 	int64_t append_sent_ms;
 	uint16_t append_sent_index;
 	uint16_t commit_sent;       /* commit index last broadcast */
+	unsigned replicate_last;    /* follower served last (round robin) */
 	uint8_t cycle;              /* REF cycle counter */
 	uint32_t ref_prev_send_us;
 	bool ref_time_valid;
@@ -155,6 +159,12 @@ void raft_client_report(struct raft *r, uint8_t event);
  * Returns true if it was queued. A report already taken by the leader may
  * still commit; the opposite report then corrects it. */
 bool raft_client_withdraw(struct raft *r, uint8_t event);
+
+/* Client: drop every queued report that is not among `events` (the
+ * current observation). A report queued just as a node became isolated
+ * was otherwise delivered after it reconnected, and committed although no
+ * longer true (seen on hardware). */
+void raft_client_retain(struct raft *r, const uint8_t *events, unsigned n);
 
 /* Client: is this report still queued (not yet answered)? */
 bool raft_client_pending(const struct raft *r, uint8_t event);

@@ -782,7 +782,7 @@ static void io_apply(void *ctx, uint16_t index, uint8_t term, uint8_t event, boo
 	char name[32];
 
 	(void)ctx;
-	printf("COMMIT N1 #%u term %u %s%s\n", index, term,
+	printf("%lld COMMIT N1 #%u term %u %s%s\n", (long long)now_ms(), index, term,
 	       raft_ev_name(event, name, sizeof(name)), replayed ? " (replayed)" : "");
 }
 
@@ -808,7 +808,7 @@ static void io_role(void *ctx, enum raft_role role, unsigned leader, uint8_t ter
 	last_role = (int)role;
 	last_leader = leader;
 	last_term = term;
-	printf("ROLE N1: %s, term %u, leader %s\n", raft_role_name(role), term,
+	printf("%lld ROLE N1: %s, term %u, leader %s\n", (long long)now_ms(), raft_role_name(role), term,
 	       leader ? raft_node_name(leader) : "none");
 }
 
@@ -829,22 +829,25 @@ static bool hb_seen(int zone, int bus, int64_t now);
 static void raft_observe(int64_t now)
 {
 	bool heard[RAFT_N + 1][RAFT_NUM_BUSES] = { { false } };
+	bool alive[RAFT_N + 1] = { false };
 	uint8_t ev[NETSTATE_OBS_MAX];
 	int health[RAFT_N + 1] = { -1, -1, -1, -1 };
 
 	for (unsigned x = CANP_ZONE_N2; x <= RAFT_N; x++) {
 		for (unsigned b = 0; b < RAFT_NUM_BUSES; b++) {
 			heard[x][b] = hb_seen(x, b, now);
+			alive[x] |= last_hb_ms[x][b] > 0 && now - last_hb_ms[x][b] <= RAFT_NODE_DOWN_MS;
 		}
 		if (now - health_ms[x] <= HB_TIMEOUT_MS) {
 			health[x] = health_bits[x];
 		}
 	}
 
-	unsigned n = netstate_observe(CANP_ZONE_N1, heard, ev);
+	unsigned n = netstate_observe(CANP_ZONE_N1, heard, alive, ev);
 
+	/* A queued report that is no longer observed is no longer true */
+	raft_client_retain(&raft, ev, n);
 	for (unsigned i = 0; i < n; i++) {
-		raft_client_withdraw(&raft, raft_ev_opposite(ev[i]));
 		if (!netstate_would_change(&raft.state, ev[i]) || raft_client_pending(&raft, ev[i]) ||
 		    now - boot_ms < BOOT_QUIET_MS ||
 		    now - last_report_ms[ev[i]] < REPORT_MS) {
@@ -852,7 +855,7 @@ static void raft_observe(int64_t now)
 		}
 		char name[32];
 
-		printf("CLIENT N1: report %s\n", raft_ev_name(ev[i], name, sizeof(name)));
+		printf("%lld CLIENT N1: report %s\n", (long long)now, raft_ev_name(ev[i], name, sizeof(name)));
 		raft_client_report(&raft, ev[i]);
 		last_report_ms[ev[i]] = now;
 	}

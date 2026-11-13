@@ -144,6 +144,8 @@ void netstate_routes(const struct netstate *ns, unsigned self, unsigned relay_ca
 /* ---- Client detection (design.md section 6) ----
  * heard[X][b]: node X's heartbeat arrived on bus b within the heartbeat
  * timeout (any copy, direct or relayed). heard[self][*] is ignored.
+ * alive[X]: X's heartbeat arrived on either bus within RAFT_NODE_DOWN_MS,
+ * the longer window used for node up/down and the cockpit.
  *
  * A node vouches only for what it can tell apart:
  *  - itself: always up;
@@ -162,7 +164,7 @@ void netstate_routes(const struct netstate *ns, unsigned self, unsigned relay_ca
 #define NETSTATE_OBS_MAX (RAFT_NUM_BUSES + 1 + 2 * (RAFT_N - 1))
 
 unsigned netstate_observe(unsigned self, const bool heard[RAFT_N + 1][RAFT_NUM_BUSES],
-			  uint8_t events[NETSTATE_OBS_MAX]);
+			  const bool alive[RAFT_N + 1], uint8_t events[NETSTATE_OBS_MAX]);
 
 /* The opposite of an event (UP <-> DOWN, OK <-> ERROR); NONE stays NONE. */
 uint8_t raft_ev_opposite(uint8_t code);

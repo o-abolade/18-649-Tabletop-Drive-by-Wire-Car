@@ -45,6 +45,14 @@
 #define RAFT_ELECTION_JITTER_MS 39
 #define RAFT_ELECTION_BASE_MS (RAFT_MISSED_HEARTBEATS * RAFT_HEARTBEAT_MS)
 
+/* Client: a node unheard on both buses for this long is reported down
+ * (NODE_X_DOWN, and COCKPIT_ERROR for the cockpit). Longer than the 60 ms
+ * link timeout: after a double link fault (checkoff 5) a node can hear
+ * another only through the relay, which starts about 100 ms after the
+ * fault, once the heartbeats show the cut link. With 60 ms the cockpit
+ * was committed down while it was fine (seen on hardware). */
+#define RAFT_NODE_DOWN_MS     200
+
 /* Empty APPEND (commit index carrier) period when nothing new is appended
  * (checkoff step 2). */
 #define RAFT_EMPTY_APPEND_MS  100

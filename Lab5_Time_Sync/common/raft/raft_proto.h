@@ -5,7 +5,8 @@
  * the Lab 3 rule: low nibble = 4-bit sequence counter, high nibble = flags
  * (0). Each kind has a separate ID per sender (base + node), so two nodes
  * that briefly both act as leader never send the same ID with different
- * data. Terms are 8 bits and log indexes 16 bits, little-endian.
+ * data. Terms are 8 bits (they stop at 255 rather than wrap; raft.c) and
+ * log indexes 16 bits, little-endian.
  *
  * Plain C99, no Zephyr or Linux dependencies (shared by all three nodes).
  */

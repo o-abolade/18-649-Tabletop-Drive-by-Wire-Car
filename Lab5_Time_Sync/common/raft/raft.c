@@ -91,11 +91,30 @@ static void set_leader(struct raft *r, unsigned leader)
 	}
 }
 
+/*
+ * Terms are 8 bits on the wire. They are compared as plain numbers: every
+ * node in LEADER=cockpit mode boots in term 1, so wrap-around (serial)
+ * comparison would make a rebooted node's term 1 look newer than a cluster
+ * term of 129-255. Instead the term never wraps: 255 elections take a cold
+ * restart to reset. Before, the next term after 255 was 0, which every node
+ * refused, so no leader could ever be elected again (seen on hardware, after
+ * corrupted frames had pushed the term up; see RAFT_TERM_JUMP_MAX).
+ */
+static bool term_newer(uint8_t a, uint8_t b)
+{
+	return a > b;
+}
+
+static uint8_t term_next(uint8_t t)
+{
+	return t < UINT8_MAX ? (uint8_t)(t + 1) : t;
+}
+
 static bool up_to_date(const struct raft *r, uint8_t last_term, uint16_t last_index)
 {
 	uint8_t my_term = raft_log_last_term(&r->log);
 
-	return last_term > my_term || (last_term == my_term && last_index >= r->log.last);
+	return term_newer(last_term, my_term) || (last_term == my_term && last_index >= r->log.last);
 }
 
 /* The graph including uncommitted entries: what the leader will commit. */
@@ -186,7 +205,7 @@ static void become_follower(struct raft *r, uint8_t term, unsigned leader, int64
 {
 	bool changed = term != r->term || r->role != RAFT_FOLLOWER || leader != r->leader;
 
-	if (term > r->term) {
+	if (term_newer(term, r->term)) {
 		r->term = term;
 		r->voted_for = 0;
 	}
@@ -239,14 +258,14 @@ static void start_prevote(struct raft *r, int64_t now)
 	set_leader(r, 0);
 	r->votes = (uint8_t)(1u << r->self);
 	reset_election_timer(r, now);
-	dbg(r, "pre-vote for term %u", r->term + 1);
+	dbg(r, "pre-vote for term %u", term_next(r->term));
 	notify_role(r);
-	send_req_vote(r, (uint8_t)(r->term + 1), true);
+	send_req_vote(r, term_next(r->term), true);
 }
 
 static void start_election(struct raft *r, int64_t now)
 {
-	r->term++;
+	r->term = term_next(r->term);
 	r->voted_for = (uint8_t)r->self;
 	r->role = RAFT_CANDIDATE;
 	set_leader(r, 0);
@@ -268,7 +287,7 @@ static void leader_advance_commit(struct raft *r)
 	for (uint16_t n = r->log.last; n > r->commit; n--) {
 		uint8_t t;
 
-		if (!raft_log_term_at(&r->log, n, &t) || t < r->term) {
+		if (!raft_log_term_at(&r->log, n, &t) || term_newer(r->term, t)) {
 			break;   /* terms never decrease along the log */
 		}
 		unsigned count = 1;
@@ -336,22 +355,25 @@ static void send_snapshot(struct raft *r)
 	dbg(r, "snapshot %u to followers", m.index);
 }
 
-/* Send the oldest entry a follower still needs: active followers first; a
- * follower that stopped acknowledging is only probed every PROBE_MS so it
- * cannot hold back replication to the others. */
+/* Send an entry a follower still needs: active followers first, taking
+ * turns, so one follower that is far behind (or stuck) cannot starve the
+ * others. A follower that stopped acknowledging is only probed every
+ * PROBE_MS. */
 static void leader_replicate(struct raft *r, int64_t now)
 {
 	unsigned pick = 0;
 	bool pick_active = false;
 
-	for (unsigned f = 1; f <= RAFT_N; f++) {
+	for (unsigned k = 1; k <= RAFT_N; k++) {
+		/* Start after the follower served last */
+		unsigned f = (r->replicate_last + k - 1) % RAFT_N + 1;
+
 		if (f == r->self || r->next_index[f] > r->log.last) {
 			continue;
 		}
 		bool active = now - r->last_ack_ms[f] <= RAFT_QUORUM_MS;
 
-		if (!pick || (active && !pick_active) ||
-		    (active == pick_active && r->next_index[f] < r->next_index[pick])) {
+		if (!pick || (active && !pick_active)) {
 			pick = f;
 			pick_active = active;
 		}
@@ -372,6 +394,7 @@ static void leader_replicate(struct raft *r, int64_t now)
 	}
 	r->append_sent_index = idx;
 	r->append_sent_ms = now;
+	r->replicate_last = pick;
 }
 
 static void leader_tick(struct raft *r, int64_t now)
@@ -430,14 +453,14 @@ static uint8_t leader_take_report(struct raft *r, uint8_t event, uint16_t *index
  * the current leader and the message should be processed. */
 static bool accept_leader_msg(struct raft *r, unsigned sender, uint8_t term, int64_t now)
 {
-	if (term < r->term) {
+	if (term_newer(r->term, term)) {
 		send_ack(r, false, r->log.last);   /* tells a stale leader our term */
 		return false;
 	}
 	if (r->role == RAFT_LEADER && term == r->term) {
 		return false;   /* cannot happen: one leader per term */
 	}
-	if (term > r->term || r->role != RAFT_FOLLOWER || r->leader != sender) {
+	if (term_newer(term, r->term) || r->role != RAFT_FOLLOWER || r->leader != sender) {
 		become_follower(r, term, sender, now);
 	}
 	r->last_heard_ms = now;
@@ -547,7 +570,7 @@ static void on_snapshot(struct raft *r, unsigned sender, const struct raftp_snap
 
 static void on_append_ack(struct raft *r, unsigned f, const struct raftp_append_ack *a, int64_t now)
 {
-	if (a->term > r->term) {
+	if (term_newer(a->term, r->term)) {
 		become_follower(r, a->term, 0, now);
 		return;
 	}
@@ -564,6 +587,13 @@ static void on_append_ack(struct raft *r, unsigned f, const struct raftp_append_
 		r->next_index[f] = (uint16_t)(r->match_index[f] + 1);
 		leader_advance_commit(r);
 	} else {
+		/* A follower whose log is now shorter than what it had matched lost
+		 * its log: it rebooted (the logs are in RAM). Standard Raft never
+		 * lowers match_index, which left a rebooted Pi stuck forever
+		 * (seen on hardware). Start over from what it has now. */
+		if (a->match_index < r->match_index[f]) {
+			r->match_index[f] = a->match_index;
+		}
 		uint16_t n = r->next_index[f] > 1 ? (uint16_t)(r->next_index[f] - 1) : 1;
 		uint16_t hint = (uint16_t)(a->match_index + 1);
 
@@ -588,11 +618,11 @@ static void on_req_vote(struct raft *r, unsigned cand, const struct raftp_req_vo
 				    (r->leader != 0 && r->timer_armed &&
 				     now - r->last_heard_ms < RAFT_ELECTION_BASE_MS);
 
-		v.granted = !leader_alive && m->term > r->term &&
+		v.granted = !leader_alive && term_newer(m->term, r->term) &&
 			    up_to_date(r, m->last_term, m->last_index);
 		v.term = v.granted ? m->term : r->term;
 	} else {
-		if (m->term > r->term) {
+		if (term_newer(m->term, r->term)) {
 			become_follower(r, m->term, 0, now);
 		}
 		v.granted = m->term == r->term &&
@@ -619,17 +649,17 @@ static void on_vote(struct raft *r, unsigned voter, const struct raftp_vote *v, 
 		if (r->role != RAFT_PRECANDIDATE) {
 			return;
 		}
-		if (v->granted && v->term == (uint8_t)(r->term + 1)) {
+		if (v->granted && v->term == term_next(r->term)) {
 			r->votes |= (uint8_t)(1u << voter);
 			if (popcount(r->votes) >= RAFT_MAJORITY) {
 				start_election(r, now);
 			}
-		} else if (!v->granted && v->term > r->term) {
+		} else if (!v->granted && term_newer(v->term, r->term)) {
 			become_follower(r, v->term, 0, now);
 		}
 		return;
 	}
-	if (v->term > r->term) {
+	if (term_newer(v->term, r->term)) {
 		become_follower(r, v->term, 0, now);
 		return;
 	}
@@ -724,6 +754,25 @@ void raft_client_report(struct raft *r, uint8_t event)
 	}
 	if (r->client_count < RAFT_CLIENT_QUEUE) {
 		r->client_queue[r->client_count++] = event;
+	}
+}
+
+void raft_client_retain(struct raft *r, const uint8_t *events, unsigned n)
+{
+	unsigned i = 0;
+
+	while (i < r->client_count) {
+		uint8_t q = r->client_queue[i];
+		bool keep = false;
+
+		for (unsigned k = 0; k < n && !keep; k++) {
+			keep = events[k] == q;
+		}
+		if (keep) {
+			i++;
+		} else {
+			raft_client_withdraw(r, q);   /* shifts the queue down */
+		}
 	}
 }
 
@@ -853,6 +902,30 @@ void raft_on_frame(struct raft *r, uint32_t id, const uint8_t d[RAFTP_DLC], int6
 
 	if (kind == RAFTP_NONE || sender == r->self) {
 		return;
+	}
+	/* A term far ahead of ours: seen on hardware while a bus was being
+	 * disturbed, a vote request with term 0 and then terms 248 and 252 when
+	 * the cluster was at 2 (frames with a Raft ID and another frame's data,
+	 * suspected in the Pi's driver). Adopting such a term moves the whole
+	 * cluster there. Elections advance the term one at a time, so votes and
+	 * acknowledgements far ahead are dropped. Leader messages are kept: a
+	 * rebooted node learns the current term from them. The raw frame is
+	 * logged to find the source. */
+	if (kind == RAFTP_REQ_VOTE || kind == RAFTP_VOTE || kind == RAFTP_APPEND_ACK ||
+	    kind == RAFTP_REF || kind == RAFTP_APPEND || kind == RAFTP_SNAPSHOT) {
+		bool leader_msg = kind == RAFTP_REF || kind == RAFTP_APPEND ||
+				  kind == RAFTP_SNAPSHOT;
+
+		if (d[1] > r->term + RAFT_TERM_JUMP_MAX || d[1] == 0) {
+			dbg(r, "%s term %u (ours %u) in id 0x%03x from %s: "
+			    "%02x %02x %02x %02x %02x %02x %02x %02x",
+			    leader_msg && d[1] != 0 ? "far" : "dropped, bad", d[1], r->term,
+			    (unsigned)id, raft_node_name(sender), d[0], d[1], d[2], d[3], d[4],
+			    d[5], d[6], d[7]);
+			if (!leader_msg || d[1] == 0) {
+				return;
+			}
+		}
 	}
 	switch (kind) {
 	case RAFTP_REF: {

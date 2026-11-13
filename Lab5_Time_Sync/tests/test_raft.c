@@ -335,6 +335,17 @@ static void test_client_withdraw(void)
 	CHECK(raft_client_withdraw(&sim.node[D], other));
 	CHECK(!raft_client_withdraw(&sim.node[D], other));
 	CHECK_EQ(sim.node[D].client_count, 0);
+
+	/* retain: keep only what is still observed */
+	uint8_t still[] = { other };
+
+	raft_client_report(&sim.node[D], down);
+	raft_client_report(&sim.node[D], other);
+	raft_client_retain(&sim.node[D], still, 1);
+	CHECK_EQ(sim.node[D].client_count, 1);
+	CHECK(raft_client_pending(&sim.node[D], other) && !raft_client_pending(&sim.node[D], down));
+	raft_client_retain(&sim.node[D], still, 0);
+	CHECK_EQ(sim.node[D].client_count, 0);
 	sim_isolate(&sim, D, false);
 	sim_run(&sim, 500);
 	for (unsigned n = 1; n <= RAFT_N; n++) {
@@ -342,6 +353,111 @@ static void test_client_withdraw(void)
 		CHECK(sim.node[n].state.link_up[D][0]);
 	}
 	CHECK(sim.safety_ok);
+}
+
+/* Seen on hardware: the Pi rejoined an STM32 leader, caught up, then
+ * rebooted again (logs are in RAM). The leader still held the Pi's old
+ * match index, so it never backed off far enough to catch the empty log up,
+ * and because the stuck Pi was always served first, the other follower got
+ * no new entries either: nothing committed any more. */
+static void test_follower_reboot_after_catch_up(void)
+{
+	sim_start(&sim, C, RAFT_SEED, ALL);
+	sim_run(&sim, 500);
+	raft_client_report(&sim.node[C], RAFT_EV_COCKPIT_OK);
+	sim_run(&sim, 500);
+	sim.alive[C] = false;
+	sim_run(&sim, 600);
+
+	unsigned leader = 0;
+
+	CHECK_EQ(leaders(&sim, &leader), 1);
+	raft_client_report(&sim.node[leader], raft_ev_node(C, false));
+	sim_run(&sim, 300);
+
+	/* The Pi comes back and catches up */
+	sim_boot(&sim, C);
+	sim_run(&sim, 1000);
+	CHECK_EQ(sim.node[C].commit, sim.node[leader].commit);
+	raft_client_report(&sim.node[leader], raft_ev_node(C, true));
+	sim_run(&sim, 300);
+	CHECK_EQ(sim.node[C].commit, sim.node[leader].commit);
+
+	/* ... and reboots again with an empty log */
+	sim_boot(&sim, C);
+	sim_run(&sim, 1000);
+	CHECK_EQ(sim.node[C].commit, sim.node[leader].commit);
+
+	/* New reports still commit everywhere */
+	uint16_t before = sim.node[leader].commit;
+
+	raft_client_report(&sim.node[D], raft_ev_link(D, 0, false));
+	sim_run(&sim, 500);
+	CHECK_EQ(sim.node[leader].commit, before + 1);
+	CHECK(states_agree(&sim, ALL));
+	CHECK(leaders(&sim, NULL) == 1 && raft_is_leader(&sim.node[leader]));
+	CHECK(sim.safety_ok);
+}
+
+/* Seen on hardware: corrupted frames carried terms 0, 248 and 252 while the
+ * cluster was at term 2; the nodes adopted them, and the term then hit 255.
+ * Votes and acknowledgements far ahead are dropped; a leader's REF is still
+ * followed (that is how a rebooted node learns the term). The term never
+ * wraps to 0. */
+static void test_term_guard(void)
+{
+	uint8_t d[RAFTP_DLC];
+
+	sim_start(&sim, C, RAFT_SEED, ALL);
+	sim_run(&sim, 500);
+	CHECK_EQ(sim.node[S].term, 1);
+
+	struct raftp_req_vote rv = { .term = 248, .last_index = 0, .last_term = 0 };
+
+	raftp_encode_req_vote(d, 0, &rv);
+	raft_on_frame(&sim.node[S], raftp_id(RAFTP_REQ_VOTE, D), d, sim.now);
+	rv.term = 0;
+	raftp_encode_req_vote(d, 1, &rv);
+	raft_on_frame(&sim.node[S], raftp_id(RAFTP_REQ_VOTE, D), d, sim.now);
+
+	struct raftp_vote v = { .term = 252, .candidate = S, .granted = false };
+
+	raftp_encode_vote(d, 0, &v);
+	raft_on_frame(&sim.node[S], raftp_id(RAFTP_VOTE, D), d, sim.now);
+
+	struct raftp_append_ack a = { .term = 200, .success = false, .match_index = 0 };
+
+	raftp_encode_append_ack(d, 0, &a);
+	raft_on_frame(&sim.node[C], raftp_id(RAFTP_APPEND_ACK, D), d, sim.now);
+	CHECK_EQ(sim.node[S].term, 1);
+	CHECK_EQ(sim.node[C].term, 1);
+	CHECK(raft_is_leader(&sim.node[C]));
+
+	/* A small jump (a real election elsewhere) is still followed */
+	rv.term = 3;
+	rv.last_index = 99;
+	rv.last_term = 3;
+	raftp_encode_req_vote(d, 2, &rv);
+	raft_on_frame(&sim.node[S], raftp_id(RAFTP_REQ_VOTE, D), d, sim.now);
+	CHECK_EQ(sim.node[S].term, 3);
+
+	/* At 255 the term stays: no wrap to 0 */
+	sim_start(&sim, RAFT_LEADER_NONE, RAFT_SEED, ALL);
+	sim_run(&sim, 1000);
+	for (unsigned n = 1; n <= RAFT_N; n++) {
+		sim.node[n].term = 255;
+	}
+	sim.q_len = 0;
+	unsigned leader = 0;
+
+	CHECK_EQ(leaders(&sim, &leader), 1);
+	sim.alive[leader] = false;
+	sim_run(&sim, 1000);
+	for (unsigned n = 1; n <= RAFT_N; n++) {
+		if (sim.alive[n]) {
+			CHECK_EQ(sim.node[n].term, 255);
+		}
+	}
 }
 
 /* A client that addresses a follower is redirected to the leader. */
@@ -589,4 +705,6 @@ void test_raft_all(void)
 	RUN(test_snapshot_catch_up);
 	RUN(test_lossy_network);
 	RUN(test_client_withdraw);
+	RUN(test_follower_reboot_after_catch_up);
+	RUN(test_term_guard);
 }

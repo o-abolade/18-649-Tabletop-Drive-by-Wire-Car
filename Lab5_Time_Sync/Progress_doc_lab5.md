@@ -288,9 +288,42 @@ Bugs found on hardware and fixed:
 - The client re-sent the same report every 200 ms while no leader was
   reachable.
 
-**Still to test (needs jumpers):** checkoff 4 (one link pulled), 5 (the hop
-with the Pi as master), 9 (relayed sync with an STM32 master) and 10
-(isolation).
+**Jumper runs, 2026-11-13** (Pi + N2 + N3; all three logs identical in
+every run):
+- *N3 B out/in (checkoff 4):* exactly one entry each way, term unchanged.
+- *Pi off B + N3 off A (checkoff 5):* exactly the two expected entries
+  (`CANLINK_drivetrain_A_DOWN`, `CANLINK_cockpit_B_DOWN`), term unchanged,
+  after the node-down fix below.
+- *N3 isolated while leader (checkoff 10):* N3 pre-voted for 9 s without
+  raising its term. The others elected a new leader (one term change). N3
+  rejoined and replayed what it missed.
+- *Pi power-off (checkoff 6-7):* one election, `NODE_cockpit_DOWN` and
+  `COCKPIT_ERROR`; the Pi booted, rejoined and the cockpit came back up.
+- In one run, pulling N3's A disturbed the whole of bus A for about 30 s
+  (every node lost bus A; the Pi's watchdog reset its interface six times).
+  Pulling the same jumper again later behaved normally, so it was a contact
+  glitch, not the software.
+
+Bugs found by these runs and fixed (each has a simulator test):
+- **Rebooted follower never caught up:** the leader kept the follower's old
+  `match_index` (standard Raft assumes logs survive a reboot; ours are in
+  RAM), and the stuck follower starved the other one, so nothing committed
+  any more. Now a shorter log resets the match, and followers take turns.
+- **Stale report committed after reconnecting:** queued reports that are no
+  longer observed are dropped (`raft_client_retain`).
+- **Cockpit committed down during checkoff 5:** a node reported another node
+  down after 60 ms, before the relay had started. Node and cockpit down now
+  need `RAFT_NODE_DOWN_MS` = 200 ms of silence; links stay at 60 ms.
+- **Corrupted terms:** while bus A was disturbed, the Pi received frames
+  decoding as term 0, 248 and 252 (frames with a Raft ID and another frame's
+  data are suspected). The cluster adopted them, and once the term reached
+  255 the next election asked for term 0 and no leader could ever be
+  elected. Votes and acknowledgements more than 32 terms ahead are now
+  dropped and logged with their raw bytes; the term stops at 255 instead of
+  wrapping. Source still to be found from those logs.
+
+**Still to test (needs jumpers):** checkoff 9 (relayed sync with an STM32
+master), and a clean rerun of 4 and 5 with these fixes.
 
 ### Questions for the course staff
 

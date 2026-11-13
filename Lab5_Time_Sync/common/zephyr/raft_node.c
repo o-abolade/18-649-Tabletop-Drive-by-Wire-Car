@@ -68,7 +68,7 @@ static void io_apply(void *ctx, uint16_t index, uint8_t term, uint8_t event, boo
 	char name[32];
 
 	ARG_UNUSED(ctx);
-	printk("COMMIT N%u #%u term %u %s%s\n", self, index, term,
+	printk("%u COMMIT N%u #%u term %u %s%s\n", k_uptime_get_32(), self, index, term,
 	       raft_ev_name(event, name, sizeof(name)), replayed ? " (replayed)" : "");
 }
 
@@ -95,7 +95,8 @@ static void io_role(void *ctx, enum raft_role role, unsigned leader, uint8_t ter
 	last_role = role;
 	last_leader = leader;
 	last_term = term;
-	printk("ROLE N%u: %s, term %u, leader %s\n", self, raft_role_name(role), term,
+	printk("%u ROLE N%u: %s, term %u, leader %s\n", k_uptime_get_32(), self,
+	       raft_role_name(role), term,
 	       leader ? raft_node_name(leader) : "none");
 }
 
@@ -178,14 +179,15 @@ bool raft_node_failure_mode(void)
 /* ---- RAFT thread ---- */
 
 /* Client: report what we observe and the committed graph doesn't show */
-static void observe(int64_t now, bool heard[RAFT_N + 1][RAFT_NUM_BUSES])
+static void observe(int64_t now, bool heard[RAFT_N + 1][RAFT_NUM_BUSES],
+		    const bool alive[RAFT_N + 1])
 {
 	uint8_t ev[NETSTATE_OBS_MAX];
-	unsigned n = netstate_observe(self, heard, ev);
+	unsigned n = netstate_observe(self, heard, alive, ev);
 
+	/* A queued report that is no longer observed is no longer true */
+	raft_client_retain(&r, ev, n);
 	for (unsigned i = 0; i < n; i++) {
-		/* An opposite report still queued is no longer true */
-		raft_client_withdraw(&r, raft_ev_opposite(ev[i]));
 		if (!netstate_would_change(&r.state, ev[i]) || raft_client_pending(&r, ev[i]) ||
 		    now - boot_ms < RAFT_NODE_BOOT_QUIET_MS ||
 		    now - last_report_ms[ev[i]] < RAFT_NODE_REPORT_MS) {
@@ -193,7 +195,8 @@ static void observe(int64_t now, bool heard[RAFT_N + 1][RAFT_NUM_BUSES])
 		}
 		char name[32];
 
-		printk("CLIENT N%u: report %s\n", self, raft_ev_name(ev[i], name, sizeof(name)));
+		printk("%u CLIENT N%u: report %s\n", (uint32_t)now, self,
+		       raft_ev_name(ev[i], name, sizeof(name)));
 		raft_client_report(&r, ev[i]);
 		last_report_ms[ev[i]] = now;
 	}
@@ -267,15 +270,17 @@ static void raft_thread(void *a, void *b, void *c)
 		}
 
 		bool heard[RAFT_N + 1][RAFT_NUM_BUSES] = { 0 };
+		bool alive[RAFT_N + 1] = { 0 };
 
 		for (unsigned x = 1; x <= RAFT_N; x++) {
 			for (unsigned bus = 0; bus < RAFT_NUM_BUSES; bus++) {
 				int64_t t = can_link_last_hb_ms(x, bus);
 
 				heard[x][bus] = x != self && t >= 0 && now - t <= ZONE_HB_TIMEOUT_MS;
+				alive[x] |= x != self && t >= 0 && now - t <= RAFT_NODE_DOWN_MS;
 			}
 		}
-		observe(now, heard);
+		observe(now, heard, alive);
 		publish(now, heard);
 	}
 }
