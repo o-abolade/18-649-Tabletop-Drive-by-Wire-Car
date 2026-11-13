@@ -157,8 +157,15 @@ scope before the Raft glue goes in:
 **Result:** 32 tests, 740 checks, all passing (QEMU Cortex-M3). Both bench
 images build without warnings (N2 and N3: 46.8 KB flash, 20.5 KB RAM).
 
-**Bench, consoles only (2026-11-13; scope not yet done):** N2 master, N3
-follower, Pi off.
+**Bench (2026-11-13):** N2 master, N3 follower, Pi off.
+- **Scope: PPS spread N2 vs N3 = 1.96 µs** (A2 on both boards,
+  `GSYNC_NET_DELAY_US` = 0). That is about one bit time at 500 kbit/s,
+  which matches the MCP2515 flagging a received frame about one bit before
+  the sender flags its transmission complete. The follower (N3) led, by
+  1.1–2.0 µs from edge to edge.
+- **Calibrated: `GSYNC_NET_DELAY_US` = −2 µs (one bit). Spread after
+  calibration: under 1 µs.** The remaining jitter comes from whole-µs
+  timestamps on both nodes and interrupt entry time.
 - N3's error at each REF (`err@REF`): 0 ± 1 µs; worst over each second:
   1–2 µs.
 - Drift of N3 against N2's global time: −5.3 to −5.5 ppm, stable.

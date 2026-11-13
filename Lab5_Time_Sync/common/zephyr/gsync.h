@@ -28,9 +28,13 @@
 #include "raft_proto.h"
 
 /* Network delay added to every sample: receiver's end-of-frame edge minus
- * the sender's (both are interrupt edges at the end of the same frame) */
+ * the sender's (both are interrupt edges at the end of the same frame).
+ * Negative: the receiving MCP2515 flags the frame about one bit (2 us at
+ * 500 kbit/s) before the sender flags its transmission complete. Measured
+ * on the bench with 0 here: the follower's PPS led the master's by
+ * 1.1-2.0 us (2026-11-13). */
 #ifndef GSYNC_NET_DELAY_US
-#define GSYNC_NET_DELAY_US     0
+#define GSYNC_NET_DELAY_US     (-2)
 #endif
 
 /* PPS: wake this long before the edge, then busy-wait to it */
