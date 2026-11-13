@@ -375,6 +375,14 @@ Blinkers on global time.
 **Scope, 2026-11-13** (no wheel proxy, so all three nodes are in ERROR with
 2 Hz hazards): **FL vs RL 0.5 µs, FL vs HZ 46 µs** (checkoff 1, limit 1 ms).
 
+**Failure mode (checkoff 6-7), scope + logs:** Pi powered off with the Pi
+leading. One election (N3, term 7); `COCKPIT_ERROR` was committed 153 ms
+after N3 took over, and FL/RL switched to 4 Hz in step: **FL vs RL
+0.74 µs** at 4 Hz, with no visible stretched or shortened pulse at the
+handover. The Pi powered back on, rejoined as a follower (LEADER stayed on
+N3), `NODE_cockpit_UP` and `COCKPIT_OK` were committed, and FL/RL returned
+to 2 Hz. All three logs are identical (44 entries).
+
 ### Questions for the course staff
 
 The checkoff sequence uses names and behaviour that the handout body does not
