@@ -33,7 +33,8 @@ macro(lab5_add_common_libs)
     ${LAB5_COMMON}/raft/netstate.c
     ${LAB5_COMMON}/raft/raft_log.c
     ${LAB5_COMMON}/raft/raft.c
-    ${LAB5_COMMON}/raft/gtime.c)
+    ${LAB5_COMMON}/raft/gtime.c
+    ${LAB5_COMMON}/raft/refsync.c)
   lab5_add_lib(can_proto ${LAB5_COMMON}/can_proto.c)
   lab5_add_lib(wcet      ${LAB5_COMMON}/zephyr/wcet.c)
   lab5_add_lib(can_link  ${LAB5_COMMON}/zephyr/can_link.c)

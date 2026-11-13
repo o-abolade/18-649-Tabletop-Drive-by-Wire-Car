@@ -727,6 +727,16 @@ void raft_client_report(struct raft *r, uint8_t event)
 	}
 }
 
+bool raft_client_pending(const struct raft *r, uint8_t event)
+{
+	for (unsigned i = 0; i < r->client_count; i++) {
+		if (r->client_queue[i] == event) {
+			return true;
+		}
+	}
+	return false;
+}
+
 bool raft_client_withdraw(struct raft *r, uint8_t event)
 {
 	for (unsigned i = 0; i < r->client_count; i++) {

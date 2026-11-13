@@ -186,7 +186,7 @@ static void observe(int64_t now, bool heard[RAFT_N + 1][RAFT_NUM_BUSES])
 	for (unsigned i = 0; i < n; i++) {
 		/* An opposite report still queued is no longer true */
 		raft_client_withdraw(&r, raft_ev_opposite(ev[i]));
-		if (!netstate_would_change(&r.state, ev[i]) ||
+		if (!netstate_would_change(&r.state, ev[i]) || raft_client_pending(&r, ev[i]) ||
 		    now - boot_ms < RAFT_NODE_BOOT_QUIET_MS ||
 		    now - last_report_ms[ev[i]] < RAFT_NODE_REPORT_MS) {
 			continue;

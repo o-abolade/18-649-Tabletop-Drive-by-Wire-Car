@@ -156,6 +156,9 @@ void raft_client_report(struct raft *r, uint8_t event);
  * still commit; the opposite report then corrects it. */
 bool raft_client_withdraw(struct raft *r, uint8_t event);
 
+/* Client: is this report still queued (not yet answered)? */
+bool raft_client_pending(const struct raft *r, uint8_t event);
+
 /* The platform reports when the REF it just sent was handed to the CAN
  * controller, in its microsecond clock; the next REF carries it. */
 void raft_ref_sent(struct raft *r, uint32_t send_us);

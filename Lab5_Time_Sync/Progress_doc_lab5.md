@@ -14,8 +14,8 @@ Handout: [Lab 5: Time Synchronization and Consensus](../Lab%20Handouts/18-449_64
 
 ### 1. Node setup and Raft clients
 
-- [ ] Set up a Raft agent, log, configuration and client on each node.
-- [ ] Implement client updates, network-state queries and follower-to-leader redirection.
+- [x] Set up a Raft agent, log, configuration and client on each node (step 4: N1, N2, N3 on hardware).
+- [x] Implement client updates, network-state queries and follower-to-leader redirection (step 4).
 
 ### 2. Leader election
 
@@ -218,6 +218,79 @@ Flashing two boards from one PC: this board's OpenOCD config ignores
 4. Handover: press B1 on N2. N3 becomes master after 100 ms, with no visible
    jump in N3's own PPS. Press B1 again: N2 follows N3, and its first
    `err@REF` shows how far it drifted while silent.
+
+### Step 4 (branch `lab5-raft-core`, 2026-11-13)
+
+Raft, time sync and routing on all three nodes.
+
+- **STM32 apps** (`stm32_steering/`, `stm32_drivetrain/`): Lab 5 copies of
+  the Lab 3 apps. `common/zephyr/raft_node.c` runs the Raft agent in its own
+  thread, sends REF through `gsync`, and runs the client every 10 ms.
+  LEADER=cockpit by default; holding B1 while a board resets switches that
+  board to LEADER=random (`CONFIG_LAB5_LEADER_RANDOM` sets the default).
+- **Pi cockpit** (`pi_cockpit/`): Lab 5 copy of the Lab 3 cockpit with the
+  same Raft core, plus `pi_sync.c`.
+  - Time sync uses SocketCAN kernel timestamps: received frames, and the
+    echo of each sent frame when its transmission completes. They are
+    converted to `CLOCK_MONOTONIC_RAW`, so NTP adjustments don't look like
+    drift.
+  - The heartbeat keeps running without the wheel proxy (the cockpit is in
+    ERROR, not dead).
+  - GPIOs: PPS GPIO17 (pin 11), REF_RX GPIO4 (pin 7), LEADER GPIO26
+    (pin 37), SYNC GPIO16 (pin 36).
+  - `lab5-cockpit.service` brings up CAN and starts the cockpit at boot.
+    Flags go in `~/lab5-cockpit.env` (`COCKPIT_ARGS=--rt --leader=random`),
+    output in `~/lab5-cockpit.log`. Setup: `pi_cockpit/install_service.sh`
+    (once, with sudo).
+  - `boot_can.sh` raises the CAN driver's threads to real-time priority
+    (spi0 pump FIFO 61, MCP2515 interrupt threads FIFO 60). That steadied
+    the kernel timestamps.
+- **Client** (`netstate_observe`, shared): a node reports its own links (it
+  hears someone on that bus or not), other nodes up/down, and the cockpit's
+  status, but only while it hears at least one other node. A node that hears
+  nobody reports only itself. Reports that stop being true are withdrawn.
+- **Routing** (`relay.c`): forwards only what the routing table says. The
+  table comes from the committed graph, plus the links each node's latest
+  heartbeat reports (handout 5.2: the relay starts before the failure
+  commits). REF is relayed only when the leader is off the target bus.
+- **Shared REF pairing** (`refsync.c`, used by the STM32s and the Pi): first
+  copy per bus, one sync bus at a time, relay delay tied to the relayed
+  stamp.
+
+**Tests:** 36 host tests, 796 checks, all passing (QEMU and gcc on the Pi).
+
+**Hardware, 2026-11-13** (Pi + N2 + N3, no wheel proxy):
+- *Cold start (checkoff 1-2):* the Nucleos boot in term 1 following the
+  cockpit and wait; the Pi starts about 8 s later and leads term 1 with no
+  election. One entry, `#1 COCKPIT_OK`, on all three nodes. candump on bus A
+  over 2 s: REF 0x025 every 20 ms (100 frames), empty APPEND 0x041 every
+  100 ms (20), APPEND_ACK 0x046/0x047, all three heartbeats, and no
+  REQ_VOTE.
+- *Pi down (checkoff 6):* `systemctl stop` on the Pi. One election: N2
+  leads term 2 and commits `#2 NODE_cockpit_DOWN`, `#3 COCKPIT_ERROR`.
+- *Pi back (checkoff 7):* it rejoins as a follower and LEADER stays on N2.
+  It replays #1-#4 in order, each marked `(replayed)`, then the live entries
+  `COCKPIT_OK` and its two links up. Global time carries across: the Pi
+  measures +2 ppm against N2's continued time base.
+- *Sync with the Pi as master:* the followers' worst error per second is
+  22-30 µs, with no steps. The Pi's kernel timestamps limit it; N2 and N3
+  track the same timestamps, so they stay together. The Pi's raw clock is
+  about 95 ppm from the STM32s'.
+- About 40 % of the STM32s' REF stamps are rejected as untrusted when the Pi
+  is master (4 % with an STM32 master). About 45 samples a second remain.
+  Not yet understood.
+
+Bugs found on hardware and fixed:
+- A board booting alone committed "my links are down".
+- Raft debug lines overflowed the 1 KB log buffer at boot.
+- A late relayed copy took the relay delay of the wrong stamp.
+- Bursts of late Pi stamps caused steps (now 10 outliers in a row, not 3).
+- The client re-sent the same report every 200 ms while no leader was
+  reachable.
+
+**Still to test (needs jumpers):** checkoff 4 (one link pulled), 5 (the hop
+with the Pi as master), 9 (relayed sync with an STM32 master) and 10
+(isolation).
 
 ### Questions for the course staff
 

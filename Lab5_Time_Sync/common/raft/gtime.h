@@ -35,8 +35,10 @@
  * put their PPS edges and blinker phases at the same instants. */
 #define GTIME_WIRE_MOD_US     4000000000LL
 
-/* Baseline for one drift measurement, and the filter weight of a new one */
-#define GTIME_DRIFT_BASE_US   1000000
+/* Baseline for one drift measurement, and the filter weight of a new one.
+ * 4 s: the Pi's kernel timestamps jitter by about +-40 us, which over 1 s
+ * read as +-40-80 ppm (seen on hardware); over 4 s, about +-10 ppm. */
+#define GTIME_DRIFT_BASE_US   4000000
 #define GTIME_DRIFT_FILTER    4          /* new = old + (raw - old) / 4 */
 /* A raw drift beyond this is a bad pair, not a crystal (STM32/Pi crystals
  * are within +-50 ppm of each other) */
@@ -44,9 +46,13 @@
 
 /* A sample whose error exceeds this is an outlier (a late interrupt) and is
  * ignored, unless GTIME_OUTLIER_RUN of them arrive in a row: then the master
- * time really moved (a new master with another time base) and we step. */
-#define GTIME_OUTLIER_US      50
-#define GTIME_OUTLIER_RUN     3
+ * time really moved (a new master with another time base) and we step.
+ * STM32 stamps agree within a few us, but the Pi's (kernel timestamps)
+ * within about +-50 us, so 150 us. */
+#define GTIME_OUTLIER_US      150
+/* 10 in a row = 200 ms: a burst of late Linux stamps from the Pi made N2
+ * step after 3 (seen on hardware); a new master is still adopted quickly */
+#define GTIME_OUTLIER_RUN     10
 
 /* SYNC is valid while a sample arrived in the last 3 heartbeats */
 #define GTIME_VALID_US        (RAFT_MISSED_HEARTBEATS * RAFT_HEARTBEAT_MS * 1000LL)

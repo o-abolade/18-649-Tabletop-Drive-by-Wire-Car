@@ -8,6 +8,7 @@ void test_netstate_all(void);
 void test_raft_proto_all(void);
 void test_raft_all(void);
 void test_gtime_all(void);
+void test_refsync_all(void);
 
 int main(void)
 {
@@ -15,6 +16,7 @@ int main(void)
 	test_raft_proto_all();
 	test_raft_all();
 	test_gtime_all();
+	test_refsync_all();
 	printf("\n%d checks, %d failed\n", check_count, check_failures);
 	return check_failures ? 1 : 0;
 }

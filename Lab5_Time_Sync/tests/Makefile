@@ -4,9 +4,9 @@ CC ?= cc
 CFLAGS ?= -std=c99 -Wall -Wextra -Werror -O1 -g
 RAFT := ../common/raft
 
-SRCS := test_main.c test_netstate.c test_raft_proto.c test_raft.c test_gtime.c \
+SRCS := test_main.c test_netstate.c test_raft_proto.c test_raft.c test_gtime.c test_refsync.c \
         $(RAFT)/netstate.c $(RAFT)/raft_proto.c $(RAFT)/raft_log.c $(RAFT)/raft.c \
-        $(RAFT)/gtime.c
+        $(RAFT)/gtime.c $(RAFT)/refsync.c
 
 run_tests: $(SRCS) $(wildcard $(RAFT)/*.h) check.h
 	$(CC) $(CFLAGS) -I$(RAFT) -o $@ $(SRCS)
