@@ -3,7 +3,9 @@
 #
 #   git clone https://github.com/o-abolade/18-649-Tabletop-Drive-by-Wire-Car.git
 #   cd 18-649-Tabletop-Drive-by-Wire-Car/Lab5_Time_Sync/cloud
-#   ./install_vm.sh "ssh-ed25519 AAAA... lab5-uplink"     # the Pi's tunnel key
+#   ./install_vm.sh ["ssh-ed25519 AAAA... lab5-uplink"]   # the Pi's tunnel key
+#   (without the key the VM is set up and the tunnel user gets no key yet;
+#   re-run with it later)
 #
 # It installs Docker, writes .env with fresh random secrets (mode 600),
 # creates the user `vtunnel` whose only right is to forward to Redis on the
@@ -14,9 +16,18 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 PI_KEY="${1:-}"
-if [[ -z "$PI_KEY" || "$PI_KEY" != ssh-* ]]; then
-    echo "usage: $0 \"<the Pi's tunnel public key: ssh-ed25519 AAAA...>\"" >&2
+if [[ -n "$PI_KEY" && "$PI_KEY" != ssh-* ]]; then
+    echo "usage: $0 [\"<the Pi's tunnel public key: ssh-ed25519 AAAA...>\"]" >&2
     exit 1
+fi
+
+# ---- swap: a 1 GB VM can run out of memory building the web image ----
+if [[ $(awk '/MemTotal/ {print $2}' /proc/meminfo) -lt 1500000 ]] && ! swapon --show | grep -q .; then
+    sudo fallocate -l 1G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile >/dev/null
+    sudo swapon /swapfile
+    grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
 fi
 
 # ---- Docker ----
@@ -49,10 +60,14 @@ if ! id vtunnel >/dev/null 2>&1; then
     sudo useradd --create-home --shell /usr/sbin/nologin vtunnel
 fi
 sudo install -d -m 700 -o vtunnel -g vtunnel /home/vtunnel/.ssh
-echo "restrict,port-forwarding,permitopen=\"127.0.0.1:6379\",command=\"/bin/false\" $PI_KEY" |
-    sudo tee /home/vtunnel/.ssh/authorized_keys >/dev/null
-sudo chown vtunnel:vtunnel /home/vtunnel/.ssh/authorized_keys
-sudo chmod 600 /home/vtunnel/.ssh/authorized_keys
+if [[ -n "$PI_KEY" ]]; then
+    echo "restrict,port-forwarding,permitopen=\"127.0.0.1:6379\",command=\"/bin/false\" $PI_KEY" |
+        sudo tee /home/vtunnel/.ssh/authorized_keys >/dev/null
+    sudo chown vtunnel:vtunnel /home/vtunnel/.ssh/authorized_keys
+    sudo chmod 600 /home/vtunnel/.ssh/authorized_keys
+else
+    echo "No Pi key given: the tunnel user has no key yet. Re-run with the key later."
+fi
 
 # ---- firewall: SSH and HTTPS (80 is needed for the certificate) ----
 if command -v ufw >/dev/null; then
