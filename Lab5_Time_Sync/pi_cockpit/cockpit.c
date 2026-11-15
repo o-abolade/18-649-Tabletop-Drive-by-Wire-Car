@@ -7,6 +7,8 @@
  *   SYNC      global time from REF (pi_sync.c): kernel timestamps on every
  *             received frame and on the echo of each frame we send; PPS,
  *             REF_RX, LEADER and SYNC GPIOs
+ *   UPLINK    extra credit: mirrors every committed entry and a 1 s heartbeat
+ *             to Redis on a cloud VM (uplink.c; off unless UPLINK_HOST is set)
  *   HB_TX     keeps running without wheel UDP (the cockpit is alive, just in
  *             ERROR): only the test button silences it, so "proxy stopped"
  *             is the error state, not a dead cockpit (checkoff step 1)
@@ -63,7 +65,8 @@
 #include "netstate.h"
 #include "pi_sync.h"
 #include "raft.h"
-#include "state.h"   /* DIJOYSTATE2_t, Lab 2 Appendix A */
+#include "state.h"
+#include "uplink.h"   /* DIJOYSTATE2_t, Lab 2 Appendix A */
 
 /* ---------------- configuration ---------------- */
 #define UDP_PORT            8000
@@ -790,6 +793,7 @@ static void io_apply(void *ctx, uint16_t index, uint8_t term, uint8_t event, boo
 	(void)ctx;
 	printf("%lld COMMIT N1 #%u term %u %s%s\n", (long long)now_ms(), index, term,
 	       raft_ev_name(event, name, sizeof(name)), replayed ? " (replayed)" : "");
+	uplink_entry(index, term, event, replayed, global_gettime_us());   /* queue only */
 }
 
 static void io_snapshot(void *ctx, uint16_t index, const struct netstate *ns)
@@ -931,6 +935,12 @@ static void print_status(int64_t now)
 	       raft.leader ? raft_node_name(raft.leader) : "none", raft.commit, raft.elections,
 	       netstate_format(&ns, net, sizeof(net)), no_kstamp);
 	pi_sync_print_drift();
+	{
+		char up[160];
+
+		uplink_describe(up, sizeof(up));
+		printf("   %s\n", up);
+	}
 	udp_max_gap_ms = 0;
 	udp_count = force_rx_count = 0;
 	memset(tx_ok, 0, sizeof(tx_ok));
@@ -991,6 +1001,35 @@ static void *hz_thread(void *arg)
 		at = (k + 1) * half;
 	}
 	return NULL;
+}
+
+/* Extra credit: the 1 s status for the cloud heartbeat (queued, no I/O) */
+static void publish_status(void)
+{
+	struct uplink_status s = { 0 };
+	struct netstate ns;
+	int n;
+
+	raft_get_network(&raft, &ns);
+	s.global_us = global_gettime_us();
+	s.role = raft_role_name(raft.role);
+	s.term = raft.term;
+	s.leader = raft.leader;
+	s.commit = raft.commit;
+	s.cockpit_state = state_name(state);
+	pi_sync_get(&s.sync, &s.drift_ppb, &s.err_us);
+	n = snprintf(s.state_json, sizeof(s.state_json), "{\"nodes\":[");
+	for (unsigned x = 1; x <= RAFT_N && n < (int)sizeof(s.state_json); x++) {
+		n += snprintf(s.state_json + n, sizeof(s.state_json) - (size_t)n,
+			      "%s{\"id\":%u,\"name\":\"%s\",\"up\":%d,\"A\":%d,\"B\":%d}",
+			      x > 1 ? "," : "", x, raft_node_name(x), ns.node_up[x],
+			      ns.link_up[x][0], ns.link_up[x][1]);
+	}
+	if (n < (int)sizeof(s.state_json)) {
+		snprintf(s.state_json + n, sizeof(s.state_json) - (size_t)n,
+			 "],\"cockpit_ok\":%d}", ns.cockpit_ok);
+	}
+	uplink_status(&s);
 }
 
 static void go_realtime(void)
@@ -1085,6 +1124,7 @@ int main(int argc, char **argv)
 	printf("N1: LEADER=%s (seed 0x%x)\n", start_leader == RAFT_LEADER_NONE ? "random" : "cockpit",
 	       (unsigned)seed);
 	raft_init_with_leader(&raft, CANP_ZONE_N1, &raft_io_cb, now_ms(), start_leader, seed);
+	uplink_init();   /* extra credit: cloud mirror (needs UPLINK_HOST) */
 	if (start_leader == RAFT_LEADER_NONE) {
 		raft_wait_for_cluster(&raft, now_ms());   /* the seed decides, not boot order */
 	}
@@ -1152,6 +1192,7 @@ int main(int argc, char **argv)
 			}
 			blink_tick(now);
 			if (now >= next_status) {
+				publish_status();
 				if (show_status) {
 					print_status(now);
 				}

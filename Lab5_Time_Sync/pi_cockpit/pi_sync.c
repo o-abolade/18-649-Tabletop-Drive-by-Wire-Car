@@ -121,6 +121,17 @@ bool pi_sync_valid(void)
 	return v;
 }
 
+void pi_sync_get(bool *valid, int32_t *drift_ppb, int32_t *err_us)
+{
+	int64_t local = pi_local_us();
+
+	pthread_mutex_lock(&mu);
+	*valid = gtime_valid(&rs.g, local);
+	*drift_ppb = rs.g.drift_ppb;
+	*err_us = rs.g.last_error_us;
+	pthread_mutex_unlock(&mu);
+}
+
 /* ---- Console ---- */
 
 static void ppm_str(char *buf, size_t n, int32_t ppb)

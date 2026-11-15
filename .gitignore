@@ -37,3 +37,6 @@ Thumbs.db
 **/CLAUDE.md
 # Lab 5 host-test binary
 Lab5_Time_Sync/tests/run_tests
+
+# Lab 5 cloud node secrets (written by install_vm.sh on the VM)
+Lab5_Time_Sync/cloud/.env

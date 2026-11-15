@@ -1,0 +1,14 @@
+# HTTPS for the monitor. {$SITE} is e.g. 20-51-7-3.sslip.io, a hostname that
+# resolves to the VM's public IP, so Caddy can get a real certificate without
+# buying a domain. Websockets (/ws) are proxied as is.
+{$SITE} {
+	encode gzip
+	reverse_proxy web:8000
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}

@@ -73,6 +73,9 @@ int64_t global_gettime_us(void);
 /* SYNC: master, or a sample in the last 3 heartbeats */
 bool pi_sync_valid(void);
 
+/* For the cloud heartbeat: SYNC, the drift ratio and the last REF error */
+void pi_sync_get(bool *valid, int32_t *drift_ppb, int32_t *err_us);
+
 /* The 1 s DRIFT line (handout 6.2); call from the main loop */
 void pi_sync_print_drift(void);
 

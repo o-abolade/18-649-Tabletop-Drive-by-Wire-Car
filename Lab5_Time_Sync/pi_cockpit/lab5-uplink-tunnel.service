@@ -1,0 +1,22 @@
+[Unit]
+Description=Lab 5 uplink: SSH tunnel from the Pi to Redis on the cloud VM
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=team1
+# UPLINK_VM=<the VM's public IP>, written by install_uplink.sh
+EnvironmentFile=/home/team1/lab5-uplink.env
+# 127.0.0.1:6380 on the Pi -> 127.0.0.1:6379 on the VM. The VM only lets this
+# key forward to that one port (install_vm.sh), and nothing listens publicly.
+ExecStart=/usr/bin/ssh -i /home/team1/.ssh/lab5_uplink -N -T \
+    -o ExitOnForwardFailure=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=3 \
+    -o StrictHostKeyChecking=accept-new -o BatchMode=yes \
+    -L 127.0.0.1:6380:127.0.0.1:6379 vtunnel@${UPLINK_VM}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
