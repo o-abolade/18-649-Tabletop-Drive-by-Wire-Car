@@ -225,9 +225,17 @@ static int read_reply(char *out, size_t n, bool *nil)
 	switch (line[0]) {
 	case '+':
 	case '-':
-	case ':':
-		snprintf(out, n, "%s", line + 1);
+	case ':': {
+		/* Keep what fits (only short status and error lines are used) */
+		size_t len = strlen(line + 1);
+
+		if (len >= n) {
+			len = n - 1;
+		}
+		memcpy(out, line + 1, len);
+		out[len] = '\0';
 		return line[0];
+	}
 	case '$': {
 		long len = strtol(line + 1, NULL, 10);
 
