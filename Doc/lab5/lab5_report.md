@@ -183,3 +183,74 @@ per second).
 
 **Not covered:** N2 and N3 on opposite buses. Only the Pi could bridge
 them, and it does not relay (open question to the course staff).
+
+## Extra credit: cloud node with Redis and a GUI
+
+**Code:** `Lab5_Time_Sync/cloud/` (Redis, web app, deployment) and
+`pi_cockpit/uplink.c`, at commit
+[`d384d8b`](https://github.com/o-abolade/18-649-Tabletop-Drive-by-Wire-Car/tree/d384d8bf477d3fcfe445a897179ed3ded122a892/Lab5_Time_Sync/cloud);
+setup in `cloud/README.md`.
+
+**Architecture.**
+- **Cloud node:** an Azure VM runs Redis, a FastAPI GUI and Caddy (HTTPS) in
+  Docker.
+- **Uplink:** the Pi, the only node with a network interface, mirrors the
+  committed log into Redis:
+  - `vehicle:log`: one stream entry per committed entry (index, term, type,
+    replayed flag, global time);
+  - `vehicle:heartbeat`: rewritten every second with a 5 s expiry (Raft
+    state, held/replayed counts, cockpit sync, the network graph).
+- **GUI views:** the nodes alive or dead, bus A/B per node, the leader and
+  time master, the events held for the cockpit and how many were replayed,
+  and the log with replayed entries marked. A staleness banner appears when
+  the heartbeat is older than 3 s.
+
+**Security.**
+- **Redis is not reachable from the internet:** loopback only, with a
+  password. The Pi reaches it through an SSH tunnel whose key may only
+  forward to Redis (no shell, no other ports).
+- **The GUI is HTTPS with a login,** with `Secure`, `HttpOnly` and
+  `SameSite=Strict` session cookies.
+- **Firewall:** only 22, 80 and 443. Checked from outside: 6379 and 8000
+  closed; a wrong password and a shell attempt are refused.
+
+**Never delaying the vehicle.**
+- **Design:** Raft's apply callback only copies the entry into a queue
+  (1000 entries). A separate thread does all network I/O at `SCHED_OTHER`,
+  nice 10, on CPU 1. The cockpit's real-time threads run at `SCHED_FIFO`
+  80/85 on CPUs 2–3.
+- **Scope measurement:** the time from a wheel update arriving to its CTRL
+  frame leaving on both buses (Pi pin 12 high time), at 50 updates/s. The
+  difference is within normal run-to-run noise:
+
+| Uplink | Mean | Max |
+|---|---|---|
+| On (publishing) | 36.3 µs | 98.8 µs |
+| Off (no uplink thread) | 35.8 µs | 97.6 µs |
+
+**The Part 5 checkpoint with the GUI open (checkoff steps 6–7, on hardware).**
+1. **Pi powered off.** The GUI showed the stale banner within 5 s and kept
+   the last state greyed out.
+2. **Pi powered back on.** N2 had committed `NODE_cockpit_DOWN` and
+   `COCKPIT_ERROR` and held them for the cockpit. When the Pi rejoined:
+   - both entries appeared in the GUI marked REPLAYED, and the held count
+     went from 6 to 0;
+   - `vehicle:index` (index → term) prevented duplicates: entry #1 was
+     already in the cloud and was skipped.
+
+A bug the demo exposed: the banner cleared 18 s late because the Pi (no
+RTC) booted with an old clock. Freshness now comes from the heartbeat's
+expiry in Redis, i.e. the server's clock.
+
+**Keeping the GUI alive through a cockpit failure.** The GUI goes stale
+because the cockpit is the vehicle's only uplink.
+- **What it would take:** a second, independent uplink, i.e. a node with its
+  own network hardware (a telematics gateway with Wi-Fi, Ethernet or
+  cellular) on both buses as a non-voting Raft learner. It would publish
+  the committed log to the same Redis; the (index, term) deduplication
+  already lets two uplinks publish without duplicates.
+- **Why the Nucleos can't:** they have no network hardware (only CAN and
+  the ST-Link serial port); a TCP/TLS stack would take most of their 96 KB
+  of RAM; and they are the safety-critical steering and drivetrain zones,
+  where unbounded network I/O would break the timing analysis that keeps
+  braking and steering within their deadlines.
