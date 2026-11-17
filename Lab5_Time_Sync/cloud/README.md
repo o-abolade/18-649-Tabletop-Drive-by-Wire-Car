@@ -30,7 +30,11 @@ The GUI shows five views:
    replayed when it returned;
 5. the committed log, with replayed entries marked.
 
-A staleness banner appears when the heartbeat expires.
+A staleness banner appears when the heartbeat is more than 3 s old or has
+expired. The age comes from the heartbeat key's remaining TTL, so only the
+server's clock is used. The Pi has no real-time clock: after a reboot its wall
+clock lags by minutes until NTP corrects it, and judging by the Pi's own
+timestamp kept the banner up for 18 s after the data was back.
 
 **FL/RL offset as the Pi measured it:** the Pi cannot see the STM32 lamps, so
 the heartbeat carries the Pi's own sync figures (last REF error, drift). The

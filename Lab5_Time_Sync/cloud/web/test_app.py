@@ -80,6 +80,28 @@ def test_stale_when_heartbeat_expires():
         monitor.STALE_MS = 3000
 
 
+def test_fresh_heartbeat_with_a_wrong_pi_clock_is_not_stale():
+    """After a reboot the Pi's clock lags until NTP; a fresh heartbeat is still live."""
+    import asyncio
+
+    async def write_old_clock():
+        await monitor.r.hset("vehicle:heartbeat", mapping={"wall_ms": int(time.time() * 1000) - 90000,
+                                                           "role": "follower"})
+        await monitor.r.expire("vehicle:heartbeat", 5)
+
+    with TestClient(monitor.app) as c:
+        login(c)
+        monitor.demo_paused = True
+        try:
+            time.sleep(0.3)
+            asyncio.run(write_old_clock())
+            s = c.get("/api/snapshot").json()
+            assert s["stale"] is False
+            assert 0 <= s["age_ms"] < 1000
+        finally:
+            monitor.demo_paused = False
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

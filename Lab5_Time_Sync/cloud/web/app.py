@@ -39,6 +39,7 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1") == "1"
 
 STALE_MS = 3000      # heartbeat older than this: show the staleness banner
+HB_TTL_MS = 5000     # the Pi sets EXPIRE 5 on vehicle:heartbeat each time it writes it
 LOG_ROWS = 60
 PUSH_S = 1.0         # websocket update period
 
@@ -72,6 +73,9 @@ async def _demo_data():
                        {"id": 3, "name": "drivetrain", "up": 1, "A": 0, "B": 1}],
              "cockpit_ok": 1}
     while True:
+        if demo_paused:
+            await asyncio.sleep(0.1)
+            continue
         hb = {"wall_ms": int(time.time() * 1000), "global_us": 123456789, "run": "demo",
               "role": "follower", "term": 2, "leader": 2, "commit": 6, "published": 6,
               "held": 0, "replayed": 2, "sync": 1, "drift_ppb": -2136, "err_us": 4,
@@ -80,6 +84,9 @@ async def _demo_data():
         await r.expire("vehicle:heartbeat", 5)
         await r.hset("vehicle:last", mapping=hb)
         await asyncio.sleep(1)
+
+
+demo_paused = False   # tests stop the demo writer to control the heartbeat
 
 
 @contextlib.asynccontextmanager
@@ -99,13 +106,27 @@ def logged_in(conn) -> bool:
     return conn.session.get("user") == GUI_USER
 
 
+_last_fresh_ms = None   # server time of the newest heartbeat seen
+
+
 async def snapshot() -> dict:
+    global _last_fresh_ms
     hb = await r.hgetall("vehicle:heartbeat")
+    pttl = await r.pttl("vehicle:heartbeat")
     last = hb or await r.hgetall("vehicle:last")
     entries = await r.xrevrange("vehicle:log", "+", "-", count=LOG_ROWS)
     total = await r.xlen("vehicle:log")
     now_ms = int(time.time() * 1000)
-    age_ms = now_ms - int(last["wall_ms"]) if last.get("wall_ms") else None
+    # Age from the key's remaining TTL, i.e. on the server's clock only. The
+    # Pi has no RTC: after a reboot its wall clock is minutes behind until NTP
+    # steps it, so its wall_ms must not decide staleness.
+    if hb and pttl > 0:
+        age_ms = max(0, HB_TTL_MS - pttl)
+        _last_fresh_ms = now_ms - age_ms
+    elif _last_fresh_ms is not None:
+        age_ms = now_ms - _last_fresh_ms
+    else:   # nothing seen since this app started: fall back to the Pi's clock
+        age_ms = now_ms - int(last["wall_ms"]) if last.get("wall_ms") else None
     stale = not hb or age_ms is None or age_ms > STALE_MS
     try:
         state = json.loads(last.get("state", "{}"))
