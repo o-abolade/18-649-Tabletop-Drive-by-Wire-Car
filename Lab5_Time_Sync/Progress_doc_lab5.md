@@ -59,7 +59,10 @@ Handout defaults: three nodes, cockpit default leader, 20 ms heartbeat, three mi
 - [x] Prepare leader-election, log-integrity and synchronization demonstrations.
 - [x] Run the handout's cold-start, traffic, blinker, link-fault, relay, leader-failure, rejoin, random-leader and isolation scenarios (all on hardware, 2026-11-13; checkoff 9 only with an STM32 relaying, see question 13).
 - [ ] Capture scope evidence: FL/RL synchronization, failure response and leader handover are measured; relayed synchronization so far only from the consoles (Pi 90-150 µs).
-- [ ] Redis/GUI extra credit (optional, 15 points): not started.
+- [x] Redis/GUI extra credit (optional, 15 points): cloud node, Pi uplink,
+  GUI demo and the no-delay scope check done on hardware 2026-11-17
+  (branch `lab5-cloud`, see "Extra credit" below and
+  [cloud/README.md](cloud/README.md)).
 
 ## Report and submission
 
@@ -442,6 +445,60 @@ Pi set to `--leader=random`.
 2. Reseat or replace the Pi's bus A module wiring (header pins 19, 21, 22,
    23, 24, 3V3, GND). It caused the corrupted frames.
 3. Optional: a scope capture of relayed sync (checkoff 9) for the record.
+
+### Extra credit: Redis and GUI (branch `lab5-cloud`, 2026-11-17)
+
+**Setup.**
+- **Cloud node:** an Azure VM (Ubuntu 24.04, Arm64, Canada Central) runs
+  Redis, the FastAPI GUI and Caddy (HTTPS) in Docker
+  ([cloud/README.md](cloud/README.md)).
+- **Uplink:** the Pi publishes over an SSH tunnel whose key can only forward
+  to Redis.
+- **Security, checked from outside:**
+  - HTTPS with a valid certificate; HTTP redirects to HTTPS.
+  - Every page and the API need a login; a wrong password gets 401.
+  - Ports 6379 and 8000 are closed.
+  - The tunnel key gets no shell and no other forwards; a wrong Redis
+    password gets WRONGPASS.
+
+**Demo (the Part 5 checkpoint with the GUI open; Pi leading term 1).**
+
+| Time | GUI |
+|---|---|
+| 12:50:28 | Live: three nodes up on A and B, cockpit leader and time master, log #1 `COCKPIT_OK` |
+| 12:52:18 | Pi powered off: stale banner, last state greyed out |
+| 12:53:47 | Pi back as a follower (term 3, steering leads); held count 6; #2 `NODE_cockpit_DOWN` and #3 `COCKPIT_ERROR` marked REPLAYED, then #4–7 (`NODE_cockpit_UP`, `COCKPIT_OK`, both cockpit links up) |
+| 12:53:48 | Held count 0, replayed 2 |
+
+The Pi published 6 entries: 2 replayed, 1 skipped as already there (#1),
+0 dropped. Nothing was duplicated.
+
+**Bug found and fixed (586fedf).** The banner stayed up 18 s after the data
+was back.
+- **Cause:** the Pi has no RTC. After a reboot its wall clock lags until
+  NTP corrects it, and the GUI judged freshness by the Pi's timestamp.
+- **Fix:** freshness now comes from the heartbeat key's remaining TTL, so
+  only the server's clock is used.
+- **Test:** a new test sets the Pi clock 90 s behind. It fails on the old
+  code and passes on the new.
+
+**The uplink does not delay the vehicle.**
+- **Method:** wheel/proxy at 50 updates/s, all zones NORMAL. On the scope,
+  the `UDP_RX` (Pi pin 12) +width is the time from a wheel update arriving
+  to its CTRL leaving on both buses (`CMD_TX`, pin 13). The turn signal was
+  flicked during both runs, so log entries were being committed and
+  published.
+
+| Pi cockpit | Mean | Max |
+|---|---|---|
+| Uplink on (publishing) | 36.3 µs | 98.8 µs |
+| Uplink off (no uplink thread; cluster restarted, Pi leads term 1) | 35.8 µs | 97.6 µs |
+
+- **Result:** the differences (0.45 µs mean, 1.2 µs max) are within normal
+  run-to-run noise.
+- **Why:** the uplink thread runs SCHED_OTHER at nice 10 on CPU 1, while
+  the cockpit's real-time threads are SCHED_FIFO 80/85 on CPUs 2–3 (checked
+  with `ps -L`).
 
 ### Questions for the course staff
 

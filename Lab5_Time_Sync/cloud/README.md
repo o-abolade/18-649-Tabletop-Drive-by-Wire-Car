@@ -64,9 +64,17 @@ SCHED_OTHER at nice 10, pinned to CPUs 0–1. The cockpit loop is SCHED_FIFO 80
 on CPU 3 and PPS runs on CPU 2. So REF, APPEND and CTRL never wait for the
 uplink.
 
-To show this on the scope, trigger on `CMD_TX` (Pi pin 13, CTRL out) or the
-`CAN_TX_A` test point. Compare CTRL timing with the uplink running and with
-the tunnel stopped (`sudo systemctl stop lab5-uplink-tunnel`).
+**Measured 2026-11-17.**
+- **Setup:** wheel/proxy at 50 updates/s.
+- **Measurement:** the +width of `UDP_RX` (Pi pin 12), which runs from a
+  wheel update arriving to its CTRL being sent (`CMD_TX`, pin 13).
+
+| Uplink | Mean | Max |
+|---|---|---|
+| On (publishing) | 36.3 µs | 98.8 µs |
+| Off (no `UPLINK_HOST`, so no uplink thread) | 35.8 µs | 97.6 µs |
+
+The difference is within normal run-to-run noise.
 
 If the uplink is down, the queue keeps the last 1000 entries and the GUI shows
 the staleness banner. On reconnect the thread resumes after the last
