@@ -181,9 +181,6 @@ entries were committed (`CANLINK_drivetrain_A_DOWN`,
 frames/s and the Pi stayed synced through the relayed `REF` (worst 90–150 µs
 per second).
 
-**Not covered:** N2 and N3 on opposite buses. Only the Pi could bridge
-them, and it does not relay (open question to the course staff).
-
 ## Extra credit: cloud node with Redis and a GUI
 
 **Code:** `Lab5_Time_Sync/cloud/` (Redis, web app, deployment) and
